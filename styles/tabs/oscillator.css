@@ -1,0 +1,52 @@
+
+
+#tab-oscillator .tab-header {
+    text-align: center;
+}
+
+#tab-oscillator .oscillator-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+/* #tab-oscillator .oscillator-controls label {
+    display: flex;
+    flex: 1 1 auto;
+} */
+
+#oscillator-waveform-graph {
+    display: flex;
+    flex: 1 1 auto;
+    /* max-width: 60vw; */
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+#oscillator-waveform {
+    /* flex: 1 1 auto; */
+    max-width: 95%;
+}
+
+.play-button {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    max-height: 10%;
+}
+
+.play-button button {
+    font-size: 30pt;
+    background: none;
+    border: none;
+    color: var(--msger-header-colour);
+    padding-bottom: 10px;
+}
+
+.play-button button:hover {
+    color: var(--msger-header-colour-hover);
+    cursor: pointer;
+}

@@ -1,0 +1,40 @@
+
+#tab-graph .tab-header-title {
+    text-align: center;
+}
+
+#tab-graph {
+    margin: 20px;
+}
+
+/* #fft-result-graph, #input-waveform-graph {
+    display: block;
+    /* left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%); */
+    /* max-height: 60vh;
+    max-width: 60vw; */
+/* } */
+
+#input-waveform-graph {
+    /* flex: 1 1 auto; */
+    overflow: hidden;
+}
+
+#waveform-graph {
+    overflow: hidden;
+    max-height: 100%;
+    max-width: 100%;
+}
+
+#fft-result-graph {
+    height: 100%;
+    width: 100%;
+    overflow: scroll;
+
+}
+
+#fft-graph {
+    display: flex;
+    border: 1px solid black;
+}

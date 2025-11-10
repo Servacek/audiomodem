@@ -1,0 +1,411 @@
+
+html {
+    box-sizing: border-box;
+}
+
+html * {
+    font-family: JetBrains Mono, 'Segoe UI', 'Open Sans', 'Helvetica Neue', sans-serif;
+    transition: all 0.23s, color 0.12s;
+}
+
+*,
+*:before,
+*:after {
+    margin: 0;
+    padding: 0;
+    box-sizing: inherit;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100svh;
+    background-color: var(--body-bg);
+    /* background-image: var(--body-bg); */
+    position: relative;
+    color: var(--msger-header-colour);
+
+    transition: all 0.23s;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1200px;
+    margin: 25px 10px;
+    height: calc(100% - 50px);
+    border: var(--border);
+    border: transparent;
+    border-radius: 5px;
+    background: var(--msger-bg);
+    background-image: var(--msger-bg-image);
+    background-size: cover;
+    box-shadow: 0 15px 15px -5px rgba(0, 0, 0, 0.2);
+    transition: all 0.23s;
+}
+
+/********************************/
+/********   SCROLLBARS   ********/
+/********************************/
+
+body::-webkit-scrollbar {
+    width: 6px;
+    padding-right: 10px;
+}
+
+body::-webkit-scrollbar-track {
+    background: var(--msger-scrollbar-track);
+    margin-right: 10px;
+    padding-right: 10px;
+    background: red;
+}
+
+body::-webkit-scrollbar-thumb {
+    background: var(--msger-scrollbar-thumb);
+    border-radius: 3px;
+    padding-right: 10px;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: auto;
+    scrollbar-color: var(--msger-scrollbar-thumb) var(--msger-scrollbar-track);
+}
+
+/********************************/
+/********   BUTTONS      ********/
+/********************************/
+
+:disabled {
+    background-color: grey;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/********************************/
+/********     HEADER     ********/
+/********************************/
+
+.header {
+    display: flex;
+    flex: 0 0 auto; /* Header size won't shrink or grow */
+    justify-content: space-between;
+    padding: 14px;
+    padding-left: 16px;
+    padding-right: 16px;
+    font-size: 16pt;
+    /* border-bottom: var(--border); */
+    border-radius: 5px 5px 0px 0px;
+    background: var(--msger-header-bg);
+    color: var(--msger-header-colour);
+    box-shadow: 0 2px 0px 0px rgba(0, 0, 0, 0.4);
+
+    /* Prevent text selection */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none; /* Standard */
+
+    /* Make sure the header is over everything */
+    position: sticky;
+    top: 0;
+}
+
+#header-title {
+    text-align: center;
+    left: 50%;
+    transform: translateX(-50%);
+    position: absolute;
+}
+
+.header button {
+    color: var(--msger-header-colour);
+    border: none;
+    cursor: pointer;
+    font-size: 16pt;
+    background: none;
+}
+
+.header button:hover {
+    color: var(--msger-header-colour-hover);
+    cursor: pointer;
+}
+
+.header #tab-buttons button {
+    margin-left: 10px;
+}
+
+#theme-toggle-button i::before {
+    content: var(--theme-button-icon);
+}
+
+.unselectable {
+    /* Prevent text selection */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none; /* Standard */
+}
+
+.separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.separator::before,
+.separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #5d5d5d75;
+}
+
+.separator:not(:empty)::before {
+    margin-right: .5em;
+}
+
+.separator:not(:empty)::after {
+    margin-left: .5em;
+}
+
+/********************************/
+/********      TABS      ********/
+/********************************/
+
+#tabs {
+    display: flex;
+    flex: 1 1 auto; /* Fills remaining space */
+    flex-direction: column; /* Stack tabs vertically */
+    overflow: hidden; /* Prevent the .tab widget from overflowing */
+}
+
+.tab-button.selected {
+    color: var(--msger-header-colour-hover);
+}
+
+.tab {
+    flex: 1 1 auto;
+    display: flex; /* Optional: Makes content alignment easier */
+    flex-direction: column;
+    overflow-y: scroll; /* Use 'scroll' to ensure scrollbars appear on mobile */
+    -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+    margin: 20px;
+    margin-bottom: 0px;
+}
+
+.tab .tab-header-title {
+    font-weight: bold;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+}
+
+.tab:not(.loaded) > :not(.tab-header) {
+    visibility: hidden;
+}
+
+.tab .tab-header {
+    visibility: visible;
+}
+
+/* .tab .active * {
+    display: flex;
+    visibility: visible;
+} */
+
+.tab.loaded .tab-loading-indicator {
+    display: none;
+}
+
+.tab:not(.loaded) .tab-loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+    visibility: visible;
+}
+
+.tab:not(.loaded) .tab-loading-indicator i {
+    margin-right: 10px;
+}
+
+.tab:not(.opened) {
+    display: none;
+}
+
+/********************************/
+/********      FOOTER    ********/
+/********************************/
+
+footer {
+    font-size: 6pt;
+    text-align: center;
+    opacity: 0.4;
+}
+
+/********************************/
+/********      MODAL     ********/
+/********************************/
+
+/* Modal Styles */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7); /* Black background with transparency */
+    justify-content: center;
+    align-items: center;
+}
+
+.modal .field-title {
+    padding-bottom: 10px;
+    text-align: left;
+}
+
+.modal .modal-header {
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none; /* Standard syntax */
+}
+
+.modal .modal-form {
+    /* margin: 0 auto; */
+    margin-top: 40px; /* Spacing between the header and the form */
+    width: 100%;
+    /* padding-bottom: 20px; */
+}
+
+.modal .modal-form .field {
+    margin-bottom: 25px;
+}
+
+.modal .modal-form .field:last-of-type {
+    margin-bottom: 0px;
+}
+
+/* .modal .modal-submit-button {
+    margin-top: 20px;
+} */
+
+.modal .field-input {
+    display: flex;
+    align-items: flex-start;
+}
+
+#remember-me {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border: 2px solid black;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+
+
+
+/* .modal .field {
+    margin: 0 auto;
+    width: 80%;
+} */
+
+.modal-content {
+    background-color: #201c1c;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    width: 500px;
+    transition: all 0.23s;
+}
+
+#login-modal .modal-content .modal-header .modal-header-title {
+    font-size: 36px;
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    font-weight: bold;
+}
+
+.modal-content img {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 15px;
+}
+
+.modal-content input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.modal-content button {
+    padding: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    width: 100%;
+}
+
+.modal-content button:hover {
+    background-color: #0056b3;
+}
+
+/********************************/
+/******** MOBILE DEVICES ********/
+/********************************/
+
+@media (max-width: 600px) {
+
+    #app {
+        margin: 0px;
+        border-radius: 0px;
+        height: 100svh;
+        background-color: transparent;
+    }
+
+    html {
+        min-height: fit-content;
+    }
+
+    body, #app {
+        /* Hide the BG image since it makes too much noise on small screens */
+        background-image: none !important;
+    }
+
+    .modal-content {
+        width: 300px;
+    }
+
+    .header {
+        border-radius: 0px;
+    }
+
+    #header-title {
+        display: none;
+    }
+
+    .bottom-nav {
+        /* background-color: var(--body-bg); */
+        background-color: transparent;
+    }
+}

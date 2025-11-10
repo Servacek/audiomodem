@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <!-- Encoding -->
+    <meta charset="UTF-8">
+    <!-- Allow user scalability to support image zooming -->
+    <meta name="viewport" content="width=device-width, initial-scale = 1.0" />
+
+    <!-- Cache -->
+    <!-- <meta http-equiv="Cache-control" content="public, max-age=604800"> -->
+
+    <!-- Debugging Stuff -->
+    <script>
+        print = console.log;
+    </script>
+
+    <!-- Page Title -->
+    <title>Holub</title>
+
+    <!-- Page Icon -->
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+
+    <script>
+        const MAKE_DARK_MODE_DEFAULT = true;
+        const DARK_MODE = "dark-scheme";
+
+        // Load the saved theme here so it is shown before the page is loaded.
+        const savedTheme = localStorage.getItem("theme");
+        document.themeLoaded = true;
+        if ((!savedTheme && MAKE_DARK_MODE_DEFAULT) || savedTheme == DARK_MODE) {
+            document.documentElement.classList.add(DARK_MODE);
+        } else {
+            document.documentElement.classList.remove(DARK_MODE);
+        }
+    </script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles/fonts.css">
+    <link rel="stylesheet" href="styles/schemes.css">
+    <link rel="stylesheet" href="styles/index.css">
+    <link rel="stylesheet" href="assets/css/fontawesome.css">
+    <link rel="stylesheet" href="assets/css/solid.css">
+
+    <!-- Tab Styles -->
+    <link rel="stylesheet" href="styles/tabs/chat.css">
+    <link rel="stylesheet" href="styles/tabs/config.css">
+    <link rel="stylesheet" href="styles/tabs/graph.css">
+    <link rel="stylesheet" href="styles/tabs/oscillator.css">
+
+    <!-- Libraries -->
+    <script src="libs/chart.js"></script>
+</head>
+
+<body>
+    <section id="app">
+        <header class="header">
+            <div id="header-title">AudioModem</div>
+            <button id="theme-toggle-button" title="Vzhľad">
+                <i id="theme-toggle-button-icon" class="fas"></i>
+            </button>
+            <div id="tab-buttons">
+                <button id="chat-button" class="tab-button" title="Čet">
+                    <i class="fa-solid fa-message"></i>
+                </button>
+                <button id="oscillator-button" class="tab-button" title="Oscilátor">
+                    <i class="fas fa-wave-square"></i>
+                </button>
+                <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
+                    <i class="fas fa-chart-simple"></i>
+                </button>
+                <button id="config-button" class="tab-button" title="Nastavenia">
+                    <i class="fas fa-gear"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- TODO ADD CACHING -->
+        <div id="tabs">
+            <div id="tab-chat" class="tab loaded default">
+                <!-- Chat Display Area -->
+                <main id="message-area" class="message-area"></main>
+
+                <form id="input-area" class="input-area">
+                    <div id="left-input-toolbar">
+                        <label for="attachment-input" id="attachment-button">
+                            <input id="attachment-input" type="file" accept=".png, .jpg, .jpeg">
+                            <i class="fas fa-plus"></i>
+                        </label>
+                    </div>
+
+                    <textarea id="input-bar" class="message-input" placeholder="Zadajte správu..." rows="1"></textarea>
+
+                    <div id="right-input-toolbar">
+                        <button id="send-message-button" type="button" disabled>Odoslať</button>
+                        <button id="send-message-button-with-icon" type="button" disabled><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="tab-config" class="tab loaded">
+                <header class="tab-header">
+                    <div class="tab-header-title">Nastavenia</div>
+                </header>
+
+                <label class="config-option">
+                    <span>Používateľské meno</span>
+                    <input id="username-config-input" type="text" value="Anonymný" maxlength="16">
+                    <div style="white-space: nowrap;">
+                        <input id="remember-me-config" type="checkbox">
+                        <label for="remember-me-config">Zapamätať si ma</label>
+                    </div>
+                </label>
+
+                <!-- <div class="config-option">
+                    <input id="remember-me-config" type="checkbox">
+                    <label for="remember-me-config">Zapamätať si ma</label>
+                </div> -->
+
+                <label class="config-option">
+                    <span>Rýchlosť prenosu</span>
+                    <input id="bits-per-frame" type="range" min="1" max="8" step="1" value="4">
+                    <span id="bits-per-frame-display">4</span> bit/s
+                </label>
+
+                <!-- <label class="config-option">
+                    <span>Rýchlosť prenosu</span>
+                    <input id="bits-per-frame" type="range" min="1" max="8" step="1" value="4">
+                    <span id="bits-per-frame-display">4</span> bit/s
+                </label> -->
+
+                <label class="config-option">
+                    <span>ID Kanálu</span>
+                    <select id="channel-id-select">
+
+                    </select>
+                </label>
+
+                <div class="config-sub-header">
+                    <h3>Pomenúvanie kanálov</h3>
+                    <label class="config-option" id="channel-name-list">
+
+                    </label>
+                </div>
+
+                <!--
+                <div class="settings-section">
+                    <h3>Súkromie</h3>
+                    <label class="settings-option">
+                        <span>Povoliť sledovanie analytických údajov</span>
+                        <input id="analytics-tracking-toggle" type="checkbox">
+                    </label>
+                    <label class="settings-option">
+                        <span>Povoliť personalizované reklamy</span>
+                        <input id="personalized-ads-toggle" type="checkbox">
+                    </label>
+                </div> -->
+
+                <label class="config-option">
+                    <span>Veľkosť Bufferu</span>
+                    <input id="buffer-size-input" type="number" min="0" max="20000" step="1" value="0">
+                </label>
+
+                <button id="connect-usb-device-button">Pripojiť USB</button>
+            </div>
+
+            <div id="tab-graph" class="tab">
+                <header class="tab-header">
+                    <div class="tab-header-title">Spektogram</div>
+                </header>
+
+                <div class="tab-loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Načítavam...</span>
+                </div>
+
+                <div id="graph-controls">
+                    <span id="peak-frequency"></span>
+
+                    <label>
+                        <input id="waterfall-checkbox" type="checkbox">
+                        <label for="waterfall-checkbox" class="unselectable">Vodopád</label>
+                    </label>
+                </div>
+
+
+                <div id="waveform-graph">
+                    <canvas id="input-waveform-graph"></canvas>
+                </div>
+
+                <div id="fft-graph">
+                    <canvas id="fft-result-graph"></canvas>
+                </div>
+            </div>
+
+            <div id="tab-oscillator" class="tab loaded">
+                <header class="tab-header">
+                    <div class="tab-header-title">Oscilátor</div>
+                </header>
+
+                <div class="oscillator-controls">
+                    <label class="config-option">
+                        <span>Frekvencia [Hz]</span><br>
+                        <input id="frequency-slider" class="oscillator-slider" type="range" min="1" max="20000" step="1" value="440">
+                        <br><input id="frequency-slider-display" class="oscillator-slider-display" type="number" value="440" min="1" max="20000" step="1">
+                    </label>
+
+                    <label class="config-option">
+                        <span>Amplitúda [%]</span><br>
+                        <input id="amplitude-slider" class="oscillator-slider" type="range" min="1" max="100" step="1" value="25">
+                        <br><input id="amplitude-slider-display" class="oscillator-slider-display" type="number" value="25" min="1" max="100" step="1">
+                    </label>
+
+                    <label class="config-option">
+                        <span>Fáza [°]</span><br>
+                        <input id="phase-slider" class="oscillator-slider" type="range" min="0" max="360" step="1" value="0">
+                        <br><input id="phase-slider-display" class="oscillator-slider-display" type="number" value="0" min="0" max="360" step="1">
+                    </label>
+                </div>
+
+                <div id="oscillator-waveform-graph">
+                    <canvas id="oscillator-waveform"></canvas>
+                </div>
+
+                <div class="play-button">
+                    <button id="play-oscillator-button" type="button" title="Prehrať">
+                        <i class="fas fa-play-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TODO: Add the version to the WASM file as an EXPORT constant and display it here after it loads. -->
+        <!-- Footer (text is added upon library load.) -->
+        <footer class="unselectable">Preview v1.9p<br>Powered by Tinnitus library v0.6</footer>
+    </section>
+
+    <!-- Image Upload Modal -->
+    <div id="image-modal" class="modal">
+        <div class="modal-content">
+            <img id="modal-image" alt="Náhľad obrázka">
+            <div class="modal-form">
+                <div id="image-label-field" class="field">
+                    <input id="image-label" class="message-input" type="text" placeholder="Zadajte popis obrázka...">
+                </div>
+                <div id="submit-field" class="field">
+                    <button id="send-image-button" disabled>Odoslať</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <img src="assets/pigeon.png" alt="Holub Icon" width="72px", height="72px">
+                <div class="modal-header-title">Holub™</div>
+            </div>
+
+            <div class="modal-form">
+                <div id="username-field" class="field">
+                    <div class="field-title">
+                        PREZÝVKA
+                    </div>
+                    <div class="field-input">
+                        <input id="username-input" type="text" class="username-input" placeholder="Ako ťa máme volať?" autocomplete="off">
+                    </div>
+                </div>
+
+                <div id="remember-me-field" class="field">
+                    <div class="field-input">
+                        <input id="remember-me" type="checkbox" class="field-checkbox">
+                        <label for="remember-me" class="unselectable">Zapamätať si ma</label>
+                    </div>
+                </div>
+
+                <div id="submit-field" class="field">
+                    <button id="login-button" class="modal-submit-button" disabled>Pridať sa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script type="module" src="src/bindings.js"></script>
+<script type="module" src="src/index.js"></script>
+<script type="module" src="src/handlers.js"></script>
+
+</html>

@@ -1,0 +1,67 @@
+
+
+/********************************/
+/********     SCHEMES    ********/
+/********************************/
+
+
+/* White Mode */
+:root, :root.light-scheme {
+    --body-bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    /* --msger-bg: #fff; */
+    --border: 2px solid #ddd;
+    --left-msg-bg: #ececec;
+    --right-msg-bg: #579ffb;
+    --right-msg-fg: #000;
+    --msger-header-bg: #eee;
+    --msger-header-colour: #5d5d5d;
+    --msger-scrollbar-track: #ddd;
+    --msger-scrollbar-thumb: #bdbdbd;
+    --msger-chat-bg: #fcfcfe;
+    --inputbar-area: #eee;
+    --msger-send-button-bg: rgb(0, 196, 65);
+    --msger-send-button-fg: #fff;
+    --msger-send-button-hover-bg: rgb(0, 180, 50);
+    --input-bar-bg: transparency;
+    --msg-img-bg: #ddd;
+    --msger-input-placeholder-fg: #838384;
+    --msger-send-button-disabled-bg: grey;
+    --username-color: #0b0b0b;
+    --theme-button-icon: "\f186\00a0"; /* fa-moon */
+
+    --mobile-width: 600px;
+}
+
+:root.dark-scheme {
+    --body-bg: #0d0d0d;
+    /* --body-bg: linear-gradient(135deg, #2d2d2d 0%, #6a6a6a 100%); */
+    /* --msger-bg: #351F39; */
+    --theme-button-icon: "\f185\00a0"; /* fa-sun */
+    --msger-bg: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), #38415f;
+    /* --msger-bg: #0d0d0d; */
+    --msger-bg: #161517;
+    /* --msger-bg-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url("../assets/dark-background.jpg"); */
+    --border: 1px solid #0000007b;
+    --left-msg-bg: #444;
+    --right-msg-bg: #405769b0;
+    --right-msg-fg: #fff;
+    --msger-header-bg: rgba(63, 62, 62, 0.2);
+    --msger-header-colour: #a6a7a7;
+    --msger-header-colour-hover: #ffffff;
+    --msger-header-colour-disabled: #545454;
+    --msger-scrollbar-track: #0000007b;
+    --msger-scrollbar-thumb: #0b0b0b;
+    --msger-chat-bg: transparent;
+    /* --inputbar-area: rgb(85, 85, 86, 0); */
+    --inputbar-area: rgba(35, 35, 35, 0.2);
+    --msger-send-button-bg: rgb(88, 128, 101);
+    --msger-send-button-fg: #fff;
+    --msger-send-button-hover-bg: rgb(107, 141, 118);
+    --msger-send-button-hover-fg: #a6a7a7;
+    /* --input-bar-bg: rgb(105, 105, 106, 0.2); */
+    --input-bar-bg: transparent;
+    --input-bar-fg: #fff;
+    --msger-input-placeholder-fg: #838384;
+    --msg-img-bg: #ddd;
+    --username-color: #ddd;
+}

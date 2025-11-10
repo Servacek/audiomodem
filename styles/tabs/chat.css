@@ -1,0 +1,323 @@
+
+
+/********************************/
+/********    CHAT TAB    ********/
+/********************************/
+
+#tab-chat {
+    margin-top: 0px;
+    margin-bottom: 0px;
+}
+
+#message-area {
+    display: flex;
+    flex-direction: column;
+    /* GROW / SHRINK / BASIS */
+    flex: 1 1 auto;
+    overflow-y: auto;
+    /* padding: 10px; */
+    padding-right: 15px;
+    /* margin-right: px; */
+}
+
+.message {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.user-msg {
+    display: flex;
+    align-items: flex-end;
+    /* margin-bottom: 10px; */
+}
+
+.user-msg:last-of-type {
+    margin-bottom: 100px;
+}
+
+.msg-bubble {
+    margin-left: 10px;
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: break-word;
+    /* padding: 15px; */
+    border-radius: 15px;
+    background: var(--left-msg-bg);
+    color: var(--right-msg-fg);
+    word-break: break-word;
+
+    background: none;
+}
+
+.message {
+    display: flex;
+    align-items: center;
+}
+
+.msg-bubble pre {
+    color: var(--right-msg-fg);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.msg-bubble img {
+    cursor: pointer;
+}
+
+.msg-bubble:hover {
+    filter: brightness(1.2);
+}
+
+.msg-bubble .download-waveform-button {
+    visibility: hidden;
+    background-color: transparent;
+    border: none;
+    margin: 0px;
+    padding: 0px;
+}
+
+.msg-bubble:hover .download-waveform-button {
+    visibility: visible;
+    color: var(--msger-header-colour)
+}
+
+.msg-bubble:hover .download-waveform-button:hover {
+    visibility: visible;
+    color: var(--msger-header-colour-hover);
+    cursor: pointer;
+}
+
+.msg-bubble.sending {
+    background: var(--input-bar-bg);
+    opacity: 0.5;
+}
+
+.msg-info {
+    display: flex;
+    /* justify-content: space-between; */
+    align-items: center;
+    /* margin-bottom: 10px; */
+}
+
+.msg-info-name {
+    font-size: 0.85em;
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.msg-info-time {
+    font-size: 0.6em;
+}
+
+.left-user-msg .msg-bubble {
+    border-bottom-left-radius: 0;
+}
+
+/* .right-user-msg {
+    flex-direction: row-reverse;
+} */
+
+/* .right-user-msg .msg-bubble {
+    background: var(--right-msg-bg);
+    color: var(--right-msg-fg);
+    border-bottom-right-radius: 0;
+} */
+
+.right-user-msg .msg-img {
+    margin: 0 0 0 10px;
+}
+
+/********************************/
+/******** INPUT BAR ********/
+/********************************/
+
+#input-area button {
+    color: var(--msger-header-colour);
+}
+
+#input-area button:hover {
+    color: var(--msger-header-colour-hover);
+    cursor: pointer;
+}
+
+#input-area {
+    display: flex;
+    flex: 0 0 auto;
+    padding: 0px;
+    /* margin: 20px; */
+    margin-top: 0px;
+    /* border-top: var(--border); */
+    background: var(--inputbar-area);
+    background-attachment: unset;
+    border-radius: 10px;
+    /* Make sure the input-bar is over everything (like the header */
+    position: sticky;
+    top: 0;
+    /* margin-bottom: 20px; */
+}
+
+#input-area * {
+    padding: 10px;
+    border: none;
+    border-radius: 3px;
+    font-size: 1em;
+}
+
+#left-input-toolbar, #right-input-toolbar {
+    display: flex;
+    padding: 0px;
+    margin: 0px;
+    align-items: center;
+}
+
+#left-input-toolbar i, #right-input-toolbar i {
+    display: flex;
+    flex: 1 1 auto;
+    font-size: 20px; /* Adjust the size as needed based on padding or other elements */
+    height: 42px;
+    width: 42px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#input-bar {
+    flex: 1 1 auto;
+    height: auto;
+    overflow: hidden;
+    overflow-y: auto;
+    resize: none;
+    background: var(--input-bar-bg);
+    outline: none;
+    color: var(--input-bar-fg);
+    align-items: center;
+    vertical-align: center;
+    display: -webkit-flex;
+    padding: 10px 0px 10px 0px;
+}
+
+#input-bar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::placeholder {
+    color: var(--msger-input-placeholder-fg);
+    display: flex;
+    align-items: center;
+}
+
+#right-input-toolbar #send-message-button {
+    margin-left: 10px;
+    background: var(--msger-send-button-bg);
+    color: var(--msger-send-button-fg);
+    max-width: min-content;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.23s;
+    overflow: hidden;
+}
+
+#right-input-toolbar #send-message-button:hover {
+    margin-left: 10px;
+    background: var(--msger-send-button-hover-bg);
+}
+
+#right-input-toolbar #send-message-button:disabled {
+    background: var(--msger-send-button-disabled-bg);
+}
+
+#right-input-toolbar #send-message-button-with-icon {
+    display: none; /* Hide for non mobiles */
+    flex: 1 1 auto;
+    padding: 0px;
+    background-color: transparent;
+    color: var(--msger-send-button-hover-fg);
+}
+
+/* #send-message-button-with-icon i {
+    padding: 0px;
+} */
+
+.input-area #right-input-toolbar #send-message-button-with-icon:hover {
+    color: #fff;
+}
+
+#right-input-toolbar #send-message-button-with-icon:disabled {
+    color: var(--msger-header-colour-disabled);
+}
+
+#attachment-input {
+    display: none;
+}
+
+#attachment-button {
+    margin: 0px;
+    padding: 0px;
+    /* background: var(--inputbar-area); */
+    color: var(--msger-header-colour);
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    /* display: flex; */
+    align-items: center;
+}
+
+#attachment-button:hover {
+    /* background: var(--input-bar-bg); */
+    color: var(--msger-header-colour-hover);
+    border-radius: 10%;
+}
+
+/********************************/
+/******** SYSTEM MESSAGES ********/
+/********************************/
+
+.system-message {
+    font-size: 0.85em;
+    /* margin: 10px; */
+    display: flex;
+}
+
+.system-message i {
+    font-size: 14px;
+    margin-right: 10px;
+}
+
+.system-message #username-text {
+    color: var(--msger-header-colour-hover);
+    font-weight: bold;
+}
+
+.system-message #config-button-ref {
+    color: var(--msger-header-colour);
+    display: inline;
+    align-items: center;
+    margin: 0px;
+    margin-left: 8px;
+}
+
+.system-message #config-button-ref i {
+    margin: 0px;
+}
+
+.system-message #config-button-ref:hover {
+    color: var(--msger-header-colour-hover);
+    cursor: pointer;
+}
+
+
+/********************************/
+/******** MOBILE ********/
+/********************************/
+
+@media (max-width: 600px) {
+    #input-area #send-message-button {
+        display: none;
+    }
+
+    #input-area #send-message-button-with-icon {
+        display: flex;
+    }
+}
