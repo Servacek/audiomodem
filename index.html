@@ -161,7 +161,10 @@
                     <input id="buffer-size-input" type="number" min="0" max="20000" step="1" value="0">
                 </label>
 
-                <button id="connect-usb-device-button">Pripojiť USB</button>
+                <div id="usb-devices">
+                    <div id="usb-device-info" style="margin-bottom: 10px;"></div>
+                    <button id="connect-usb-device-button" style="display: none">Pripojiť USB</button>
+                </div>
             </div>
 
             <div id="tab-graph" class="tab">
@@ -286,5 +289,12 @@
 <script type="module" src="src/bindings.js"></script>
 <script type="module" src="src/index.js"></script>
 <script type="module" src="src/handlers.js"></script>
+<script>
+    // Zobrazime tlacidlo pre pripojenie USB zariadenia len ak
+    // prehliadac podporuje WebUSB
+    if ("usb" in navigator) {
+        document.getElementById("connect-usb-device-button").style.display = 'block';
+    }
+</script>
 
 </html>
