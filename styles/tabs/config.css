@@ -10,3 +10,26 @@
 .config-sub-header {
     margin-top: 20px;
 }
+
+#connect-usb-device-button {
+    padding: 10px;
+    transition: transform 0.3s ease-in-out;
+}
+
+#connect-usb-device-button {
+    background-color: #4CAF50;
+    color: white;
+}
+
+#connect-usb-device-button.paired {
+    background-color: #ff6666;
+    color: white;
+}
+
+#connect-usb-device-button:after {
+    content: "Pripojiť USB Zariadenie";
+}
+
+#connect-usb-device-button.paired:after {
+    content: "Odpojiť";
+}

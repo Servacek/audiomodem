@@ -344,10 +344,14 @@ function sendNextMessage() {
             clearInterval(intervalId);
             currentlySendingMessage.dispatchEvent(new Event("sent"));
             currentlySendingMessage = null;
-            if (messagesToSend.length <= 0 && writer) {
-                setTimeout(() => {
-                    const encoder = new TextEncoder();
-                    writer.write(encoder.encode("0"));
+            if (messagesToSend.length <= 0 && port != null) {
+                setTimeout(async () => {
+                    if (!port.configuration)
+                        await port.selectConfiguration(1);
+
+                    await port.claimInterface(0);
+                    await port.controlTransferOut({ requestType: 'vendor', recipient: 'device', request: 2, value: 0, index: 0 });
+                    await port.controlTransferIn({requestType:'vendor',recipient:'device',request:2,value:0,index:0},16);
                 }, 700)
             }
 
@@ -356,7 +360,7 @@ function sendNextMessage() {
     }
 }
 
-function sendMessage(message) {
+async function sendMessage(message) {
     messagesToSend.push(message)
     message.progressBar.style.display = "block";
     message.bubble.classList.add("sending");
@@ -365,9 +369,14 @@ function sendMessage(message) {
         message.progressBar.style.display = "none";
     })
 
-    if (!currentlySendingMessage && writer) {
-        const encoder = new TextEncoder();
-        writer.write(encoder.encode("1"));
+    if (!currentlySendingMessage && port != null) {
+        if (!port.configuration)
+            await port.selectConfiguration(1);
+        await port.claimInterface(0);
+        await port.controlTransferOut({ requestType: 'vendor', recipient: 'device', request: 1, value: 0, index: 0 });
+        await port.controlTransferIn({requestType:'vendor',recipient:'device',request:1,value:0,index:0},16);
+        // const encoder = new TextEncoder();
+        // writer.write(encoder.encode("1"));
         setTimeout(() => sendNextMessage(), 700);
     } else {
         sendNextMessage();
@@ -767,17 +776,50 @@ window.addEventListener("user-logged", () => {
     initStateUpdate();
 });
 
-document.getElementById("connect-usb-device-button").addEventListener("click", async () => {
-    try {
-        // port = await navigator.serial.requestPort(); // Request serial port
-        // TODO: Zatial nevieme ako donutit WebUSB aby vylistovalo nase custom USB-cko
-        port = await navigator.usb.requestDevice({
-            filters: [{ vendorId: 0x16c0, productId: 0x05dc }]
-        });
-        await port.open({ baudRate: 9600 }); // Open port at 9600 baud
-        writer = port.writable.getWriter();
-    } catch (error) {
-        console.error("Error connecting to serial port:", error);
+// document.getElementById("connect-usb-device-button").addEventListener("click", async () => {
+//     try {
+//         port = await navigator.serial.requestPort(); // Request serial port
+//         await port.open();
+//         writer = port.writable.getWriter();
+//     } catch (error) {
+//         console.error("Error connecting to serial port:", error);
+//     }
+// });
+
+const button = document.getElementById("connect-usb-device-button");
+const infoDiv = document.getElementById("usb-device-info");
+
+button.addEventListener("click", async () => {
+    if (!port) {
+        // Connect USB
+        try {
+            port = await navigator.usb.requestDevice({
+                filters: [{ vendorId: 0x16c0, productId: 0x05dc }]
+            });
+
+            await port.open();
+            if (port.configuration === null) {
+                await port.selectConfiguration(1);
+            }
+            await port.claimInterface(0);
+
+            infoDiv.textContent = `Pripojené: ${port.productName} (Vendor ID: 0x${port.vendorId.toString(16)})`;
+            button.classList.add("paired");
+
+        } catch (error) {
+            console.error("Error connecting to USB device:", error);
+            port = null;
+        }
+    } else {
+        // Unpair USB
+        try {
+            await port.close();
+        } catch (err) {
+            console.warn("Error closing device:", err);
+        }
+        port = null;
+        infoDiv.textContent = "";
+        button.classList.remove("paired");
     }
 });
 
