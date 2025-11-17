@@ -849,18 +849,15 @@ navigator.usb.addEventListener("disconnect", (event) => {
     }
 });
 
-// document.addEventListener("DOMContentLoaded", () => {
-//     console.log("DOM fully loaded and parsed");
-//     navigator.usb.getDevices().then(devices => {
-//         const deviceList = document.getElementById("usb-device-list");
-//         deviceList.innerHTML = "";
-//         devices.forEach(device => {
-//             const deviceListItem = document.createElement("li");
-//             deviceListItem.textContent = `${device.productName} (Vendor ID: 0x${device.vendorId.toString(16)})`;
-//             deviceList.appendChild(deviceListItem);
-//         });
-//     }).catch(err => console.error("Error getting devices:", err));
-// });
+document.addEventListener("DOMContentLoaded", () => {
+    navigator.usb.getDevices().then(devices => {
+        for (const device of devices) {
+            if (device.vendorId === VENDOR_ID && device.productId === PRODUCT_ID) {
+                openDevice(device);
+            }
+        }
+    })
+});
 
 ////////// WASM
 
