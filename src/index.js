@@ -65,15 +65,14 @@ function onTransmissionEnded(buffer) {
     if (receivedString && receivedString.trim().length > 0) {
         const authorId = buffer[1];
         const MAX_USERS = WASM.MEMORY[WASM.EXPORTS.MAX_USERS.value];
-        // if (authorId < 0 || authorId >= MAX_USERS) {
-        //     console.log("Invalid author ID:", authorId);
-        //     return;
-        // }
+        if (authorId < 0 || authorId >= MAX_USERS) {
+            console.log("Invalid author ID:", authorId);
+            return;
+        }
 
         // TODO: Add option to assign names to IDs in the config tab.
         const nameInput = document.getElementById("channel-name-" + authorId);
-        //const authorName = nameInput ? nameInput.value.trim() : String(authorId);
-        const authorName = "Starý Medvěd";
+        const authorName = nameInput ? nameInput.value.trim() : String(authorId);
 
         const msg = createUserMessage(authorName, CONST.ALIGMENT_LEFT, receivedString.trim())
         const COLORS = ["#ffc107", "#ff6e6e", "#8bc34a", "#45a2ff", "grey"];
@@ -346,13 +345,10 @@ function sendNextMessage() {
             currentlySendingMessage = null;
             if (messagesToSend.length <= 0 && port != null) {
                 setTimeout(async () => {
-                    if (!port.configuration)
-                        await port.selectConfiguration(1);
-
-                    await port.claimInterface(0);
-                    await port.controlTransferOut({ requestType: 'vendor', recipient: 'device', request: 2, value: 0, index: 0 });
-                    await port.controlTransferIn({requestType:'vendor',recipient:'device',request:2,value:0,index:0},16);
-                }, 700)
+                    await port.controlTransferIn(
+                        {requestType:'vendor',recipient:'device',request:0,value:0,index:0}
+                    ,16);
+                }, 300)
             }
 
             sendNextMessage();
@@ -373,11 +369,8 @@ async function sendMessage(message) {
         if (!port.configuration)
             await port.selectConfiguration(1);
         await port.claimInterface(0);
-        await port.controlTransferOut({ requestType: 'vendor', recipient: 'device', request: 1, value: 0, index: 0 });
         await port.controlTransferIn({requestType:'vendor',recipient:'device',request:1,value:0,index:0},16);
-        // const encoder = new TextEncoder();
-        // writer.write(encoder.encode("1"));
-        setTimeout(() => sendNextMessage(), 700);
+        setTimeout(() => sendNextMessage(), 300);
     } else {
         sendNextMessage();
     }
@@ -789,39 +782,85 @@ window.addEventListener("user-logged", () => {
 const button = document.getElementById("connect-usb-device-button");
 const infoDiv = document.getElementById("usb-device-info");
 
+// Replace with constants from the library itself.
+const VENDOR_ID = 0x16c0;
+const PRODUCT_ID = 0x05dc;
+
+async function openDevice(device) {
+   try {
+        await device.open();
+        if (device.configuration === null) {
+            await device.selectConfiguration(1);
+        }
+        await device.claimInterface(0);
+
+        infoDiv.textContent = `Pripojené: ${device.productName} (Vendor ID: 0x${device.vendorId.toString(16)})`;
+        displayMessageAtBottom(systemMessage(infoDiv.textContent, "info"));
+        button.classList.add("paired");
+        port = device
+    } catch (error) {
+        console.error("Error connecting to USB device:", error);
+        displayMessageAtBottom(systemMessage("USB zariadenie sa neporadilo spárovať.", "error"));
+        port = null;
+    }
+}
+
+async function tryDisconnectUSB() {
+    try {
+        await port.close();
+    } catch (err) {
+        // console.warn("Error closing device:", err);
+        // Already disconnected, quite common
+    }
+    port = null;
+    infoDiv.textContent = "";
+    button.classList.remove("paired");
+
+    displayMessageAtBottom(systemMessage("USB zariadenie odpojené...", "info"));
+}
+
+async function requestUSBDevice(vendorId, productId) {
+    try {
+        const device = await navigator.usb.requestDevice({
+            filters: [{ vendorId: vendorId, productId: productId }]
+        });
+        return device;
+    } catch (error) {
+        console.error("Error requesting USB device:", error);
+        return null;
+    }
+}
+
 button.addEventListener("click", async () => {
     if (!port) {
-        // Connect USB
-        try {
-            port = await navigator.usb.requestDevice({
-                filters: [{ vendorId: 0x16c0, productId: 0x05dc }]
-            });
+        openDevice(await requestUSBDevice(VENDOR_ID, PRODUCT_ID)); }
+    else { tryDisconnectUSB(); }
+});
 
-            await port.open();
-            if (port.configuration === null) {
-                await port.selectConfiguration(1);
-            }
-            await port.claimInterface(0);
-
-            infoDiv.textContent = `Pripojené: ${port.productName} (Vendor ID: 0x${port.vendorId.toString(16)})`;
-            button.classList.add("paired");
-
-        } catch (error) {
-            console.error("Error connecting to USB device:", error);
-            port = null;
-        }
-    } else {
-        // Unpair USB
-        try {
-            await port.close();
-        } catch (err) {
-            console.warn("Error closing device:", err);
-        }
-        port = null;
-        infoDiv.textContent = "";
-        button.classList.remove("paired");
+navigator.usb.addEventListener('connect', (event) => {
+    if (event.device.vendorId === VENDOR_ID && event.device.productId === PRODUCT_ID) {
+        openDevice(event.device);
     }
 });
+navigator.usb.addEventListener("disconnect", (event) => {
+    print("USB device disconnected:", event.device);
+    if (port && port.vendorId === event.device.vendorId && port.productId === event.device.productId) {
+        tryDisconnectUSB();
+    }
+});
+
+// document.addEventListener("DOMContentLoaded", () => {
+//     console.log("DOM fully loaded and parsed");
+//     navigator.usb.getDevices().then(devices => {
+//         const deviceList = document.getElementById("usb-device-list");
+//         deviceList.innerHTML = "";
+//         devices.forEach(device => {
+//             const deviceListItem = document.createElement("li");
+//             deviceListItem.textContent = `${device.productName} (Vendor ID: 0x${device.vendorId.toString(16)})`;
+//             deviceList.appendChild(deviceListItem);
+//         });
+//     }).catch(err => console.error("Error getting devices:", err));
+// });
 
 ////////// WASM
 
