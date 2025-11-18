@@ -103,6 +103,8 @@
                     <div class="tab-header-title">Nastavenia</div>
                 </header>
 
+                <h3>Všeobecné</h3>
+
                 <label class="config-option">
                     <span>Používateľské meno</span>
                     <input id="username-config-input" type="text" value="Anonymný" maxlength="16">
@@ -137,7 +139,7 @@
                 </label>
 
                 <div class="config-sub-header">
-                    <h3>Pomenúvanie kanálov</h3>
+                    <h3>Kanály</h3>
                     <label class="config-option" id="channel-name-list">
 
                     </label>
@@ -158,13 +160,15 @@
 
                 <label class="config-option">
                     <span>Veľkosť Bufferu</span>
-                    <input id="buffer-size-input" type="number" min="0" max="20000" step="1" value="0">
+                    <input id="buffer-size-input" type="number" min="1" max="20000" step="1" value="0">
                 </label>
+
+                <separator></separator>
 
                 <label class="config-sub-header">
                     <h3>USB Zariadenia</h3>
-                    <div id="usb-device-info"></div>
-                    <button id="connect-usb-device-button" class="unpaired"></button>
+                    <div id="usb-device-info"></div><br>
+                    <button id="connect-usb-device-button" class="unpaired" disabled><i class="fas fa-usb"></i></button>
                 <label>
             </div>
 
@@ -290,12 +294,5 @@
 <script type="module" src="src/bindings.js"></script>
 <script type="module" src="src/index.js"></script>
 <script type="module" src="src/handlers.js"></script>
-<script>
-    // Zobrazime tlacidlo pre pripojenie USB zariadenia len ak
-    // prehliadac podporuje WebUSB
-    if ("usb" in navigator) {
-        document.getElementById("connect-usb-device-button").style.display = 'block';
-    }
-</script>
 
 </html>

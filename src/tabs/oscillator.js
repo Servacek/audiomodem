@@ -1,34 +1,25 @@
-
 import * as WASM from "../bindings.js";
 import { plotWaveform } from "../plotter.js";
-
-
 const oscillatorWaveform = document.getElementById("oscillator-waveform");
-
 const frequencySlider = document.getElementById("frequency-slider");
 const amplitudeSlider = document.getElementById("amplitude-slider");
 const phaseSlider     = document.getElementById("phase-slider");
-
-
 // So we can have up to 20000 Hz
 const SAMPLING_RATE = 48000;
-
-
 let f, a, p;
 let waveform = null;
-
-
 let audioContext = null, bufferSource = null;
+let animationFrameId = null;
+let animationPhase = 0;
+
 function onWaveformUpdated() {
     if (!audioContext) {
         audioContext = new AudioContext();
     }
-
     if (bufferSource) {
         bufferSource.stop();
         bufferSource.disconnect();
     }
-
     bufferSource = audioContext.createBufferSource();
     // The sampling rate has to be at least 8000
     const buffer = audioContext.createBuffer(1, waveform.length, SAMPLING_RATE);
@@ -39,23 +30,47 @@ function onWaveformUpdated() {
     bufferSource.start();
 }
 
+function updateWaveformDisplay() {
+    const period = 1 / f;
+    const samples = SAMPLING_RATE;
+    const additionalSamples = 100;
+
+    // Use the animated phase for display
+    const displayPhase = p + animationPhase;
+    WASM.EXPORTS.waveform(f, a, displayPhase, samples, WASM.OUTPUT_BUFFER_PTR);
+    const new_waveform = WASM.getOutputBuffer(samples);
+
+    // Draw the waveform - show 2-3 periods for better visualization
+    const samplesToPlot = Math.min(
+        Math.round(period * SAMPLING_RATE * 3) + additionalSamples,
+        samples
+    );
+    plotWaveform(oscillatorWaveform, new_waveform.slice(0, samplesToPlot), f);
+}
+
+function animate() {
+    // Increment phase to create smooth movement
+    // Speed is proportional to frequency for realistic wave motion
+    animationPhase += 0.05 * (f / 440); // Normalized to A440
+
+    updateWaveformDisplay();
+
+    animationFrameId = requestAnimationFrame(animate);
+}
+
 function onWaveformParamsChanged(frequency, amplitude, phase) {
     f = frequency === null ? f : frequency;
     a = amplitude === null ? a : amplitude;
     p = phase === null ? p : phase;
 
-    const period = 1 / f;
     const samples = SAMPLING_RATE;
-    const additionalSamples = 100;
 
+    // Generate audio waveform (no animation phase for actual audio)
     WASM.EXPORTS.waveform(f, a, p, samples, WASM.OUTPUT_BUFFER_PTR);
-    const new_waveform = WASM.getOutputBuffer(samples);
-    // const new_waveform = new Float32Array(samples);
-    // for (let i = 0; i < new_waveform.length; i++) {
-    //     new_waveform[i] = a * Math.sin(2 * Math.PI * f * i / SAMPLING_RATE + p);
-    // }
-    waveform = new_waveform;
-    // plotWaveform(oscillatorWaveform, new_waveform.slice(0, Math.round(period * SAMPLING_RATE) + additionalSamples), f)
+    waveform = WASM.getOutputBuffer(samples);
+
+    // Update display
+    updateWaveformDisplay();
 
     if (bufferSource) {
         onWaveformUpdated();
@@ -86,6 +101,13 @@ for (const slider of document.getElementsByClassName("oscillator-slider")) {
 
 function onPlayingStateChanged(playing) {
     playButton.icon.className = playing ? "fas fa-pause-circle" : "fas fa-play-circle";
+    // Start animation loop
+    if (!animationFrameId) {
+        animate();
+    } else {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
 }
 
 const playButton = document.getElementById("play-oscillator-button");
@@ -95,7 +117,6 @@ playButton.addEventListener("click", () => {
         onPlayingStateChanged(false);
         return;
     }
-
     if (bufferSource) {
         onPlayingStateChanged(false);
         bufferSource.stop();
@@ -103,12 +124,10 @@ playButton.addEventListener("click", () => {
         bufferSource = null;
         return;
     }
-
     onPlayingStateChanged(true);
     onWaveformUpdated();
 })
 
-
 WASM.requiresLoadedWASM(() => {
-    onSlidersUpdated()
+    onSlidersUpdated();
 })

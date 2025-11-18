@@ -45,10 +45,30 @@ function onConfigurationUpdated() {
     EXPORTS.recalc_conf();
 }
 
+bufferSizeInput.addEventListener("beforeinput", (event) => {
+    // Allow digits, deletion, cursor movement
+    if (/^\d$/.test(event.data) || event.inputType.includes("delete")) {
+        return; // allowed
+    }
+
+    // Block everything else
+    event.preventDefault();
+});
+
 bufferSizeInput.addEventListener("input", (event) => {
+    // If everything was zeros → 0 → convert to min
+    if (bufferSizeInput.value === "" || Number(bufferSizeInput.value) < Number(bufferSizeInput.min)) {
+        bufferSizeInput.value = bufferSizeInput.min;
+    }
+
+    // Enforce max
+    if (Number(bufferSizeInput.value) > Number(bufferSizeInput.max)) {
+        bufferSizeInput.value = bufferSizeInput.max;
+    }
+
     onConfigurationUpdated();
     saveConfig();
-})
+});
 
 
 bitsPerFrameSlider.addEventListener("input", (event) => {

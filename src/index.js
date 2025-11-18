@@ -81,7 +81,7 @@ function onTransmissionEnded(buffer) {
     }
 }
 
-function onChunkReceived(chunk) {
+function onAudioChunkRecorded(chunk) {
     // TODO: Replace this with a dedicated CONFIG object.
     const BITS_PER_FRAME = WASM.MEMORY[WASM.EXPORTS.BITS_PER_FRAME.value];
 
@@ -130,80 +130,153 @@ function onChunkReceived(chunk) {
         (buffers[choosing][0] == CONST.CBYTE.SXT && rxRecording) ||
         (buffers[choosing][0] == CONST.CBYTE.EXT && !rxRecording)
     ) {
-        // The chosen buffer has no data so choose the other one.
         choosing = choosing == "right" ? "left" : "right";
     }
 
     const buffer = buffers[choosing];
 
-    // print("LEFT", leftByteBuffer);
-    // print("RIGHT", rightByteBuffer);
+    window.partialReceive = window.partialReceive || {
+        bitBuffer: "",
+        authorId: null,
+        decoder: null,
+        msg: null
+    };
 
     const controlByte = buffer[0];
     if (controlByte == CONST.CBYTE.NDA) {
         if (rxRecording) {
-            // This should not happen, it means that both buffers are empty.
-            // Add at least some zeros to the result so we do not mess up the bits.
-            bitsReceivedStr += "0" * BITS_PER_FRAME;
+            const zeros = "0".repeat(BITS_PER_FRAME);
+            bitsReceivedStr += zeros;
+            window.partialReceive.bitBuffer += zeros;
+
             noDataCounter += 1;
             if (noDataCounter >= 3) {
                 console.log("No data for three consecutive chunks. Ending transmission.");
-                onTransmissionEnded(buffer)
-                // rxRecording = false;
-                // noDataCounter = 0;
-                // bitsReceivedStr = "";
-                //return;
+                if (rxRecording) {
+                    if (window.partialReceive && window.partialReceive.decoder) {
+                        try {
+                            const tail = window.partialReceive.decoder.decode();
+                            if (tail && window.partialReceive.msg) {
+                                window.partialReceive.msg.content += tail;
+                                window.partialReceive.msg.bubble.text.textContent = window.partialReceive.msg.content;
+                                scrollToBottom();
+                            }
+                        } catch (e) { }
+                    }
+                    bitsReceivedStr = "";
+                }
+                rxRecording = false;
+                noDataCounter = 0;
+                window.partialReceive = null;
             }
         }
-        return; // No data available
+        return;
     } else if (controlByte == CONST.CBYTE.SXT) {
         if (!rxRecording) {
             console.log("Transmission started!");
             noDataCounter = 0;
             rxRecording = true;
-            // receivedBytes.fill(0);
+            window.partialReceive = {
+                bitBuffer: "",
+                authorId: null,
+                decoder: new TextDecoder("utf-8"),
+                msg: null
+            };
+
+            if (buffer.length > 1) {
+                const authorIdFromControl = buffer[1];
+                const MAX_USERS = WASM.MEMORY[WASM.EXPORTS.MAX_USERS.value];
+                if (Number.isInteger(authorIdFromControl) && authorIdFromControl >= 0 && authorIdFromControl < MAX_USERS) {
+                    window.partialReceive.authorId = authorIdFromControl;
+
+                    const nameInput = document.getElementById("channel-name-" + authorIdFromControl);
+                    const authorName = nameInput ? nameInput.value.trim() : String(authorIdFromControl);
+
+                    const msg = createUserMessage(authorName, CONST.ALIGMENT_LEFT, "");
+                    const COLORS = ["#ffc107", "#ff6e6e", "#8bc34a", "#45a2ff", "grey"];
+                    msg.icon.style.color = msg.username.style.color = COLORS[authorIdFromControl || (COLORS.length - 1)];
+                    window.partialReceive.msg = msg;
+                    displayMessageAtBottom(msg);
+                } else {
+                    window.partialReceive.authorId = null;
+                }
+            }
         }
     } else if (controlByte == CONST.CBYTE.EXT) {
         if (rxRecording) {
-            onTransmissionEnded(buffer);
+            if (window.partialReceive && window.partialReceive.decoder) {
+                try {
+                    const tail = window.partialReceive.decoder.decode();
+                    if (tail && window.partialReceive.msg) {
+                        window.partialReceive.msg.content += tail;
+                        window.partialReceive.msg.bubble.text.textContent = window.partialReceive.msg.content;
+                        scrollToBottom();
+                    }
+                } catch (e) { }
+            }
+            bitsReceivedStr = "";
+            rxRecording = false;
+            noDataCounter = 0;
+            window.partialReceive = null;
         }
     } else if (controlByte == CONST.CBYTE.DXA) {
         noDataCounter = 0;
         if (rxRecording) {
-            // let bitsLeft = BITS_PER_FRAME;
             for (let ptr = 1; ptr <= lastBytePtr - bytesPtr; ptr++) {
-                // print("PTR", ptr);
-                // if (receivedBytes.length == 0 || currentBit > 7) {
-                //     currentBit = 0;
-                //     currentByte += 1;
-                // }
-
-                // const freeBitsInCurByte = 8 - currentBit;
-                // const nBitsToAdd = Math.min(8, bitsLeft)
-                // const nBitsActuallyAdded = Math.min(nBitsToAdd, freeBitsInCurByte);
-                // const nBitsLeftOut = nBitsToAdd - nBitsActuallyAdded;
                 const bitsToAdd = buffer[ptr];
                 const bitsToAddStr = bitsToAdd.toString(2).padStart(BITS_PER_FRAME, '0');
+
                 bitsReceivedStr += bitsToAddStr;
-                print("RECEIVED BITS: ", bitsToAddStr)
 
-                // receivedBytes[currentByte] |= bitsToAdd >> nBitsLeftOut;
-                // currentBit += nBitsActuallyAdded
-                // bitsLeft -= nBitsActuallyAdded
+                window.partialReceive.bitBuffer += bitsToAddStr;
 
-                // if (nBitsLeftOut > 0) {
-                //     const mask = (1 << nBitsLeftOut) - 1;
-                //     receivedBytes[currentByte++] |= (bitsToAdd & mask) << currentBit;
-                // }
+                while (window.partialReceive.bitBuffer.length >= 8) {
+                    const byteBits = window.partialReceive.bitBuffer.slice(0, 8);
+                    window.partialReceive.bitBuffer = window.partialReceive.bitBuffer.slice(8);
+                    const byteVal = parseInt(byteBits, 2);
+
+                    // if (window.partialReceive.authorId === null) {
+                    //     if (buffer.length > 1 && typeof buffer[1] === 'number') {
+                    //         const maybeAuthor = buffer[1];
+                    //         const MAX_USERS = WASM.MEMORY[WASM.EXPORTS.MAX_USERS.value];
+                    //         if (Number.isInteger(maybeAuthor) && maybeAuthor >= 0 && maybeAuthor < MAX_USERS) {
+                    //             window.partialReceive.authorId = maybeAuthor;
+                    //             const nameInput = document.getElementById("channel-name-" + maybeAuthor);
+                    //             const authorName = nameInput ? nameInput.value.trim() : String(maybeAuthor);
+
+                                // const msg = createUserMessage("HOVOR", CONST.ALIGMENT_LEFT, "");
+                                // const COLORS = ["#ffc107", "#ff6e6e", "#8bc34a", "#45a2ff", "grey"];
+                                // msg.icon.style.color = msg.username.style.color = COLORS[maybeAuthor || (COLORS.length - 1)];
+                                // window.partialReceive.msg = msg;
+                                // displayMessageAtBottom(msg);
+                            // }
+                        // }
+                    // }
+
+                    try {
+                        if (!window.partialReceive.msg) {
+                            const msg = createUserMessage("?", CONST.ALIGMENT_LEFT, "");
+                            window.partialReceive.msg = msg;
+                            displayMessageAtBottom(msg);
+                        }
+                        const decoded = window.partialReceive.decoder.decode(new Uint8Array([byteVal]), { stream: true });
+                        if (decoded && window.partialReceive.msg) {
+                            window.partialReceive.msg.content += decoded;
+                            window.partialReceive.msg.bubble.text.textContent = window.partialReceive.msg.content;
+                            scrollToBottom();
+                        }
+                    } catch (e) {
+                        if (window.partialReceive.msg) {
+                            window.partialReceive.msg.content += "\uFFFD";
+                            window.partialReceive.msg.bubble.text.textContent = window.partialReceive.msg.content;
+                            scrollToBottom();
+                        }
+                    }
+                }
+
+                // DEBUG
+                print("RECEIVED BITS: ", bitsToAddStr);
             }
-            // const fullBytes = ((bytesPtr + 1) - lastBytePtr) - 1
-            // for (let i = 0; i < fullBytes; i++) { // Handle the full bytes first.
-            //     receivedBytes.push(WASM.MEMORY[(bytesPtr + 1) + i])
-            // }
-
-            // const BITS_LEFT = BITS_PER_FRAME - (fullBytes * 8);
-
-            // console.log("Received bytes:", receivedBytes);
         }
     } else {
         console.warn("Unknown control byte:", controlByte);
@@ -260,9 +333,10 @@ async function tryStartRecording() {
             // Input buffer seems to be 1024 samples long (ALWAYS).
             const inputBuffer = e.inputBuffer.getChannelData(0);
 
-
             // WASM.MEMORY_U32[WASM.EXPORTS.SAMPLE_CHUNK_SIZE/4];
-            const SAMPLE_CHUNK_SIZE = bufferSizeInput.value;
+
+            // Treba sa uistit, ze chunk size je nenulove cislo lebo nim delime.
+            const SAMPLE_CHUNK_SIZE = Math.max(1, bufferSizeInput.value);
             const BITS_PER_FRAME = WASM.MEMORY_U32[WASM.EXPORTS.BITS_PER_FRAME / 4];
 
             if (chunkBuffer.length < SAMPLE_CHUNK_SIZE) {
@@ -274,7 +348,7 @@ async function tryStartRecording() {
 
                     // Ensure we are not listening to ourselves!!!
                     if (currentlySendingMessage == null) {
-                        onChunkReceived(chunk);
+                        onAudioChunkRecorded(chunk);
                     }
                 }
             }
@@ -554,14 +628,14 @@ function createSelfMessage(text, image = null) {
         WASM.INPUT_BUFFER_PTR, textByteArray.length, WASM.OUTPUT_BUFFER_PTR
     ));
 
-    const oscillatorWaveform = document.getElementById("oscillator-waveform");
-    const displayWaveform = [];
-    for (let i = 0; i < message.waveform.length; i += CONST.SAMPLES_PER_FRAME) {
-        for (let j = i; j < i + 100; j++) {
-            displayWaveform.push(message.waveform[j]);
-        }
-    }
-    plotWaveform(oscillatorWaveform, displayWaveform);
+    // const oscillatorWaveform = document.getElementById("oscillator-waveform");
+    // const displayWaveform = [];
+    // for (let i = 0; i < message.waveform.length; i += CONST.SAMPLES_PER_FRAME) {
+    //     for (let j = i; j < i + 100; j++) {
+    //         displayWaveform.push(message.waveform[j]);
+    //     }
+    // }
+    // plotWaveform(oscillatorWaveform, displayWaveform);
 
 
     return message;
@@ -787,7 +861,11 @@ const VENDOR_ID = 0x16c0;
 const PRODUCT_ID = 0x05dc;
 
 async function openDevice(device) {
-   try {
+    if (!device) {
+        return; // Ziadne zariadenie vybrane, uzivatel pravdepodobne odignoroval vyzvu.
+    }
+
+    try {
         await device.open();
         if (device.configuration === null) {
             await device.selectConfiguration(1);
@@ -837,27 +915,35 @@ button.addEventListener("click", async () => {
     else { tryDisconnectUSB(); }
 });
 
-navigator.usb.addEventListener('connect', (event) => {
-    if (event.device.vendorId === VENDOR_ID && event.device.productId === PRODUCT_ID) {
-        openDevice(event.device);
-    }
-});
-navigator.usb.addEventListener("disconnect", (event) => {
-    print("USB device disconnected:", event.device);
-    if (port && port.vendorId === event.device.vendorId && port.productId === event.device.productId) {
-        tryDisconnectUSB();
-    }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-    navigator.usb.getDevices().then(devices => {
-        for (const device of devices) {
-            if (device.vendorId === VENDOR_ID && device.productId === PRODUCT_ID) {
-                openDevice(device);
-            }
+// Zobrazime tlacidlo pre pripojenie USB zariadenia len ak
+// prehliadac podporuje WebUSB
+if (navigator.usb) {
+    button.disabled = false;
+    navigator.usb.addEventListener('connect', (event) => {
+        if (event.device.vendorId === VENDOR_ID && event.device.productId === PRODUCT_ID) {
+            openDevice(event.device);
         }
-    })
-});
+    });
+    navigator.usb.addEventListener("disconnect", (event) => {
+        print("USB device disconnected:", event.device);
+        if (port && port.vendorId === event.device.vendorId && port.productId === event.device.productId) {
+            tryDisconnectUSB();
+        }
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+        navigator.usb.getDevices().then(devices => {
+            for (const device of devices) {
+                if (device.vendorId === VENDOR_ID && device.productId === PRODUCT_ID) {
+                    openDevice(device);
+                }
+            }
+        })
+    });
+} else {
+    infoDiv.style.color = "#ff6666";
+    infoDiv.textContent = "Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume."
+}
 
 ////////// WASM
 
