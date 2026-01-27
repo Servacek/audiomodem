@@ -72,10 +72,13 @@ async function _init(path) {
     const env = {
         _emscripten_memcpy_js: (dest, src, num) => Tinitus.MEMORY.copyWithin(dest, src, src + num),
         emscripten_notify_memory_growth: (index) => { },
-
-        // Mapping functions
-        play_waveform: Tinitus.MAPPINGS.play_waveform,
     };
+
+    // Mapping functions
+    for (let funcName in Tinitus.MAPPINGS) {
+        env[funcName] = Tinitus.MAPPINGS[funcName];
+    }
+
     const { instance } = await WebAssembly.instantiateStreaming(
         response,
         {
@@ -157,6 +160,9 @@ const TYPE_TO_ARRAY = {
 export let Tinitus = {
     MAPPINGS: {
         play_waveform: function (modem_profile_ptr, ptr, length, sample_rate) { return 0; },
+        on_byte_received: function (byte) { return 0; },
+        on_frame_received: function (ptr, length) { return 0; },
+        on_bytes_received: function (ptr, length) { return 0; },
     },
     EXPORTS: {},
     afterLoad: requiresLoadedWASM,
@@ -301,7 +307,7 @@ export let Tinitus = {
     },
 
     // TODO: Put this part handling audio here as well?
-    tryStartListeningForIncomingMessages: async (onAudioProcess, onBytesReceived) => {
+    tryStartListeningForIncomingMessages: async (onAudioProcess, onByteReceived) => {
         if (!navigator.mediaDevices) {
             return Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
         }
@@ -340,7 +346,6 @@ export let Tinitus = {
             const bufferSize = 1024;
             var recorder = context.createScriptProcessor(bufferSize, 1, 1)
 
-            let bytesReceived = [];
             recorder.onaudioprocess = function (event) {
                 const input = event.inputBuffer.getChannelData(0);
 
@@ -350,30 +355,23 @@ export let Tinitus = {
                         input[i]
                     );
 
-                    switch (status) {
-                        case 2:
-                            bytesReceived.push(Tinitus.EXPORTS.frame_decoder_get_last_byte(decoderPtr));
-                            break;
-                        case 7: // Frame completed
-                            if (bytesReceived.length > 0) {
-                                onBytesReceived(new Uint8Array(bytesReceived));
-                                bytesReceived = [];
-                            }
-                            break;
+                    if (status === 2) {
+                        const byte = Tinitus.EXPORTS.frame_decoder_get_last_byte(decoderPtr);
+                        onByteReceived(byte);
                     }
+                }
+
+                onAudioProcess(event);
             }
 
-            onAudioProcess(event);
-        }
-
             mediaStreamSource.connect(recorder);
-        recorder.connect(context.destination);
+            recorder.connect(context.destination);
 
-        return null;
-    }).catch(function (e) { // This should handle even the revokes and everything.
-        return e;
-    });
-},
+            return null;
+        }).catch(function (e) { // This should handle even the revokes and everything.
+            return e;
+        });
+    },
 
     // This is a map of profilePtr and Profile object
     MODEM_PROFILES: {},
