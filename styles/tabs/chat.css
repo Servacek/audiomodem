@@ -148,6 +148,7 @@
     padding: 0px;
     /* margin: 20px; */
     margin-top: 0px;
+    margin-bottom: 20px;
     /* border-top: var(--border); */
     background: var(--inputbar-area);
     background-attachment: unset;

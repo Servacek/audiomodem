@@ -1,5 +1,3 @@
-
-
 /********************************/
 /********     SCHEMES    ********/
 /********************************/
@@ -64,4 +62,22 @@
     --msger-input-placeholder-fg: #838384;
     --msg-img-bg: #ddd;
     --username-color: #ddd;
+}
+
+:root:not(.dark-scheme) #tab-config {
+    --config-option-bg: #f9f9f9;
+    --config-border: #ddd;
+    --config-input-bg: #fff;
+    --profile-header-bg: #f8f9fa;
+    --profile-header-hover-bg: #e9ecef;
+    --spin-button-filter: none;
+}
+
+:root.dark-scheme #tab-config {
+    --config-option-bg: rgba(255, 255, 255, 0.05);
+    --config-border: rgba(255, 255, 255, 0.12);
+    --config-input-bg: rgba(255, 255, 255, 0.06);
+    --profile-header-bg: rgba(255, 255, 255, 0.04);
+    --profile-header-hover-bg: rgba(255, 255, 255, 0.08);
+    --spin-button-filter: invert(0.7);
 }

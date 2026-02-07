@@ -137,7 +137,7 @@ function _load(path = LIBRARY_PATH) {
 
 function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
     if (modem_profile_or_ptr instanceof ModemProfile) {
-        return Tinitus.MODEM_PROFILES_REVERSED[modem_profile_or_ptr];
+        return modem_profile_or_ptr.ptr;
     }
     return modem_profile_or_ptr;
 }
@@ -247,32 +247,13 @@ export let Tinitus = {
     },
 
     onLoaded(block) {
-        const defaultModemProfile = new ModemProfile({
-            param: 0,      // MODULATED_PARAMETER param
-            min_rx_freq: 1200,   // uint16_t min_rx_freq
-            max_rx_freq: 2200,   // uint16_t max_rx_freq
-            car_freq: 3000,   // uint16_t car_freq
-            // Pre web potrebujeme aspon 48000
-            sample_rate: 8000,  // uint16_t sample_rate
-            bps: 100,    // uint16_t bps
-            bits_per_symbol: 1,     // uint8_t bits per symbol
-            min_tx_freq: 800,   // uint16_t min_tx_freq
-            max_tx_freq: 1600,   // uint16_t max_tx_freq
-            min_tx_amp: 100,    // uint8_t min_tx_amp
-            max_tx_amp: 255,    // uint8_t max_tx_amp
-            min_tx_phs: 0,      // uint8_t min_tx_phs
-            max_tx_phs: 180     // uint8_t max_tx_phs (0 - 180)
-        })
-        Tinitus.registerProfile(defaultModemProfile);
-        Tinitus.DEFAULT_MODEM_PROFILE = Tinitus.MODEM_PROFILES_REVERSED[defaultModemProfile];
+        Tinitus.DEFAULT_MODEM_PROFILE = new ModemProfile();
+        Tinitus.registerProfile(Tinitus.DEFAULT_MODEM_PROFILE);
     },
 
+    /** @param {ModemProfile} */
     registerProfile(modem_profile) {
-        const modem_profile_ptr = Tinitus.EXPORTS.create_modem_profile(
-            ...modem_profile.getParametersOrderedArray()
-        );
-        Tinitus.MODEM_PROFILES[modem_profile_ptr] = modem_profile;
-        Tinitus.MODEM_PROFILES_REVERSED[modem_profile] = modem_profile_ptr;
+        Tinitus.MODEM_PROFILES[modem_profile.ptr] = modem_profile;
 
         return modem_profile;
     },
@@ -313,7 +294,7 @@ export let Tinitus = {
         }
 
         // Create modem context
-        let modemProfilePtr = Tinitus.DEFAULT_MODEM_PROFILE;
+        let modemProfilePtr = Tinitus.DEFAULT_MODEM_PROFILE.ptr;
         let modemContextPtr = Tinitus.EXPORTS.modem_context_create();
         if (modemContextPtr == -1) {
             return Error("Failed to create modem context.");

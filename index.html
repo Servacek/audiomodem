@@ -104,7 +104,6 @@
                 </header>
 
                 <h3>Všeobecné</h3>
-
                 <label class="config-option">
                     <span>Používateľské meno</span>
                     <input id="username-config-input" type="text" value="Anonymný" maxlength="16">
@@ -114,62 +113,32 @@
                     </div>
                 </label>
 
-                <!-- <div class="config-option">
-                    <input id="remember-me-config" type="checkbox">
-                    <label for="remember-me-config">Zapamätať si ma</label>
-                </div> -->
-
-                <label class="config-option">
-                    <span>Rýchlosť prenosu</span>
-                    <input id="bits-per-frame" type="range" min="1" max="8" step="1" value="4">
-                    <span id="bits-per-frame-display">4</span> bit/s
-                </label>
-
-                <!-- <label class="config-option">
-                    <span>Rýchlosť prenosu</span>
-                    <input id="bits-per-frame" type="range" min="1" max="8" step="1" value="4">
-                    <span id="bits-per-frame-display">4</span> bit/s
-                </label> -->
-
-                <label class="config-option">
-                    <span>ID Kanálu</span>
-                    <select id="channel-id-select">
-
-                    </select>
-                </label>
-
-                <div class="config-sub-header">
-                    <h3>Kanály</h3>
-                    <label class="config-option" id="channel-name-list">
-
-                    </label>
+                <h3>Modemové profily</h3>
+                <p class="section-description">
+                    Modemové profily definujú parametre modulácie a demodulácie zvukového signálu.
+                    Každý profil obsahuje nastavenia pre typ modulácie (FSK, ASK, PSK), frekvenčný rozsah,
+                    vzorkovaciu frekvenciu a ďalšie parametre ovplyvňujúce prenos dát.
+                </p>
+                <div class="profiles-header">
+                    <button id="add-profile-button">
+                        <i class="fas fa-plus"></i>
+                        Pridať profil
+                    </button>
                 </div>
 
-                <!--
-                <div class="settings-section">
-                    <h3>Súkromie</h3>
-                    <label class="settings-option">
-                        <span>Povoliť sledovanie analytických údajov</span>
-                        <input id="analytics-tracking-toggle" type="checkbox">
-                    </label>
-                    <label class="settings-option">
-                        <span>Povoliť personalizované reklamy</span>
-                        <input id="personalized-ads-toggle" type="checkbox">
-                    </label>
-                </div> -->
-
-                <label class="config-option">
-                    <span>Veľkosť Bufferu</span>
-                    <input id="buffer-size-input" type="number" min="1" max="20000" step="1" value="0">
-                </label>
+                <div id="profiles-container">
+                    <div class="empty-state">Žiadne profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>
+                </div>
 
                 <separator></separator>
 
                 <label class="config-sub-header">
                     <h3>USB Zariadenia</h3>
-                    <div id="usb-device-info"></div><br>
-                    <button id="connect-usb-device-button" class="unpaired" disabled><i class="fas fa-usb"></i></button>
-                <label>
+                    <div id="usb-device-info">Žiadne zariadenie nepripojené</div><br>
+                    <button id="connect-usb-device-button" class="unpaired" disabled>
+                        <i class="fas fa-usb"></i>
+                    </button>
+                </label>
             </div>
 
             <div id="tab-graph" class="tab">
@@ -237,10 +206,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- TODO: Add the version to the WASM file as an EXPORT constant and display it here after it loads. -->
-        <!-- Footer (text is added upon library load.) -->
-        <footer class="unselectable">Preview v1.9p<br>Powered by Tinnitus library v0.6</footer>
     </section>
 
     <!-- Image Upload Modal -->
@@ -285,6 +250,26 @@
 
                 <div id="submit-field" class="field">
                     <button id="login-button" class="modal-submit-button" disabled>Pridať sa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Profile Deletion) -->
+    <div id="confirmation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-title">Potvrďte odstránenie</div>
+            </div>
+            <div class="modal-form">
+                <div class="field">
+                    <p class="confirmation-modal-body">
+                        Naozaj chcete odstrániť tento profil? Túto akciu nie je možné vrátiť späť.
+                    </p>
+                </div>
+                <div class="field modal-footer">
+                    <button id="confirmation-cancel-button" class="modal-button cancel">Zrušiť</button>
+                    <button id="confirmation-confirm-button" class="modal-button confirm">Odstrániť</button>
                 </div>
             </div>
         </div>

@@ -531,7 +531,7 @@ function createSelfMessage(text, image = null) {
     message.bubble.appendChild(progressBar)
 
     // TODO: Add option to choose which profile to use.
-    message.modemProfile = Tinitus.getModemProfileFromPointer(Tinitus.DEFAULT_MODEM_PROFILE);
+    message.modemProfile = Tinitus.DEFAULT_MODEM_PROFILE;
     message.waveform = Tinitus.modulateMessage(text, message.modemProfile);
 
     // const oscillatorWaveform = document.getElementById("oscillator-waveform");

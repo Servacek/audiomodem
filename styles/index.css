@@ -34,7 +34,7 @@ body {
     flex-direction: column;
     justify-content: space-between;
     width: 100%;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 25px 10px;
     height: calc(100% - 50px);
     border: var(--border);
@@ -43,7 +43,7 @@ body {
     background: var(--msger-bg);
     background-image: var(--msger-bg-image);
     background-size: cover;
-    box-shadow: 0 15px 15px -5px rgba(0, 0, 0, 0.2);
+    box-shadow: 0px 15px 15px -5px rgba(0, 0, 0, 0.2);
     transition: all 0.23s;
 }
 
@@ -103,7 +103,7 @@ body::-webkit-scrollbar-thumb {
     border-radius: 5px 5px 0px 0px;
     background: var(--msger-header-bg);
     color: var(--msger-header-colour);
-    box-shadow: 0 2px 0px 0px rgba(0, 0, 0, 0.4);
+    box-shadow: 0px 2px 0px 0px rgba(0, 0, 0, 0.4);
 
     /* Prevent text selection */
     -webkit-user-select: none; /* Safari */
