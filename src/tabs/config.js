@@ -258,32 +258,68 @@ function drawWaveVisualization(profileId) {
     const pointsPerCycle = 100;
     const totalPoints = numCycles * pointsPerCycle;
 
+    mp.cphase = 1;
+    let phase = 0; // Accumulated phase for continuous phase modulation
+
     for (let i = 0; i <= totalPoints; i++) {
         const t = (i / totalPoints) * numCycles;
+        const dt = numCycles / totalPoints; // Time step
         let y;
 
-        if (mp.param === 0) {
+        if (mp.param === 0) { // FSK
             const bit = Math.floor(t) % 2;
             const freq = bit ? mp.max_tx_freq : mp.min_tx_freq;
             const normalizedFreq = freq / 1000;
-            y = Math.sin(t * Math.PI * 2 * normalizedFreq);
-        } else if (mp.param === 1) {
+
+            if (mp.cphase) {
+                // Continuous phase: accumulate phase based on instantaneous frequency
+                phase += 2 * Math.PI * normalizedFreq * dt;
+                y = Math.sin(phase);
+            } else {
+                // Discontinuous phase
+                y = Math.sin(t * Math.PI * 2 * normalizedFreq);
+            }
+        } else if (mp.param === 1) { // ASK
             const bit = Math.floor(t) % 2;
             const amp = bit ? mp.max_tx_amp : mp.min_tx_amp;
             const normalizedAmp = amp / 255;
             y = Math.sin(t * Math.PI * 2 * 2) * normalizedAmp;
-        } else {
+        } else { // PSK
             const bit = Math.floor(t) % 2;
-            const phase = bit ? (mp.max_tx_phs * Math.PI / 180) : (mp.min_tx_phs * Math.PI / 180);
-            y = Math.sin(t * Math.PI * 2 * 2 + phase);
+            const phaseShift = bit ? (mp.max_tx_phs * Math.PI / 180) : (mp.min_tx_phs * Math.PI / 180);
+
+            if (mp.cphase) {
+                // For CPSK, gradually transition the phase
+                phase = t * Math.PI * 2 * 2 + phaseShift;
+                y = Math.sin(phase);
+            } else {
+                y = Math.sin(t * Math.PI * 2 * 2 + phaseShift);
+            }
         }
 
         const x = padSide + (i / totalPoints) * graphWidth;
         const yPos = graphCenterY - (y * graphHeight / 3);
-
         if (i === 0) ctx.moveTo(x, yPos);
         else ctx.lineTo(x, yPos);
     }
+    // const usedProfile = Tinitus.DEFAULT_MODEM_PROFILE;
+    // usedProfile.cphase = 1;
+    // usedProfile.max_tx_freq = Tinitus.DEFAULT_MODEM_PROFILE.max_tx_freq / 1000;
+    // usedProfile.min_tx_freq = Tinitus.DEFAULT_MODEM_PROFILE.min_tx_freq / 1000;
+    // const outLenPtr = Tinitus.MEMORY_STACK_START + 2048;
+    // const outPtr = Tinitus.EXPORTS.fsk_modulate(usedProfile.ptr, 0xA, 1, outLenPtr);
+    // const takeSamples = usedProfile.samples_per_bit * 3;
+    // const outArray = Tinitus.getReturnValue("f32", outPtr, Tinitus.getValueFromPointer("i32", outLenPtr));
+    // const points = outArray.slice(0, takeSamples);
+    // print(points);
+    // // Len prve tri bity:
+    // for (let i = 0; i < points.length; i++) {
+    //     const x = padSide + (i / points.length) * graphWidth;
+    //     const yPos = graphCenterY - (points[i] * graphHeight / 3);
+
+    //     if (i === 0) ctx.moveTo(x, yPos);
+    //     else ctx.lineTo(x, yPos);
+    // }
     ctx.stroke();
 
     // Draw bit period markers
@@ -330,7 +366,7 @@ function drawWaveVisualization(profileId) {
 
     // Period label
     ctx.fillStyle = markerColor;
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = '30px ';
     ctx.textAlign = 'center';
     ctx.fillText(`Perióda: ${period.toFixed(4)}s`, (arrowStartX + arrowEndX) / 2, arrowY + 20);
 
@@ -346,8 +382,8 @@ function drawWaveVisualization(profileId) {
     ctx.fillStyle = titleColor;
     ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
-    const modType = PARAM_TYPES[mp.param] || 'Neznámy';
-    ctx.fillText(`${modType} modulácia`, width / 2, 25);
+    // const modType = PARAM_TYPES[mp.param] || 'Neznámy';
+    // ctx.fillText(`${modType} modulácia`, width / 2, 25);
 }
 
 function renderProfiles() {
