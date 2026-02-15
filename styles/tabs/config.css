@@ -418,3 +418,201 @@ separator {
 :root:not(.dark-scheme) #tab-config input[type="number"] {
     color-scheme: light;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Profile tags  (.profile-tag, .profile-tag--readonly, .profile-tag--active)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.profile-tag {
+    display:         inline-flex;
+    align-items:     center;
+    gap:             5px;
+    padding:         3px 10px;
+    border-radius:   999px;
+    font-size:       11px;
+    font-weight:     600;
+    letter-spacing:  0.04em;
+    text-transform:  uppercase;
+    line-height:     1;
+    user-select:     none;
+    vertical-align:  middle;
+
+    /* Smooth in/out when toggled */
+    transition: opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-tag i {
+    font-size: 9px;
+    opacity:   0.8;
+}
+
+/* ── Readonly tag ── */
+.profile-tag--readonly {
+    color:            #8a94a6;
+    background:       rgba(138, 148, 166, 0.10);
+    border:           1px solid rgba(138, 148, 166, 0.22);
+}
+
+/* Dark mode */
+.dark-scheme .profile-tag--readonly {
+    color:      #7e8a9e;
+    background: rgba(126, 138, 158, 0.12);
+    border:     1px solid rgba(126, 138, 158, 0.20);
+}
+
+/* ── Active tag ── */
+.profile-tag--active {
+    color:       #1db97b;
+    background:  rgba(29, 185, 123, 0.10);
+    border:      1px solid rgba(29, 185, 123, 0.28);
+    /* Subtle pulse on the dot */
+    animation:   tag-pulse 2.4s ease-in-out infinite;
+}
+
+.dark-scheme .profile-tag--active {
+    color:      #22d68e;
+    background: rgba(34, 214, 142, 0.10);
+    border:     1px solid rgba(34, 214, 142, 0.25);
+}
+
+/* The dot icon pulses like a live indicator */
+.profile-tag--active i {
+    animation: dot-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 1;    transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+@keyframes tag-pulse {
+    0%, 100% { box-shadow: 0 0 0   0px rgba(29, 185, 123, 0); }
+    50%       { box-shadow: 0 0 0   3px rgba(29, 185, 123, 0.12); }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Use-profile button  (.use-profile-button, .use-profile-button--active)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.use-profile-button {
+    display:          inline-flex;
+    align-items:      center;
+    gap:              6px;
+    padding:          6px 14px;
+    border-radius:    8px;
+    font-size:        12px;
+    font-weight:      600;
+    letter-spacing:   0.02em;
+    cursor:           pointer;
+    white-space:      nowrap;
+
+    /* Idle state — outlined */
+    color:            #3b82f6;
+    background:       transparent;
+    border:           1.5px solid rgba(59, 130, 246, 0.40);
+
+    transition:
+        background   0.18s ease,
+        color        0.18s ease,
+        border-color 0.18s ease,
+        box-shadow   0.18s ease,
+        transform    0.12s ease;
+}
+
+.use-profile-button i {
+    font-size:  11px;
+    transition: transform 0.18s ease;
+}
+
+/* Hover — fill comes in */
+.use-profile-button:hover:not(:disabled) {
+    color:       #fff;
+    background:  #3b82f6;
+    border-color: #3b82f6;
+    box-shadow:  0 2px 10px rgba(59, 130, 246, 0.35);
+    transform:   translateY(-1px);
+}
+
+.use-profile-button:hover:not(:disabled) i {
+    transform: translateX(2px);
+}
+
+/* Active press */
+.use-profile-button:active:not(:disabled) {
+    transform:  translateY(0);
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.25);
+}
+
+/* ── Active/selected state ── */
+.use-profile-button--active,
+.use-profile-button--active:disabled {
+    color:        #1db97b;
+    background:   rgba(29, 185, 123, 0.08);
+    border-color: rgba(29, 185, 123, 0.35);
+    cursor:       default;
+    /* Override any hover effects when disabled */
+    transform:    none;
+    box-shadow:   none;
+}
+
+/* Dark mode — idle */
+.dark-scheme .use-profile-button {
+    color:        #60a5fa;
+    border-color: rgba(96, 165, 250, 0.30);
+}
+
+.dark-scheme .use-profile-button:hover:not(:disabled) {
+    color:        #fff;
+    background:   #3b82f6;
+    border-color: #3b82f6;
+    box-shadow:   0 2px 12px rgba(59, 130, 246, 0.40);
+}
+
+/* Dark mode — active */
+.dark-scheme .use-profile-button--active,
+.dark-scheme .use-profile-button--active:disabled {
+    color:        #22d68e;
+    background:   rgba(34, 214, 142, 0.08);
+    border-color: rgba(34, 214, 142, 0.30);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Active profile card highlight
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.profile-item--active {
+    border-color: rgba(29, 185, 123, 0.30) !important;
+    box-shadow:   0 0 0 1px rgba(29, 185, 123, 0.15),
+                  0 2px 12px rgba(29, 185, 123, 0.06);
+}
+
+.dark-scheme .profile-item--active {
+    border-color: rgba(34, 214, 142, 0.25) !important;
+    box-shadow:   0 0 0 1px rgba(34, 214, 142, 0.12),
+                  0 2px 16px rgba(34, 214, 142, 0.06);
+}
+
+/* Default profile card gets a subtle tinted left border to distinguish it */
+.profile-item--default {
+    border-left: 3px solid rgba(138, 148, 166, 0.35);
+}
+
+.profile-item--default.profile-item--active {
+    border-left-color: rgba(29, 185, 123, 0.50);
+}
+
+.dark-scheme .profile-item--default {
+    border-left-color: rgba(126, 138, 158, 0.28);
+}
+
+.dark-scheme .profile-item--default.profile-item--active {
+    border-left-color: rgba(34, 214, 142, 0.40);
+}
+
+/* Aby bol sa interaktivny vyber frekvencneho pasma roztiahol po celej sirke */
+#tx-freq-row-1 {
+    display: flex;
+    gap: 16px;
+}

@@ -87,7 +87,7 @@
 
 // window.addEventListener("audioprocess", onProcessAudioFFTChunk);
 
-import { Tinitus } from '../../libs/tinitus/tinitus.js';
+import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { plotWaveform, plotFFTWaterfall, drawFFT } from '../plotter.js';
 import * as CONST from "../constants.js";
 
@@ -162,26 +162,26 @@ class SpectrogramVisualizer {
 
     computeFFT(inputBuffer) {
         const fftSize = inputBuffer.length;
-        const startPtr = Tinitus.MEMORY_STACK_START;
+        const startPtr = TinyTUS.MEMORY_STACK_START;
         const realPtr = startPtr;
         const imagPtr = realPtr + fftSize * 4;
 
         // Prepare input arrays
-        Tinitus.MEMORY_F32.set(inputBuffer, realPtr >> 2);
-        Tinitus.MEMORY_F32.fill(0, imagPtr >> 2, (imagPtr + fftSize * 4) >> 2);
+        TinyTUS.MEMORY_F32.set(inputBuffer, realPtr >> 2);
+        TinyTUS.MEMORY_F32.fill(0, imagPtr >> 2, (imagPtr + fftSize * 4) >> 2);
 
         // Compute FFT
-        Tinitus.EXPORTS.fft(realPtr, imagPtr, fftSize);
+        TinyTUS.EXPORTS.fft(realPtr, imagPtr, fftSize);
 
         // Extract results
-        const real = new Float32Array(Tinitus.BUFFER, realPtr, fftSize);
-        const imag = new Float32Array(Tinitus.BUFFER, imagPtr, fftSize);
+        const real = new Float32Array(TinyTUS.BUFFER, realPtr, fftSize);
+        const imag = new Float32Array(TinyTUS.BUFFER, imagPtr, fftSize);
 
         return { real, imag };
     }
 
     extractSpectrum(fftResult, fftSize) {
-        const sampleRate = Tinitus.MEMORY_U32[this.config.defaultSampleRate / 4];
+        const sampleRate = TinyTUS.MEMORY_U32[this.config.defaultSampleRate / 4];
         const freqBinSize = sampleRate / fftSize;
         const nyquistBins = fftSize / 2;
 

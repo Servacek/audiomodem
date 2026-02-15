@@ -1,5 +1,5 @@
 /*
- * Sluzi ako most medzi JavaScriptom a WebAssembly buildom Tinitus kniznice.
+ * Sluzi ako most medzi JavaScriptom a WebAssembly buildom TinyTUS kniznice.
  * Reimplementovava navyssiu vrstvu API kniznice vo Web JavaScript s vyuzitim
  * webovych API pre audio vstup/vystup.
 */
@@ -12,7 +12,7 @@
 //      - Missing EMSCRIPTEN_KEEPALIVE macros above C functions.
 
 // Predvolena trasa
-let LIBRARY_PATH = "./libs/tinitus/tinitus.wasm";
+let LIBRARY_PATH = "./libs/tinytus/tinytus.wasm";
 
 import { ModemProfile } from "./modem_profile.js";
 
@@ -32,12 +32,16 @@ let _LOADED = false;
 
 // Fills the input memory buffer with the provided bytes from the byte array
 export function fillInputBuffer(byteArray) {
-    Tinitus.MEMORY.set(byteArray, Tinitus.INPUT_BUFFER_PTR);
+    TinyTUS.MEMORY.set(byteArray, TinyTUS.INPUT_BUFFER_PTR);
+}
+
+export function fillInputBufferWithFloat32(floatArray) {
+    TinyTUS.MEMORY_F32.set(floatArray, TinyTUS.INPUT_BUFFER_PTR / 4);
 }
 
 // Returns the bytearray of the output buffer
 // export function getOutputBuffer(length) {
-//     return new Float32Array(TINITUS.EXPORTS.memory.buffer, TINITUS.OUTPUT_BUFFER_PTR, length).slice();
+//     return new Float32Array(TINYTUS.EXPORTS.memory.buffer, TINYTUS.OUTPUT_BUFFER_PTR, length).slice();
 // }
 
 export function requiresLoadedWASM(block) {
@@ -70,13 +74,13 @@ async function _init(path) {
     // const exports = WebAssembly.Module.exports(module);
     // print(exports);
     const env = {
-        _emscripten_memcpy_js: (dest, src, num) => Tinitus.MEMORY.copyWithin(dest, src, src + num),
+        _emscripten_memcpy_js: (dest, src, num) => TinyTUS.MEMORY.copyWithin(dest, src, src + num),
         emscripten_notify_memory_growth: (index) => { },
     };
 
     // Mapping functions
-    for (let funcName in Tinitus.MAPPINGS) {
-        env[funcName] = Tinitus.MAPPINGS[funcName];
+    for (let funcName in TinyTUS.MAPPINGS) {
+        env[funcName] = TinyTUS.MAPPINGS[funcName];
     }
 
     const { instance } = await WebAssembly.instantiateStreaming(
@@ -89,42 +93,48 @@ async function _init(path) {
                     var num = 0;
                     let s = "";
                     for (var i = 0; i < iovcnt; i++) {
-                        var ptr = Tinitus.MEMORY_U32[((iov) >> 2)];
-                        var len = Tinitus.MEMORY_U32[(((iov) + (4)) >> 2)];
+                        var ptr = TinyTUS.MEMORY_U32[((iov) >> 2)];
+                        var len = TinyTUS.MEMORY_U32[(((iov) + (4)) >> 2)];
                         iov += 8;
                         for (var j = 0; j < len; j++) {
-                            s += String.fromCharCode(Tinitus.MEMORY[ptr + j]);
+                            s += String.fromCharCode(TinyTUS.MEMORY[ptr + j]);
                         }
                         num += len;
                     }
-                    Tinitus.MEMORY_U32[((pnum) >> 2)] = num;
+                    TinyTUS.MEMORY_U32[((pnum) >> 2)] = num;
                     console.log(s);
                     return 0;
-                }
+                },
+                fd_close: () => 0,
+                fd_seek: () => 0,
+                fd_read: () => 0,
+                proc_exit: () => {},
+                environ_sizes_get: () => 0,
+                environ_get: () => 0
             },
         } // Pass the memory object to the module
     );
 
     EXPORTS = instance.exports;
-    Tinitus.EXPORTS = EXPORTS;
+    TinyTUS.EXPORTS = EXPORTS;
 
-    Tinitus.BUFFER = EXPORTS.memory.buffer;
-    Tinitus.MEMORY = new Uint8Array(EXPORTS.memory.buffer);
-    Tinitus.MEMORY_U16 = new Uint16Array(EXPORTS.memory.buffer);
-    Tinitus.MEMORY_U32 = new Uint32Array(EXPORTS.memory.buffer);
-    Tinitus.MEMORY_F32 = new Float32Array(EXPORTS.memory.buffer);
-    Tinitus.MEMORY_STACK_START = Tinitus.MEMORY.length - EXPORTS.emscripten_stack_get_free();
+    TinyTUS.BUFFER = EXPORTS.memory.buffer;
+    TinyTUS.MEMORY = new Uint8Array(EXPORTS.memory.buffer);
+    TinyTUS.MEMORY_U16 = new Uint16Array(EXPORTS.memory.buffer);
+    TinyTUS.MEMORY_U32 = new Uint32Array(EXPORTS.memory.buffer);
+    TinyTUS.MEMORY_F32 = new Float32Array(EXPORTS.memory.buffer);
+    TinyTUS.MEMORY_STACK_START = TinyTUS.MEMORY.length - EXPORTS.emscripten_stack_get_free();
 
-    Tinitus.INPUT_BUFFER_PTR = Tinitus.MEMORY_STACK_START + 4096;
-    Tinitus.OUTPUT_BUFFER_PTR = Tinitus.INPUT_BUFFER_PTR + 1024;
+    TinyTUS.INPUT_BUFFER_PTR = TinyTUS.MEMORY_STACK_START + 4096;
+    TinyTUS.OUTPUT_BUFFER_PTR = TinyTUS.INPUT_BUFFER_PTR + 1024;
 }
 
 function _load(path = LIBRARY_PATH) {
-    console.log("Loading tinitus library from path:", path);
+    console.log("Loading tinytus library from path:", path);
     _init(path).then(() => {
         _LOADED = true;
         console.info("Successfully initialized WASM!");
-        Tinitus.onLoaded();
+        TinyTUS.onLoaded();
 
         window.dispatchEvent(new CustomEvent("wasm-library-loaded"));
     }).catch((error) => {
@@ -156,8 +166,12 @@ const TYPE_TO_ARRAY = {
     "f32": Float32Array,
 }
 
+let currentStream = null;
+let currentContext = null;
+let currentRecorder = null;
+let currentDemodState = null;
 
-export let Tinitus = {
+export let TinyTUS = {
     MAPPINGS: {
         play_waveform: function (modem_profile_ptr, ptr, length, sample_rate) { return 0; },
         on_byte_received: function (byte) { return 0; },
@@ -168,7 +182,7 @@ export let Tinitus = {
     afterLoad: requiresLoadedWASM,
     loadLibrary: _load,
     getValueFromPointer(type, ptr) {
-        return Tinitus.getReturnValue(type, ptr, 1)[0];
+        return TinyTUS.getReturnValue(type, ptr, 1)[0];
     },
     getReturnValue(type, ptr, length) {
         try {
@@ -241,26 +255,31 @@ export let Tinitus = {
         fillInputBuffer(messageBytes);
 
         // Riesi si pamat samostatne
-        Tinitus.EXPORTS.send_payload(
-            modem_profile_ptr, Tinitus.INPUT_BUFFER_PTR, messageBytes.length
+        TinyTUS.EXPORTS.send_payload(
+            modem_profile_ptr, TinyTUS.INPUT_BUFFER_PTR, messageBytes.length
         );
     },
 
     onLoaded(block) {
-        Tinitus.DEFAULT_MODEM_PROFILE = new ModemProfile();
-        Tinitus.registerProfile(Tinitus.DEFAULT_MODEM_PROFILE);
+        // Nedovolme uzivatelovy prepisovat predvoleny profil?
+        TinyTUS.DEFAULT_MODEM_PROFILE = new ModemProfile();
+        TinyTUS.DEFAULT_MODEM_PROFILE.readonly = true;
+        Object.freeze(TinyTUS.DEFAULT_MODEM_PROFILE);
+        TinyTUS.registerProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
+
+        this.currentlyUsedModemProfile = TinyTUS.DEFAULT_MODEM_PROFILE;
     },
 
     /** @param {ModemProfile} */
     registerProfile(modem_profile) {
-        Tinitus.MODEM_PROFILES[modem_profile.ptr] = modem_profile;
+        TinyTUS.MODEM_PROFILES[modem_profile.ptr] = modem_profile;
 
         return modem_profile;
     },
 
     /** @returns {ModemProfile}  */
     getModemProfileFromPointer(modem_profile_ptr) {
-        return Tinitus.MODEM_PROFILES[modem_profile_ptr];
+        return TinyTUS.MODEM_PROFILES[modem_profile_ptr];
     },
 
     /**
@@ -270,91 +289,110 @@ export let Tinitus = {
      * @returns {Float32Array} The modulated waveform
      */
     modulateMessage(message, modem_profile = null) {
-        modem_profile = modem_profile || Tinitus.DEFAULT_MODEM_PROFILE;
+        modem_profile = modem_profile || TinyTUS.DEFAULT_MODEM_PROFILE;
         const messageBytes = new TextEncoder().encode(message);
         fillInputBuffer(messageBytes);
 
-        const outLenPtr = Tinitus.MEMORY_STACK_START + 2048;
-        const modulatedPtr = Tinitus.EXPORTS.modulate_payload(
+        const outLenPtr = TinyTUS.MEMORY_STACK_START + 2048;
+        const modulatedPtr = TinyTUS.EXPORTS.modulate_payload(
             _modemProfileOrPtrToPtr(modem_profile),
-            Tinitus.INPUT_BUFFER_PTR,
+            TinyTUS.INPUT_BUFFER_PTR,
             messageBytes.length,
             outLenPtr
         );
 
-        return Tinitus.getReturnValue(
-            "f32", modulatedPtr, Tinitus.getValueFromPointer("i32", outLenPtr)
+        return TinyTUS.getReturnValue(
+            "f32", modulatedPtr, TinyTUS.getValueFromPointer("i32", outLenPtr)
         );
     },
 
+    stopListening() {
+        // Stop audio input
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+
+        // Disconnect and close AudioContext
+        if (currentRecorder && currentContext) {
+            currentRecorder.disconnect();
+            currentContext.close();
+            currentRecorder = null;
+            currentContext = null;
+        }
+
+        // Destroy GFSK demodulator state
+        if (currentDemodState !== null) {
+            TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState);
+            currentDemodState = null;
+        }
+    },
+
     // TODO: Put this part handling audio here as well?
-    tryStartListeningForIncomingMessages: async (onAudioProcess, onByteReceived) => {
+    tryStartListeningForIncomingMessages: async (modemProfile, onAudioProcess = null) => {
         if (!navigator.mediaDevices) {
-            return Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
+            return new Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
         }
 
-        // Create modem context
-        let modemProfilePtr = Tinitus.DEFAULT_MODEM_PROFILE.ptr;
-        let modemContextPtr = Tinitus.EXPORTS.modem_context_create();
-        if (modemContextPtr == -1) {
-            return Error("Failed to create modem context.");
-        }
-        if (Tinitus.EXPORTS.modem_context_init(modemContextPtr, modemProfilePtr) == -1) {
-            return Error("Failed to initialize modem context.");
-        }
-        let decoderPtr = Tinitus.EXPORTS.modem_context_get_decoder(modemContextPtr);
-        if (decoderPtr == -1) {
-            return Error("Failed to get decoder from modem context.");
+        // Stop any previous listening session
+        TinyTUS.stopListening();
+
+        // Create new demodulator
+        const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
+        currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
+        if (currentDemodState === -1) {
+            throw new Error("Failed to create GFSK demodulator state.");
         }
 
-        navigator.mediaDevices.getUserMedia({
-            audio: {
-                // TODO: Try these out?
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-                googEchoCancellation: false,
-                googNoiseSuppression: false,
-                googAutoGainControl: false,
-            },
-            video: false,
-        }).then(function (stream) {
-            const context = new AudioContext({
+        try {
+            currentStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    googEchoCancellation: false,
+                    googNoiseSuppression: false,
+                    googAutoGainControl: false,
+                },
+                video: false,
+            });
+
+            currentContext = new AudioContext({
                 latencyHint: "balanced",
                 sampleRate: 48000,
             });
-            const mediaStreamSource = context.createMediaStreamSource(stream);
+
+            const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
             const bufferSize = 1024;
-            var recorder = context.createScriptProcessor(bufferSize, 1, 1)
+            currentRecorder = currentContext.createScriptProcessor(bufferSize, 1, 1);
 
-            recorder.onaudioprocess = function (event) {
+            currentRecorder.onaudioprocess = function (event) {
                 const input = event.inputBuffer.getChannelData(0);
+                fillInputBufferWithFloat32(input);
 
-                for (let i = 0; i < input.length; i++) {
-                    const status = Tinitus.EXPORTS.handle_input_sample(
-                        modemContextPtr,
-                        input[i]
-                    );
+                TinyTUS.EXPORTS.handle_input_samples(
+                    currentDemodState,
+                    TinyTUS.INPUT_BUFFER_PTR,
+                    input.length
+                );
 
-                    if (status === 2) {
-                        const byte = Tinitus.EXPORTS.frame_decoder_get_last_byte(decoderPtr);
-                        onByteReceived(byte);
-                    }
+                if (onAudioProcess) {
+                    onAudioProcess(event);
                 }
+            };
 
-                onAudioProcess(event);
-            }
-
-            mediaStreamSource.connect(recorder);
-            recorder.connect(context.destination);
+            mediaStreamSource.connect(currentRecorder);
+            currentRecorder.connect(currentContext.destination);
 
             return null;
-        }).catch(function (e) { // This should handle even the revokes and everything.
+        } catch (e) {
+            TinyTUS.stopListening(); // Clean up on failure
             return e;
-        });
+        }
     },
 
     // This is a map of profilePtr and Profile object
     MODEM_PROFILES: {},
     MODEM_PROFILES_REVERSED: {},
+    currentlyUsedModemProfile: null,
 };
