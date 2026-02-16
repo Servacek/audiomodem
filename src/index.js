@@ -165,6 +165,11 @@ if (navigator.usb) {
         infoDiv.textContent = "Nepodporované";
     }
     if (detailsDiv) detailsDiv.textContent = 'Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume.';
+    // Disable also the profile selector
+    const usbProfileSelector = document.getElementById("usb-profile-selector");
+    if (usbProfileSelector) {
+        usbProfileSelector.disabled = true;
+    }
 }
 
 ////////// WASM
