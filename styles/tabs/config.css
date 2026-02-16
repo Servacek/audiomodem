@@ -606,3 +606,39 @@ separator {
     display: flex;
     flex-direction: row;
 } */
+
+/* Sliders */
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    accent-color: rgb(88, 128, 101);
+    cursor: pointer;
+    height: 4px;
+}
+
+.slider-row input[type="range"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.slider-label {
+    min-width: 48px;
+    text-align: right;
+    font-size: 0.85em;
+    color: var(--msger-header-colour);
+    font-variant-numeric: tabular-nums;
+}
+
+.slider-icon {
+    font-size: 14px;
+    color: var(--msger-header-colour);
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}

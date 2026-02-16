@@ -15,7 +15,7 @@ const PARAM_LABELS = {
     bps:                "Bity za sekundu",
     bits_per_symbol:    "Bity na symbol",
     bytes_per_tx_block: "Bajtov v TX bloku",
-    ecc_percent:        "ECC overhead (0.0 – 1.0)",
+    ecc_percent:        "Podiel samoopravných bajtov",
     dss_enabled:        "DSS (rozptyl spektra)",
     squelch_thresh:     "Squelch prah",
     cphase:             "Spojitá fáza",
@@ -202,6 +202,7 @@ function updateProfile(id, field, value) {
 
     const content = document.getElementById(`profile-content-${id}`);
     if (content?.classList.contains('expanded')) {
+        updateWaveInfo(id, profile.modemProfile);
         drawWaveVisualization(id);
         initFreqPickers();
     }
@@ -229,179 +230,195 @@ function drawWaveVisualization(profileId) {
     const canvas = document.getElementById(`wave-canvas-${profileId}`);
     if (!canvas) return;
 
-    const ctx    = canvas.getContext('2d');
-    const width  = canvas.width  = canvas.offsetWidth * 2;
-    const height = canvas.height = 350;
-
-    ctx.clearRect(0, 0, width, height);
-
-    const period = mp.sample_duration * mp.samples_per_symbol;
-
-    const padTop    = 40;
-    const padSide   = 40;
-    const padBottom = 90;
-    const graphHeight  = height - padTop - padBottom;
-    const graphWidth   = width  - 2 * padSide;
-    const graphCenterY = padTop + graphHeight / 2;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w   = canvas.offsetWidth;
+    const h   = 260;
+    canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.height = `${h}px`;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
 
     const isDark      = document.documentElement.classList.contains('dark-scheme');
-    const gridColor   = isDark ? 'rgba(255,255,255,0.08)' : '#f1f3f5';
-    const axisColor   = isDark ? 'rgba(255,255,255,0.15)' : '#dee2e6';
+    const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const axisColor   = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)';
     const waveColor   = isDark ? '#579ffb' : '#007bff';
     const markerColor = isDark ? 'rgb(88,128,101)' : '#28a745';
-    const labelColor  = isDark ? 'rgba(255,255,255,0.5)' : '#6c757d';
+    const labelColor  = isDark ? 'rgba(255,255,255,0.45)' : '#6c757d';
+    const tagBg       = isDark ? 'rgba(87,159,251,0.12)' : 'rgba(0,123,255,0.08)';
+    const tagFg       = isDark ? '#579ffb' : '#007bff';
 
-    // Osi
-    ctx.strokeStyle = axisColor;
-    ctx.lineWidth   = 2;
-    ctx.beginPath();
-    ctx.moveTo(padSide, padTop);
-    ctx.lineTo(padSide, padTop + graphHeight);
-    ctx.lineTo(width - padSide, padTop + graphHeight);
-    ctx.stroke();
+    const pad = { top: 32, right: 16, bottom: 56, left: 48 };
+    const gw  = w - pad.left - pad.right;
+    const gh  = h - pad.top  - pad.bottom;
+    const cy  = pad.top + gh / 2;
 
-    // Mriežka
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth   = 1;
+    // Grid
+    ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
-        const y = padTop + (graphHeight * i / 4);
-        ctx.beginPath();
-        ctx.moveTo(padSide, y);
-        ctx.lineTo(width - padSide, y);
-        ctx.stroke();
+        const y = pad.top + gh * i / 4;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gw, y); ctx.stroke();
     }
 
-    // Vlnový tvar
-    ctx.strokeStyle = waveColor;
-    ctx.lineWidth   = 3;
+    // Axes
+    ctx.strokeStyle = axisColor; ctx.lineWidth = 1.5;
     ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, pad.top + gh);
+    ctx.lineTo(pad.left + gw, pad.top + gh); ctx.stroke();
 
-    const numCycles      = 3;
-    const pointsPerCycle = 100;
-    const totalPoints    = numCycles * pointsPerCycle;
+    // Centre line
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, cy); ctx.lineTo(pad.left + gw, cy); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Y labels
+    ctx.fillStyle = labelColor; ctx.font = '10px JetBrains Mono, monospace'; ctx.textAlign = 'right';
+    ctx.fillText('+1', pad.left - 6, pad.top + 4);
+    ctx.fillText(' 0', pad.left - 6, cy + 4);
+    ctx.fillText('\u22121', pad.left - 6, pad.top + gh + 4);
+
+    // Waveform
+    const numCycles = 4, totalPoints = numCycles * 200;
     let phase = 0;
-
+    ctx.strokeStyle = waveColor; ctx.lineWidth = 2; ctx.beginPath();
     for (let i = 0; i <= totalPoints; i++) {
-        const t  = (i / totalPoints) * numCycles;
-        const dt = numCycles / totalPoints;
+        const t    = (i / totalPoints) * numCycles;
+        const dt   = numCycles / totalPoints;
+        const freq = Math.floor(t) % 2 === 0 ? mp.min_tx_freq : mp.max_tx_freq;
+        const norm = freq / 1000;
         let y;
-
-        const freq           = Math.floor(t) % 2 ? mp.max_tx_freq : mp.min_tx_freq;
-        const normalizedFreq = freq / 1000;
-        if (mp.cphase) {
-            phase += 2 * Math.PI * normalizedFreq * dt;
-            y = Math.sin(phase);
-        } else {
-            y = Math.sin(t * Math.PI * 2 * normalizedFreq);
-        }
-
-        const x    = padSide + (i / totalPoints) * graphWidth;
-        const yPos = graphCenterY - (y * graphHeight / 3);
-        i === 0 ? ctx.moveTo(x, yPos) : ctx.lineTo(x, yPos);
+        if (mp.cphase) { phase += 2 * Math.PI * norm * dt; y = Math.sin(phase); }
+        else           { y = Math.sin(t * Math.PI * 2 * norm); }
+        const x = pad.left + (i / totalPoints) * gw;
+        i === 0 ? ctx.moveTo(x, cy - y * gh * 0.42) : ctx.lineTo(x, cy - y * gh * 0.42);
     }
     ctx.stroke();
 
-    // Značky bitovej periódy
-    ctx.strokeStyle = markerColor;
-    ctx.lineWidth   = 2;
-    ctx.setLineDash([5, 5]);
+    // Symbol boundaries
+    ctx.strokeStyle = markerColor; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
     for (let i = 1; i < numCycles; i++) {
-        const x = padSide + (i / numCycles) * graphWidth;
-        ctx.beginPath();
-        ctx.moveTo(x, padTop);
-        ctx.lineTo(x, padTop + graphHeight);
-        ctx.stroke();
+        const x = pad.left + (i / numCycles) * gw;
+        ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + gh); ctx.stroke();
     }
     ctx.setLineDash([]);
 
-    // Šípka periódy
-    const arrowY      = padTop + graphHeight + 30;
-    const arrowStartX = padSide;
-    const arrowEndX   = padSide + graphWidth / numCycles;
-    const arrowSize   = 8;
-
-    ctx.strokeStyle = markerColor;
-    ctx.fillStyle   = markerColor;
-    ctx.lineWidth   = 2;
-
-    ctx.beginPath();
-    ctx.moveTo(arrowStartX, arrowY);
-    ctx.lineTo(arrowEndX, arrowY);
-    ctx.stroke();
-
-    for (const [x, dir] of [[arrowStartX, 1], [arrowEndX, -1]]) {
+    // Bit tags
+    ctx.font = 'bold 10px JetBrains Mono, monospace';
+    for (let i = 0; i < numCycles; i++) {
+        const x0    = pad.left + (i / numCycles) * gw;
+        const x1    = pad.left + ((i + 1) / numCycles) * gw;
+        const mx    = (x0 + x1) / 2;
+        const label = `bit ${i % 2}  ${i % 2 === 0 ? mp.min_tx_freq : mp.max_tx_freq} Hz`;
+        ctx.textAlign = 'center';
+        const tw = ctx.measureText(label).width + 10;
+        ctx.fillStyle = tagBg;
         ctx.beginPath();
-        ctx.moveTo(x, arrowY);
-        ctx.lineTo(x + dir * arrowSize, arrowY - arrowSize / 2);
-        ctx.lineTo(x + dir * arrowSize, arrowY + arrowSize / 2);
-        ctx.closePath();
+        if (ctx.roundRect) ctx.roundRect(mx - tw / 2, pad.top - 16, tw, 16, 4);
+        else ctx.rect(mx - tw / 2, pad.top - 16, tw, 16);
         ctx.fill();
+        ctx.fillStyle = tagFg; ctx.fillText(label, mx, pad.top - 3);
     }
 
-    ctx.fillStyle   = markerColor;
-    ctx.font        = '30px sans-serif';
-    ctx.textAlign   = 'center';
-    ctx.fillText(`Perióda: ${period.toFixed(4)}s`, (arrowStartX + arrowEndX) / 2, arrowY + 20);
-
-    // Popisky na osi Y
-    ctx.fillStyle = labelColor;
-    ctx.font      = '12px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(' 1.0', padSide - 10, padTop + 5);
-    ctx.fillText(' 0.0', padSide - 10, graphCenterY + 5);
-    ctx.fillText('-1.0', padSide - 10, padTop + graphHeight + 5);
+    // Period arrow
+    const period = mp.sample_duration * mp.samples_per_symbol;
+    const arrowY = pad.top + gh + 28;
+    const ax0 = pad.left, ax1 = pad.left + gw / numCycles, asz = 5;
+    ctx.strokeStyle = markerColor; ctx.fillStyle = markerColor; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ax0, arrowY); ctx.lineTo(ax1, arrowY); ctx.stroke();
+    for (const [x, d] of [[ax0, 1], [ax1, -1]]) {
+        ctx.beginPath();
+        ctx.moveTo(x, arrowY); ctx.lineTo(x + d * asz, arrowY - asz / 2);
+        ctx.lineTo(x + d * asz, arrowY + asz / 2); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = labelColor; ctx.font = '11px JetBrains Mono, monospace'; ctx.textAlign = 'center';
+    ctx.fillText(`T = ${(period * 1000).toFixed(3)} ms`, (ax0 + ax1) / 2, arrowY + 14);
 }
 
-// Vykreslenie
+// Pomocné funkcie na vykreslenie polí
+function fieldWrap(name, inputHtml, helpText = '') {
+    return `
+    <div class="profile-field">
+        <label>${PARAM_LABELS[name] ?? name}</label>
+        ${inputHtml}
+        ${helpText ? `<div class="help-text">${helpText}</div>` : ''}
+    </div>`;
+}
+
+function numField(name, mp, idSuffix, readonly, opts = {}) {
+    const { min, max, step = 1, help = '' } = opts;
+    const val = mp[name] ?? 0;
+    if (readonly) return fieldWrap(name, `<input type="number" value="${val}" disabled>`, help);
+    return fieldWrap(name, `
+        <input type="number" value="${val}"
+            data-profile-id="${idSuffix}" data-field="${name}"
+            ${min != null ? `min="${min}"` : ''} ${max != null ? `max="${max}"` : ''}
+            step="${step}">`, help);
+}
+
+function toggleField(name, mp, idSuffix, readonly, help = '') {
+    const checked = mp[name] ? 'checked' : '';
+    if (readonly) return fieldWrap(name, `<input type="checkbox" ${checked} disabled>`, help);
+    return fieldWrap(name, `
+        <input type="checkbox" ${checked}
+            data-profile-id="${idSuffix}" data-field="${name}" data-type="checkbox">`, help);
+}
+
+function sliderField(name, mp, idSuffix, readonly, opts = {}) {
+    const { min = 0, max = 1, step = 0.01, help = '', icon = '', format } = opts;
+    const val     = mp[name] ?? 0;
+    const display = format ? format(val) : parseFloat(val).toFixed(2);
+
+    let labelExpr;
+    if      (name === 'ecc_percent') labelExpr = "Math.round(parseFloat(this.value)*100)+'%'";
+    else if (name === 'max_tx_amp')  labelExpr = "parseFloat(this.value).toFixed(2)";
+    else                             labelExpr = "parseFloat(this.value).toFixed(3)";
+
+    return fieldWrap(name, `
+        <div class="slider-row">
+            ${icon ? `<i class="${icon} slider-icon"></i>` : ''}
+            <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
+                ${readonly
+                    ? 'disabled'
+                    : `data-profile-id="${idSuffix}" data-field="${name}"
+                       oninput="this.nextElementSibling.textContent=${labelExpr}"`}>
+            <span class="slider-label">${display}</span>
+        </div>`, help);
+}
+
+// Vykreslenie polí profilu
 function renderProfileFields(mp, idSuffix, readonly) {
-    const field = (name, inputHtml, helpText = '') => `
-        <div class="profile-field">
-            <label>${PARAM_LABELS[name] ?? name}</label>
-            ${inputHtml}
-            ${helpText ? `<div class="help-text">${helpText}</div>` : ''}
-        </div>`;
-
-    const num = (name, {min, max, step = 1, help = ''} = {}) => {
-        const val = mp[name] ?? 0;
-        if (readonly) return field(name,
-            `<input type="number" value="${val}" disabled>`, help);
-        return field(name,
-            `<input type="number" value="${val}"
-                data-profile-id="${idSuffix}" data-field="${name}"
-                ${min != null ? `min="${min}"` : ''}
-                ${max != null ? `max="${max}"` : ''}
-                step="${step}">`, help);
-    };
-
-    const toggle = (name, help = '') => {
-        const checked = mp[name] ? 'checked' : '';
-        if (readonly) return field(name,
-            `<input type="checkbox" ${checked} disabled>`, help);
-        return field(name,
-            `<input type="checkbox" ${checked}
-                data-profile-id="${idSuffix}" data-field="${name}" data-type="checkbox">`, help);
-    };
+    const num    = (name, opts)      => numField(name, mp, idSuffix, readonly, opts);
+    const toggle = (name, help = '') => toggleField(name, mp, idSuffix, readonly, help);
+    const slider = (name, opts)      => sliderField(name, mp, idSuffix, readonly, opts);
 
     return `
         <div class="section-divider"><div class="section-title">Základné parametre</div></div>
-
         <div class="profile-field-row">
             ${num('sample_rate',        { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' })}
-            ${num('samples_per_symbol',        { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' })}
+            ${num('samples_per_symbol', { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' })}
         </div>
         <div class="profile-field-row">
-            ${num('bits_per_symbol',    { min: 1, max: 8,   help: 'Počet bitov na symbol' })}
-            ${num('bytes_per_tx_block', { min: 1, max: 32,  help: 'Bajtov v jednom TX bloku' })}
+            ${num('bits_per_symbol',    { min: 1, max: 8,  help: 'Počet bitov na symbol' })}
+            ${num('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' })}
         </div>
         <div class="profile-field-row">
-            ${num('ecc_percent', { min: 0, max: 1, step: 0.05, help: 'Podiel ECC bajtov (0.0 = žiadne, 1.0 = 100 %)' })}
+            ${slider('ecc_percent', {
+                min: 0, max: 1, step: 0.05,
+                help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
+                format: v => `${Math.round(v * 100)} %`
+            })}
         </div>
         <div class="profile-field-row">
-            ${num('squelch_thresh', { min: 0, max: 1, step: 0.01, help: 'Prahová hodnota pre squelch' })}
-            <div class="profile-field-row" style="gap: 24px; align-items: center;">
-                ${toggle('cphase',      'Spojitá fáza (CPM)')}
-                ${toggle('dss_enabled', 'Rozptyl spektra (DSS)')}
-            </div>
+            ${slider('squelch_thresh', {
+                min: 0, max: 1, step: 0.005,
+                help: 'Prahová hodnota squelch — signály pod touto úrovňou sú ignorované',
+                icon: 'fas fa-filter',
+                format: v => parseFloat(v).toFixed(3)
+            })}
+        </div>
+        <div class="profile-field-row" style="gap: 24px; align-items: center;">
+            ${toggle('cphase',      'Spojitá fáza (CPM)')}
+            ${toggle('dss_enabled', 'Rozptyl spektra (DSS)')}
         </div>
 
         <div class="section-divider"><div class="section-title">RX Parametre (príjem)</div></div>
@@ -411,12 +428,52 @@ function renderProfileFields(mp, idSuffix, readonly) {
         </div>
 
         <div class="section-divider"><div class="section-title">TX Parametre (vysielanie)</div></div>
-
-        <div id="tx-freq-row-${idSuffix}" class="profile-field-row"
-            style="display: flex">
-            ${renderFreqPicker(mp, idSuffix, readonly)}
+        <div class="profile-field-row">
+            ${slider('max_tx_amp', {
+                min: 0, max: 1, step: 0.01,
+                help: 'Maximálna amplitúda vysielaného signálu',
+                icon: 'fas fa-volume-high',
+                format: v => parseFloat(v).toFixed(2)
+            })}
         </div>
-    `;
+        <div id="tx-freq-row-${idSuffix}" class="profile-field-row" style="display: flex">
+            ${renderFreqPicker(mp, idSuffix, readonly)}
+        </div>`;
+}
+
+function waveInfoHtml(mp, idSuffix) {
+    const period  = mp.sample_duration * mp.samples_per_symbol;
+    const nyquist = mp.sample_rate / 2;
+    const item    = (label, key, val) => `
+        <div class="wave-info-item">
+            <span class="wave-info-label">${label}</span><br>
+            <span data-wave-info="${key}-${idSuffix}">${val}</span>
+        </div>`;
+    return `
+        <div class="wave-info">
+            ${item('Symbolová rýchlosť:',  'symbol-rate',  mp.symbol_rate?.toFixed(3) ?? '–')}
+            ${item('Perióda symbolu:',      'period',       `${(period * 1000).toFixed(3)} ms`)}
+            ${item('Nyquist frekvencia:',   'nyquist',      `${nyquist} Hz`)}
+        </div>`;
+}
+
+function updateWaveInfo(profileId, mp) {
+    const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
+    const set    = (key, val) => {
+        const el = document.querySelector(`[data-wave-info="${key}${suffix}"]`);
+        if (el) el.textContent = val;
+    };
+    const period  = mp.sample_duration * mp.samples_per_symbol;
+    const nyquist = mp.sample_rate / 2;
+    set('symbol-rate', mp.symbol_rate?.toFixed(3) ?? '–');
+    set('period',      `${(period * 1000).toFixed(3)} ms`);
+    set('nyquist',     `${nyquist} Hz`);
+    set('bps',         mp.bps ?? '–');
+    set('bits-symbol', mp.bits_per_symbol ?? '–');
+    set('min-rx-freq', `${mp.min_rx_freq} Hz`);
+    set('max-rx-freq', `${mp.max_rx_freq} Hz`);
+    set('min-tx-freq', `${mp.min_tx_freq} Hz`);
+    set('max-tx-freq', `${mp.max_tx_freq} Hz`);
 }
 
 function renderDefaultProfileCard() {
@@ -424,7 +481,6 @@ function renderDefaultProfileCard() {
     if (!mp) return '';
 
     const active  = isDefaultActive();
-    const nyquist = mp.sample_rate / 2;
 
     return `
     <div class="profile-item profile-item--default ${active ? 'profile-item--active' : ''}">
@@ -448,18 +504,7 @@ function renderDefaultProfileCard() {
             <div class="wave-visualization">
                 <div class="wave-viz-header"><i class="fas fa-wave-square"></i> Vizualizácia signálu</div>
                 <div class="wave-canvas-container"><canvas id="wave-canvas-default"></canvas></div>
-                <div class="wave-info">
-                    <div class="wave-info-item">
-                        <span class="wave-info-label">Symbolová rýchlosť:</span> ${mp.symbol_rate?.toFixed(3) ?? '–'}
-                    </div>
-                    <div class="wave-info-item">
-                        <span class="wave-info-label">Perióda symbolu:</span>
-                        ${((mp.sample_duration ?? 0) * (mp.samples_per_symbol ?? 0) * 1000).toFixed(2)} ms
-                    </div>
-                    <div class="wave-info-item">
-                        <span class="wave-info-label">Nyquist frekvencia:</span> ${nyquist} Hz
-                    </div>
-                </div>
+                ${waveInfoHtml(mp, 'default')}
             </div>
             ${renderProfileFields(mp, 'default', true)}
         </div>
@@ -480,7 +525,6 @@ function renderProfiles() {
     const profileCards = profiles.map(profile => {
         const mp      = profile.modemProfile;
         const active  = isProfileActive(profile);
-        const nyquist = mp.sample_rate / 2;
 
         return `
         <div class="profile-item ${active ? 'profile-item--active' : ''}">
@@ -510,21 +554,7 @@ function renderProfiles() {
                 <div class="wave-visualization">
                     <div class="wave-viz-header"><i class="fas fa-wave-square"></i> Vizualizácia signálu</div>
                     <div class="wave-canvas-container"><canvas id="wave-canvas-${profile.id}"></canvas></div>
-                    <div class="wave-info">
-                        <div class="wave-info-item">
-                            <span class="wave-info-label">Symbolová rýchlosť:</span> ${mp.symbol_rate?.toFixed(2) ?? '–'}
-                        </div>
-                        <div class="wave-info-item">
-                            <span class="wave-info-label">Perióda symbolu:</span>
-                            ${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(2)} ms
-                        </div>
-                        <div class="wave-info-item">
-                            <span class="wave-info-label">Nyquist frekvencia:</span> ${nyquist} Hz
-                        </div>
-                        <div class="wave-info-item">
-                            <span class="wave-info-label">Frekvenčná modulácia</span>}
-                        </div>
-                    </div>
+                    ${waveInfoHtml(mp, profile.id)}
                 </div>
 
                 ${renderProfileFields(mp, profile.id, false)}
