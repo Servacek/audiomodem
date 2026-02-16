@@ -42,6 +42,63 @@ const confirmationModal = $('confirmation-modal');
 const confirmButton     = $('confirmation-confirm-button');
 const cancelButton      = $('confirmation-cancel-button');
 const configTabContent  = $('tab-config');
+const usbProfileSelector = $('usb-profile-selector');
+
+/********************************/
+/****  USB DEVICE SETTINGS   ****/
+/********************************/
+
+function getUsbProfileSetting() {
+    try {
+        const setting = localStorage.getItem('usbDeviceProfile');
+        return setting || '';
+    } catch {
+        return '';
+    }
+}
+
+function saveUsbProfileSetting(profileId) {
+    try {
+        localStorage.setItem('usbDeviceProfile', profileId || '');
+    } catch (e) {
+        console.error('Failed to save USB profile setting:', e);
+    }
+}
+
+function populateUsbProfileSelector() {
+    if (!usbProfileSelector) return;
+
+    const currentSelection = getUsbProfileSetting();
+
+    // Clear existing options except the first (default)
+    usbProfileSelector.innerHTML = '<option value="">Ponechať aktuálny profil</option>';
+
+    // Add default profile option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = 'default';
+    defaultOption.textContent = 'Predvolený profil';
+    usbProfileSelector.appendChild(defaultOption);
+
+    // Add custom profiles
+    profiles.forEach(profile => {
+        const option = document.createElement('option');
+        option.value = profile.id;
+        option.textContent = profile.name;
+        usbProfileSelector.appendChild(option);
+    });
+
+    // Restore previous selection
+    usbProfileSelector.value = currentSelection;
+}
+
+export function getUsbAutoProfile() {
+    const setting = getUsbProfileSetting();
+    if (!setting) return null;
+    if (setting === 'default') return TinyTUS.DEFAULT_MODEM_PROFILE;
+
+    const profile = profiles.find(p => p.id === parseInt(setting));
+    return profile ? profile.modemProfile : null;
+}
 
 /********************************/
 /****  PERSISTENCE           ****/
@@ -504,6 +561,7 @@ function renderProfiles() {
         profiles.length === 0 ? '<div class="empty-state">Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>' : '',
     ].join('');
     initFreqPickers();
+    populateUsbProfileSelector();
 }
 
 /********************************/
@@ -545,10 +603,35 @@ container?.addEventListener('input', e => {
     }
 });
 
+let lastProfileBeforeAutoSet = null;
+function syncAutoProfileWithUSBState() {
+    try {
+        const autoProfile = getUsbAutoProfile();
+        if (autoProfile && TinyTUS.currentlyUsedModemProfile !== autoProfile) {
+            console.log('Applying USB auto-profile:', autoProfile);
+            lastProfileBeforeAutoSet = TinyTUS.currentlyUsedModemProfile;
+            TinyTUS.currentlyUsedModemProfile = autoProfile;
+            window.dispatchEvent(new CustomEvent("active-modem-profile-changed", {
+                detail: { profile: autoProfile, source: 'usb-auto' }
+            }));
+        }
+    } catch (e) {
+        console.warn('Failed to apply USB auto-profile:', e);
+    }
+}
+
 addButton?.addEventListener('click', addProfile);
 confirmButton?.addEventListener('click', confirmDelete);
 cancelButton?.addEventListener('click', closeModal);
 confirmationModal?.addEventListener('click', e => { if (e.target === confirmationModal) closeModal(); });
+usbProfileSelector?.addEventListener('change', e => {
+    saveUsbProfileSetting(e.target.value);
+    console.log('USB auto-profile set to:', e.target.value || 'none');
+
+    if (window.port != null) {
+        syncAutoProfileWithUSBState();
+    }
+});
 
 /********************************/
 /****  OBSERVERS & INIT      ****/
@@ -571,6 +654,25 @@ configTabContent?.addEventListener('scroll', () => {
 });
 
 window.addEventListener('refresh-local-storage', saveProfiles);
+
+window.addEventListener("usb-device-connected", syncAutoProfileWithUSBState);
+
+window.addEventListener("active-modem-profile-changed", (e) => {
+    if (!e.detail?.profile) {
+        // Uzivatel sa rozhodol zmenit profil, uz teraz nebudeeme vraciat spat
+        lastProfileBeforeAutoSet = null;
+    } else {
+        console.log('Active modem profile changed due to USB auto-profile:', e.detail.profile);
+        updateActiveProfileUI(e.detail.profile);
+    }
+});
+
+window.addEventListener("usb-device-disconnected", () => {
+    if (lastProfileBeforeAutoSet) {
+        console.log('Restoring previous profile after USB disconnect:', lastProfileBeforeAutoSet);
+        TinyTUS.currentlyUsedModemProfile = lastProfileBeforeAutoSet;
+    }
+});
 
 TinyTUS.afterLoad(() => {
     loadProfiles();

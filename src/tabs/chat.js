@@ -469,9 +469,30 @@ if (!navigator.mediaDevices) {
 let userLoggedIn = false;
 let wasmLoaded = false;
 
+// Track if we've attempted initialization after user interaction
+let hasUserInteracted = false;
+
+// Ensure microphone can start by detecting user interaction (for browser autoplay policies)
+function enableUserInteraction() {
+    if (hasUserInteracted) return;
+    hasUserInteracted = true;
+    console.log('User interaction detected, microphone should be able to start');
+
+    // Try to initialize microphone if WASM is already loaded
+    if (wasmLoaded) {
+        initStateUpdate();
+    }
+}
+
+// Listen for any user interaction to unlock audio
+document.addEventListener('click', enableUserInteraction, { once: true });
+document.addEventListener('keydown', enableUserInteraction, { once: true });
+
 const initStateUpdate = async () => {
     // if (userLoggedIn && wasmLoaded) {
     if (wasmLoaded) {
+        console.log('Attempting to initialize microphone...');
+
         /** @type {Error}  */
         const error = await TinyTUS.tryStartListeningForIncomingMessages(
             TinyTUS.currentlyUsedModemProfile,
@@ -481,8 +502,25 @@ const initStateUpdate = async () => {
                 }));
             }
         );
+
         if (error != null) {
-            displayMessageAtBottom(systemMessage("Nepodarilo sa spustiť prijímanie správ: " + error.message, "error"));
+            console.error('Failed to start microphone:', error);
+
+            // Provide specific error messages based on error type
+            let errorMsg = "Nepodarilo sa spustiť prijímanie správ: ";
+            if (error.name === 'NotAllowedError') {
+                errorMsg += "Prístup k mikrofónu bol zamietnutý. Povoľte prístup v nastaveniach prehliadača.";
+            } else if (error.name === 'NotFoundError') {
+                errorMsg += "Nebol nájdený žiadny mikrofón. Skontrolujte pripojenie mikrofónu.";
+            } else if (error.name === 'NotReadableError') {
+                errorMsg += "Mikrofón je už používaný inou aplikáciou. Zatvorte ostatné aplikácie používajúce mikrofón.";
+            } else {
+                errorMsg += error.message;
+            }
+
+            displayMessageAtBottom(systemMessage(errorMsg + " <a href='#' onclick='event.preventDefault(); window.dispatchEvent(new Event(\"retry-microphone\"));' style='color: var(--msger-send-button-bg); text-decoration: underline;'>Skúsiť znova</a>", "error"));
+        } else {
+            console.log('Microphone initialized successfully');
         }
     }
 }
@@ -502,6 +540,12 @@ window.addEventListener("active-modem-profile-changed", async () => {
 })
 
 window.addEventListener("modem-profile-updated", async () => {
+    await initStateUpdate();
+});
+
+window.addEventListener("retry-microphone", async () => {
+    console.log('Retrying microphone initialization...');
+    displayMessageAtBottom(systemMessage("Pokúšam sa znova spustiť mikrofón...", "info"));
     await initStateUpdate();
 });
 

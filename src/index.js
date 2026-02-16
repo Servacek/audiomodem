@@ -1,5 +1,6 @@
 
 import { TinyTUS } from '../libs/tinytus/tinytus.js';
+import { getUsbAutoProfile } from './tabs/config.js';
 
 ////////////////////
 
@@ -16,7 +17,11 @@ if (!navigator.mediaDevices) {
 }
 
 const button = document.getElementById("connect-usb-device-button");
+const buttonSpan = button?.querySelector('span');
 const infoDiv = document.getElementById("usb-device-info");
+const statusTextDiv = document.getElementById("usb-device-status-text");
+const detailsDiv = document.getElementById("usb-device-details");
+const usbCard = document.querySelector('.usb-device-card');
 
 window.addEventListener("message-send-started", async (message) => {
     if (port == null) return;
@@ -50,14 +55,26 @@ async function openDevice(device) {
         }
         await device.claimInterface(0);
 
-        infoDiv.textContent = `Pripojené: ${device.productName} (Vendor ID: 0x${device.vendorId.toString(16)})`;
+        // Update UI elements
+        if (statusTextDiv) statusTextDiv.textContent = 'Pripojené';
+        if (infoDiv) infoDiv.textContent = device.productName || 'USB Zariadenie';
+        if (detailsDiv) detailsDiv.textContent = `Vendor ID: 0x${device.vendorId.toString(16).toUpperCase()} | Product ID: 0x${device.productId.toString(16).toUpperCase()}`;
+        if (button) {
+            button.classList.add("paired");
+            if (buttonSpan) buttonSpan.textContent = 'Odpojiť';
+        }
+        if (usbCard) usbCard.classList.add('connected');
+
+        port = device;
+        window.port = port;
+
+        // Apply USB auto-profile if configured
+
         window.dispatchEvent(new CustomEvent("usb-device-connected", {
             "detail": {
                 "device": device
             }
         }));
-        button.classList.add("paired");
-        port = device
     } catch (error) {
         console.error("Error connecting to USB device:", error);
         window.dispatchEvent(new CustomEvent("usb-device-connection-failed", {
@@ -77,8 +94,17 @@ async function tryDisconnectUSB() {
         // Already disconnected, quite common
     }
     port = null;
-    infoDiv.textContent = "";
-    button.classList.remove("paired");
+    window.port = null;
+
+    // Update UI elements
+    if (statusTextDiv) statusTextDiv.textContent = 'Nepripojené';
+    if (infoDiv) infoDiv.textContent = 'Žiadne zariadenie';
+    if (detailsDiv) detailsDiv.textContent = '';
+    if (button) {
+        button.classList.remove("paired");
+        if (buttonSpan) buttonSpan.textContent = 'Pripojiť';
+    }
+    if (usbCard) usbCard.classList.remove('connected');
 
     window.dispatchEvent(new CustomEvent("usb-device-disconnected"));
 }
@@ -133,8 +159,12 @@ if (navigator.usb) {
         });
     });
 } else {
-    infoDiv.style.color = "#ff6666";
-    infoDiv.textContent = "Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume."
+    if (statusTextDiv) statusTextDiv.textContent = 'Nepodporované';
+    if (infoDiv) {
+        infoDiv.style.color = "#ff6666";
+        infoDiv.textContent = "Nepodporované";
+    }
+    if (detailsDiv) detailsDiv.textContent = 'Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume.';
 }
 
 ////////// WASM

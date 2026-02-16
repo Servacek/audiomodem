@@ -76,43 +76,215 @@ separator {
     margin-top: 20px;
 }
 
-#usb-device-info {
-    font-size: 14px;
-    color: var(--msger-header-colour);
-    opacity: 0.7;
-    font-style: italic;
+/********************************/
+/****  USB DEVICE SECTION    ****/
+/********************************/
+
+.usb-device-section {
+    margin: 16px 0;
 }
 
-#connect-usb-device-button {
-    padding: 10px 12px 10px 12px;
-    background-color: #4CAF50;
+.usb-device-card {
+    background: var(--config-option-bg, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 8px;
+    padding: 20px;
+    transition: border-color 0.3s ease;
+}
+
+.usb-device-card.connected {
+    border-color: #4CAF50;
+}
+
+.usb-device-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.usb-device-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--config-border, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    font-size: 24px;
+    color: var(--msger-header-colour);
+    flex-shrink: 0;
+}
+
+.usb-device-card.connected .usb-device-icon {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+}
+
+.usb-device-info-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.usb-device-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    color: var(--msger-header-colour);
+    opacity: 0.6;
+}
+
+.usb-device-status i {
+    font-size: 8px;
+    color: #ff6666;
+}
+
+.usb-device-card.connected .usb-device-status i {
+    color: #4CAF50;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.usb-device-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--msger-header-colour);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.usb-device-details {
+    font-size: 12px;
+    color: var(--msger-header-colour);
+    opacity: 0.5;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.usb-connect-button {
+    padding: 10px 20px;
+    background: #4CAF50;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: transform 0.3s ease-in-out, background-color 0.2s;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
-#connect-usb-device-button.paired {
-    background-color: #ff6666;
+.usb-connect-button:hover:not(:disabled) {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
 }
 
-#connect-usb-device-button:disabled {
-    background-color: grey;
-    color: rgba(234, 234, 234, 0.938);
+.usb-connect-button.paired {
+    background: #ff6666;
+}
+
+.usb-connect-button.paired:hover {
+    background: #ff5252;
+    box-shadow: 0 4px 8px rgba(255, 102, 102, 0.3);
+}
+
+.usb-connect-button:disabled {
+    background: var(--config-border, rgba(255, 255, 255, 0.1));
+    color: var(--msger-header-colour);
+    opacity: 0.4;
     cursor: not-allowed;
-    opacity: 0.6;
     pointer-events: none;
-    border: none;
 }
 
-#connect-usb-device-button:after {
-    content: "Pripojiť USB Zariadenie";
+.usb-device-settings {
+    border-top: 1px solid var(--config-border, rgba(255, 255, 255, 0.1));
+    padding-top: 16px;
+    margin-top: 16px;
 }
 
-#connect-usb-device-button.paired:after {
-    content: "Odpojiť";
+.usb-setting-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
 }
+
+.usb-setting-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: var(--msger-header-colour);
+    font-size: 14px;
+}
+
+.usb-setting-label i {
+    color: var(--msger-send-button-bg);
+    font-size: 16px;
+}
+
+.usb-profile-select {
+    padding: 8px 12px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--config-input-bg, transparent);
+    color: var(--msger-header-colour);
+    min-width: 200px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.usb-profile-select:hover {
+    border-color: var(--msger-send-button-bg);
+}
+
+.usb-profile-select:focus {
+    outline: none;
+    border-color: var(--msger-send-button-bg);
+    box-shadow: 0 0 0 3px rgba(var(--msger-send-button-bg-rgb, 0, 123, 255), 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .usb-device-header {
+        flex-wrap: wrap;
+    }
+
+    .usb-connect-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .usb-setting-option {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .usb-profile-select {
+        width: 100%;
+    }
+}
+
+/********************************/
+/****  END USB SECTION       ****/
+/********************************/
+
 
 .profiles-header {
     display: flex;

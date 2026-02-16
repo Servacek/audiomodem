@@ -67,9 +67,9 @@
                 <button id="oscillator-button" class="tab-button" title="Oscilátor">
                     <i class="fas fa-wave-square"></i>
                 </button>
-                <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
+                <!-- <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
                     <i class="fas fa-chart-simple"></i>
-                </button>
+                </button> -->
                 <button id="config-button" class="tab-button" title="Nastavenia">
                     <i class="fas fa-gear"></i>
                 </button>
@@ -136,14 +136,47 @@
 
                 <separator></separator>
 
-                <label class="config-sub-header">
-                    <h3>USB Zariadenia</h3>
-                    <div id="usb-device-info"><i>Zatiaľ žiadne pripojené zariadenia...</i></div><br>
-                    <button id="connect-usb-device-button" class="unpaired" disabled>
-                        <i class="fas fa-usb"></i>
-                    </button>
-                </label>
-                </label>
+                <h3>USB Zariadenia</h3>
+                <p class="section-description">
+                    Pripojenie USB zariadenia umožňuje automatické prepínanie medzi vysielaním a prijímaním.
+                    Môžete vybrať profil, ktorý sa má automaticky použiť pri pripojení zariadenia.
+                </p>
+
+                <div class="usb-device-section">
+                    <div class="usb-device-card">
+                        <div class="usb-device-header">
+                            <!-- <div class="usb-device-icon">
+                                <i class="fas fa-l"></i>
+                            </div> -->
+                            <div class="usb-device-info-wrapper">
+                                <div class="usb-device-status" id="usb-device-status">
+                                    <i class="fas fa-circle"></i>
+                                    <span id="usb-device-status-text">Nepripojené</span>
+                                </div>
+                                <div id="usb-device-info" class="usb-device-name">
+                                    Žiadne zariadenie
+                                </div>
+                                <div id="usb-device-details" class="usb-device-details"></div>
+                            </div>
+                            <button id="connect-usb-device-button" class="usb-connect-button unpaired" disabled>
+                                <i class="fas fa-plug"></i>
+                                <span>Pripojiť</span>
+                            </button>
+                        </div>
+
+                        <div class="usb-device-settings">
+                            <label class="usb-setting-option">
+                                <div class="usb-setting-label">
+                                    <i class="fas fa-sliders"></i>
+                                    <span>Profil pri pripojení</span>
+                                </div>
+                                <select id="usb-profile-selector" class="usb-profile-select">
+                                    <option value="">Ponechať aktuálny profil</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                </div>
 
                 <!--- Trocha volneho miesta na koniec -->
                 <div style="height: 20px;"></div>

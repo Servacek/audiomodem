@@ -373,61 +373,190 @@ export let TinyTUS = {
     },
 
     stopListening() {
-        // Stop audio input
-        if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
-            currentStream = null;
-        }
+        try {
+            // Stop audio input tracks
+            if (currentStream) {
+                try {
+                    currentStream.getTracks().forEach(track => {
+                        try {
+                            track.stop();
+                        } catch (e) {
+                            console.warn('Error stopping track:', e);
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Error iterating tracks:', e);
+                }
+                currentStream = null;
+            }
 
-        // Disconnect and close AudioContext
-        if (currentRecorder && currentContext) {
-            currentRecorder.disconnect();
-            currentContext.close();
-            currentRecorder = null;
-            currentContext = null;
-        }
+            // Disconnect and close AudioContext
+            if (currentRecorder) {
+                try {
+                    currentRecorder.disconnect();
+                    currentRecorder.onaudioprocess = null;
+                } catch (e) {
+                    console.warn('Error disconnecting recorder:', e);
+                }
+                currentRecorder = null;
+            }
 
-        // Destroy GFSK demodulator state
-        // Check for both null and 0 (NULL pointer from C)
-        if (currentDemodState !== null && currentDemodState !== 0) {
-            TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState);
-            currentDemodState = null;
+            if (currentContext) {
+                try {
+                    // Check state before closing to avoid errors
+                    if (currentContext.state !== 'closed') {
+                        currentContext.close();
+                    }
+                } catch (e) {
+                    console.warn('Error closing AudioContext:', e);
+                }
+                currentContext = null;
+            }
+
+            // Destroy GFSK demodulator state
+            // Check for both null and 0 (NULL pointer from C)
+            if (currentDemodState !== null && currentDemodState !== 0) {
+                try {
+                    TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState);
+                } catch (e) {
+                    console.warn('Error destroying demodulator:', e);
+                }
+                currentDemodState = null;
+            }
+        } catch (e) {
+            console.error('Error in stopListening:', e);
         }
     },
 
+    // State tracking for initialization
+    _initializationInProgress: false,
+    _initializationQueue: null,
+
     // TODO: Put this part handling audio here as well?
     tryStartListeningForIncomingMessages: async (modemProfile, onAudioProcess = null) => {
-        if (!navigator.mediaDevices) {
-            return new Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
+        // Prevent concurrent initialization attempts
+        if (TinyTUS._initializationInProgress) {
+            console.log('Microphone initialization already in progress, queueing request...');
+            // Cancel any pending queued request and queue this new one
+            if (TinyTUS._initializationQueue) {
+                clearTimeout(TinyTUS._initializationQueue.timeoutId);
+            }
+
+            return new Promise((resolve) => {
+                TinyTUS._initializationQueue = {
+                    timeoutId: setTimeout(async () => {
+                        TinyTUS._initializationQueue = null;
+                        const result = await TinyTUS.tryStartListeningForIncomingMessages(modemProfile, onAudioProcess);
+                        resolve(result);
+                    }, 100)
+                };
+            });
         }
 
-        // Stop any previous listening session
-        TinyTUS.stopListening();
-
-        // Create new demodulator
-        const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
-        currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
-        if (currentDemodState === 0 || currentDemodState === null) {
-            throw new Error("Failed to create GFSK demodulator state.");
-        }
+        TinyTUS._initializationInProgress = true;
 
         try {
-            currentStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    googEchoCancellation: false,
-                    googNoiseSuppression: false,
-                    googAutoGainControl: false,
-                },
-                video: false,
-            });
+            if (!navigator.mediaDevices) {
+                return new Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
+            }
+
+            // Stop any previous listening session and wait for cleanup
+            TinyTUS.stopListening();
+
+            // Give cleanup time to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Create new demodulator
+            const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
+            currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
+            if (currentDemodState === 0 || currentDemodState === null) {
+                throw new Error("Failed to create GFSK demodulator state.");
+            }
+
+            // Retry logic for getUserMedia
+            let retries = 3;
+            let lastError = null;
+
+            while (retries > 0) {
+                try {
+                    currentStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            googEchoCancellation: true,
+                            googNoiseSuppression: true,
+                            googAutoGainControl: true,
+                            sampleRate: 48000,           // Match AudioContext
+                            channelCount: 1,              // Mono is fine for data
+                            latency: 0,                   // Minimize latency
+                            googHighpassFilter: false,    // Keep low frequencies
+                        },
+                        video: false,
+                    });
+
+                    // Success - break retry loop
+                    lastError = null;
+                    break;
+                } catch (e) {
+                    lastError = e;
+                    retries--;
+                    if (retries > 0) {
+                        console.warn(`getUserMedia failed, retrying... (${retries} attempts left)`, e);
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+            }
+
+            if (lastError) {
+                throw lastError;
+            }
+
+            // Verify stream is active
+            const audioTracks = currentStream.getAudioTracks();
+            if (audioTracks.length === 0) {
+                throw new Error('No audio tracks found in media stream');
+            }
+
+            if (audioTracks[0].readyState !== 'live') {
+                throw new Error(`Audio track not ready: ${audioTracks[0].readyState}`);
+            }
+
+            console.log(`Microphone stream acquired: ${audioTracks[0].label}`);
 
             currentContext = new AudioContext({
                 latencyHint: "balanced",
                 sampleRate: 48000,
             });
+
+            // Handle suspended AudioContext (browser autoplay policy)
+            if (currentContext.state === 'suspended') {
+                console.log('AudioContext suspended, attempting to resume...');
+                try {
+                    await currentContext.resume();
+
+                    // Wait and verify resumption
+                    let attempts = 0;
+                    while (currentContext.state === 'suspended' && attempts < 10) {
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        attempts++;
+                    }
+
+                    if (currentContext.state === 'suspended') {
+                        throw new Error('AudioContext remained suspended after resume attempts. User interaction may be required.');
+                    }
+
+                    console.log('AudioContext successfully resumed');
+                } catch (e) {
+                    console.warn('Failed to resume AudioContext:', e);
+                    throw e;
+                }
+            }
+
+            // Verify context is running
+            if (currentContext.state !== 'running') {
+                console.warn(`AudioContext in unexpected state: ${currentContext.state}`);
+            }
 
             const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
             const bufferSize = 1024;
@@ -451,10 +580,14 @@ export let TinyTUS = {
             mediaStreamSource.connect(currentRecorder);
             currentRecorder.connect(currentContext.destination);
 
+            console.log('Microphone successfully initialized');
             return null;
         } catch (e) {
+            console.error('Microphone initialization failed:', e);
             TinyTUS.stopListening(); // Clean up on failure
             return e;
+        } finally {
+            TinyTUS._initializationInProgress = false;
         }
     },
 
