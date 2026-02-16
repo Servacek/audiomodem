@@ -7,84 +7,133 @@ import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
 import { renderFreqPicker, initFreqPickers } from '../freq_picker.js';
 
+/********************************/
+/****  CONSTANTS             ****/
+/********************************/
+
+const MAX_PROFILES     = 10;
+const MAX_PROFILE_NAME = 24;
+
 const PARAM_LABELS = {
     min_rx_freq:        "Min RX frekvencia (Hz)",
     max_rx_freq:        "Max RX frekvencia (Hz)",
     sample_rate:        "Vzorkovacia frekvencia (Hz)",
-    symbol_rate:        "Symbolová rýchlosť (Bd)",
-    bps:                "Bity za sekundu",
     bits_per_symbol:    "Bity na symbol",
     bytes_per_tx_block: "Bajtov v TX bloku",
     ecc_percent:        "Podiel samoopravných bajtov",
     dss_enabled:        "DSS (rozptyl spektra)",
     squelch_thresh:     "Squelch prah",
     cphase:             "Spojitá fáza",
-    min_tx_freq:        "Min TX frekvencia (Hz)",
-    max_tx_freq:        "Max TX frekvencia (Hz)",
-    min_tx_amp:         "Min TX amplitúda",
-    max_tx_amp:         "Max TX amplitúda",
-    min_tx_phs:         "Min TX fáza (0–180°)",
-    max_tx_phs:         "Max TX fáza (0–180°)",
+    max_tx_amp:         "Max TX amplitúda (hlasitosť)",
     samples_per_symbol: "Počet vzorkov na jeden symbol",
 };
 
-// Stav aplikácie
+/********************************/
+/****  STATE & DOM REFS      ****/
+/********************************/
+
 let profiles = [];
 let profileToDelete = null;
 
-// Referencie na DOM prvky
-const container         = document.getElementById('profiles-container');
-const addButton         = document.getElementById('add-profile-button');
-const confirmationModal = document.getElementById('confirmation-modal');
-const confirmButton     = document.getElementById('confirmation-confirm-button');
-const cancelButton      = document.getElementById('confirmation-cancel-button');
+const $ = id => document.getElementById(id);
+const container         = $('profiles-container');
+const addButton         = $('add-profile-button');
+const confirmationModal = $('confirmation-modal');
+const confirmButton     = $('confirmation-confirm-button');
+const cancelButton      = $('confirmation-cancel-button');
+const configTabContent  = $('tab-config');
 
-// Načítavanie a ukladanie profilov do local storage
+/********************************/
+/****  PERSISTENCE           ****/
+/********************************/
+
 function loadProfiles() {
-    const saved = localStorage.getItem('modemProfiles');
-    if (!saved) return;
     try {
-        const parsed = JSON.parse(saved);
-        profiles = parsed.map(p => ({
-            id:           p.id,
-            name:         p.name,
-            modemProfile: new ModemProfile(p),
-        }));
-    } catch (e) {
-        profiles = [];
-    }
+        const parsed = JSON.parse(localStorage.getItem('modemProfiles') || 'null');
+        if (parsed) profiles = parsed.map(p => ({ id: p.id, name: p.name, modemProfile: new ModemProfile(p) }));
+    } catch { profiles = []; }
 }
 
 function saveProfiles() {
-    const serialized = profiles.map(p => ({
-        id:   p.id,
-        name: p.name,
-        ...p.modemProfile.toObject()
+    localStorage.setItem('modemProfiles', JSON.stringify(
+        profiles.map(p => ({ id: p.id, name: p.name, ...p.modemProfile.toObject() }))
+    ));
+}
+
+function saveConfigState() {
+    const expanded = ['default', ...profiles.map(p => p.id)]
+        .filter(id => $(`profile-content-${id}`)?.classList.contains('expanded'));
+    localStorage.setItem('configTabState', JSON.stringify({
+        activeProfileId:  isDefaultActive() ? 'default' : profiles.find(p => isProfileActive(p))?.id ?? 'default',
+        expandedProfiles: expanded,
+        scrollPosition:   configTabContent?.scrollTop || 0,
     }));
-    localStorage.setItem('modemProfiles', JSON.stringify(serialized));
 }
 
-// Vracia ukazovateľ na aktuálne používaný profil, alebo null pre predvolený
-function getActiveProfilePtr() {
-    const p = TinyTUS.currentlyUsedModemProfile;
-    return (p && p !== TinyTUS.DEFAULT_MODEM_PROFILE) ? p.ptr : null;
+function restoreConfigState() {
+    try {
+        const state = JSON.parse(localStorage.getItem('configTabState') || 'null');
+        if (!state) return;
+
+        const profileToActivate = state.activeProfileId === 'default'
+            ? TinyTUS.DEFAULT_MODEM_PROFILE
+            : profiles.find(p => p.id === state.activeProfileId)?.modemProfile;
+        if (profileToActivate) {
+            TinyTUS.currentlyUsedModemProfile = profileToActivate;
+            window.dispatchEvent(new CustomEvent("active-modem-profile-changed", { detail: { profile: profileToActivate } }));
+        }
+
+        state.expandedProfiles?.forEach(id => {
+            const content = $(`profile-content-${id}`);
+            const toggle  = $(`profile-toggle-${id}`);
+            if (!content || !toggle) return;
+            content.classList.add('expanded');
+            toggle.classList.add('expanded');
+            setTimeout(() => drawWaveVisualization(id), 50);
+        });
+
+        if (state.scrollPosition && configTabContent)
+            setTimeout(() => { configTabContent.scrollTop = state.scrollPosition; }, 100);
+    } catch { /* ignore corrupt state */ }
 }
 
-function isProfileActive(profile) {
-    return TinyTUS.currentlyUsedModemProfile === profile.modemProfile;
-}
+/********************************/
+/****  PROFILE MANAGEMENT    ****/
+/********************************/
 
-function isDefaultActive() {
-    return TinyTUS.currentlyUsedModemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
+const isProfileActive = profile => TinyTUS.currentlyUsedModemProfile === profile.modemProfile;
+const isDefaultActive = ()      => TinyTUS.currentlyUsedModemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
+
+function updateActiveProfileUI(modemProfile) {
+    // Remove active class from all profiles
+    document.querySelectorAll('.profile-item--active').forEach(el => el.classList.remove('profile-item--active'));
+
+    // Determine which profile is now active
+    const isDefault = modemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
+    const activeId = isDefault ? 'default' : profiles.find(p => p.modemProfile === modemProfile)?.id;
+
+    if (!activeId) return;
+
+    // Add active class to the newly active profile
+    const activeProfileItem = document.querySelector(`#profile-content-${activeId}`)?.parentElement;
+    if (activeProfileItem) activeProfileItem.classList.add('profile-item--active');
+
+    // Update all "Použiť" buttons
+    document.querySelectorAll('[data-action="use-profile"], [data-action="use-default"]').forEach(btn => {
+        const btnProfileId = btn.dataset.profileId ? parseInt(btn.dataset.profileId) : 'default';
+        const isThisActive = btnProfileId === activeId;
+
+        btn.disabled = isThisActive;
+        btn.classList.toggle('use-profile-button--active', isThisActive);
+        btn.innerHTML = isThisActive ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť';
+    });
 }
 
 function setActiveProfile(modemProfile) {
     TinyTUS.currentlyUsedModemProfile = modemProfile;
-    // Odoslanie udalosti označujúcej zmenu aktívneho profilu
-    window.dispatchEvent(new CustomEvent("active-modem-profile-changed", {
-        detail: { profile: modemProfile }
-    }));
-    renderProfiles();
+    window.dispatchEvent(new CustomEvent("active-modem-profile-changed", { detail: { profile: modemProfile } }));
+    updateActiveProfileUI(modemProfile);
+    saveConfigState();
 }
 
 function findFreeProfileID() {
@@ -94,41 +143,27 @@ function findFreeProfileID() {
     return id;
 }
 
-// Operácie CRUD pre profily
 function addProfile(event = null) {
-    const MAX_PROFILES = 10;
     if (profiles.length >= MAX_PROFILES) {
-        alert("Maximálny počet profilov je " + MAX_PROFILES + ". Odstráňte niektorý z existujúcich profilov, aby ste mohli pridať nový.");
+        alert(`Maximálny počet profilov je ${MAX_PROFILES}. Odstráňte niektorý z existujúcich profilov.`);
         return;
     }
-
-    const modemProfile = new ModemProfile();
-    const profile_id = findFreeProfileID();
-    const newProfile = {
-        id:           profile_id,
-        name:         `Profil ${profile_id}`,
-        modemProfile,
-    };
-    profiles.push(newProfile);
+    const id         = findFreeProfileID();
+    const newProfile = { id, name: `Profil ${id}`, modemProfile: new ModemProfile() };
+    profiles.unshift(newProfile);
     saveProfiles();
     renderProfiles();
 
     setTimeout(() => {
-        const content   = document.getElementById(`profile-content-${newProfile.id}`);
-        const nameInput = document.querySelector(
-            `input[data-profile-id="${newProfile.id}"][data-field="name"]`
-        );
-        if (content) {
-            content.classList.add('expanded');
-            document.getElementById(`profile-toggle-${newProfile.id}`)?.classList.add('expanded');
-        }
-        // Nastavme fokus na novo vytvorený profil, len ak nedržíme SHIFT
-        if (nameInput && !(event?.shiftKey)) {
+        const content   = $(`profile-content-${id}`);
+        const nameInput = $(`profile-name-input-${id}`);
+        content?.classList.add('expanded');
+        $(`profile-toggle-${id}`)?.classList.add('expanded');
+        if (nameInput && !event?.shiftKey) {
             nameInput.focus();
             nameInput.select();
-            drawWaveVisualization(newProfile.id);
+            drawWaveVisualization(id);
         }
-
         initFreqPickers();
     }, 100);
 }
@@ -136,7 +171,6 @@ function addProfile(event = null) {
 function doDeleteProfile(id) {
     const profile = profiles.find(p => p.id === id);
     if (profile?.modemProfile) {
-        // Návrat na predvolený profil, ak sa odstraňuje aktívny profil
         if (isProfileActive(profile)) setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
         profile.modemProfile.destroy();
     }
@@ -151,10 +185,8 @@ function deleteProfile(id) {
 }
 
 function confirmDelete() {
-    if (profileToDelete !== null) {
-        doDeleteProfile(profileToDelete);
-        profileToDelete = null;
-    }
+    if (profileToDelete !== null) doDeleteProfile(profileToDelete);
+    profileToDelete = null;
     closeModal();
 }
 
@@ -163,23 +195,18 @@ function closeModal() {
     profileToDelete = null;
 }
 
-// Pomocné funkcie UI
-function toggleProfile(id) {
-    const content = document.getElementById(`profile-content-${id}`);
-    const toggle  = document.getElementById(`profile-toggle-${id}`);
-    const wasExpanded = content.classList.contains('expanded');
-    content.classList.toggle('expanded');
-    toggle.classList.toggle('expanded');
-    if (!wasExpanded) setTimeout(() => drawWaveVisualization(id), 50);
-}
+/********************************/
+/****  UI ACTIONS            ****/
+/********************************/
 
-function toggleDefaultProfile() {
-    const content = document.getElementById('profile-content-default');
-    const toggle  = document.getElementById('profile-toggle-default');
-    const wasExpanded = content.classList.contains('expanded');
+function toggleProfile(id) {
+    const content = $(`profile-content-${id}`);
+    const toggle  = $(`profile-toggle-${id}`);
+    const opening = !content.classList.contains('expanded');
     content.classList.toggle('expanded');
     toggle?.classList.toggle('expanded');
-    if (!wasExpanded) setTimeout(() => drawWaveVisualization('default'), 50);
+    if (opening) setTimeout(() => drawWaveVisualization(id), 50);
+    saveConfigState();
 }
 
 function updateProfile(id, field, value) {
@@ -187,47 +214,59 @@ function updateProfile(id, field, value) {
     if (!profile) return;
 
     if (field === 'name') {
-        profile.name = value || `Profil ${id}`;
-        const display = document.getElementById(`profile-name-display-${id}`);
-        if (display) display.textContent = profile.name;
+        profile.name = (value || `Profil ${id}`).substring(0, MAX_PROFILE_NAME).trim();
     } else {
         profile.modemProfile[field] = parseFloat(value) || 0;
-        // if (field === 'param') updateTxParameterVisibility(id, profile.modemProfile.param);
+        window.dispatchEvent(new CustomEvent("modem-profile-updated", { detail: { profile: profile.modemProfile } }));
+        if ($(`profile-content-${id}`)?.classList.contains('expanded')) {
+            updateWaveInfo(id, profile.modemProfile);
+            drawWaveVisualization(id);
+            initFreqPickers();
+        }
     }
     saveProfiles();
-
-    window.dispatchEvent(new CustomEvent("modem-profile-updated", {
-        detail: { profile: profile.modemProfile }
-    }));
-
-    const content = document.getElementById(`profile-content-${id}`);
-    if (content?.classList.contains('expanded')) {
-        updateWaveInfo(id, profile.modemProfile);
-        drawWaveVisualization(id);
-        initFreqPickers();
-    }
 }
 
-// function updateTxParameterVisibility(profileId, modulationType) {
-//     const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
-//     const freqRow = document.getElementById(`tx-freq-row${suffix}`);
-//     const ampRow  = document.getElementById(`tx-amp-row${suffix}`);
-//     const phsRow  = document.getElementById(`tx-phs-row${suffix}`);
-//     if (!freqRow || !ampRow || !phsRow) return;
+/********************************/
+/****  WAVE INFO             ****/
+/********************************/
 
-//     freqRow.style.display = modulationType === 0 ? '' : 'none';
-//     ampRow.style.display  = modulationType === 1 ? '' : 'none';
-//     phsRow.style.display  = modulationType === 2 ? '' : 'none';
-// }
+const waveInfoKeys = [
+    ['Symbolová rýchlosť:', 'symbol-rate', mp => mp.symbol_rate?.toFixed(3) ?? '–'],
+    ['Perióda symbolu:',    'period',      mp => `${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(3)} ms`],
+    ['Nyquist frekvencia:', 'nyquist',     mp => `${mp.sample_rate / 2} Hz`],
+];
 
-// Vizualizácia vlnového tvaru
+function waveInfoHtml(mp, idSuffix) {
+    return `<div class="wave-info">${
+        waveInfoKeys.map(([label, key, fn]) => `
+            <div class="wave-info-item">
+                <span class="wave-info-label">${label}</span><br>
+                <span data-wave-info="${key}-${idSuffix}">${fn(mp)}</span>
+            </div>`).join('')
+    }</div>`;
+}
+
+function updateWaveInfo(profileId, mp) {
+    const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
+    waveInfoKeys.forEach(([, key, fn]) => {
+        const el = document.querySelector(`[data-wave-info="${key}${suffix}"]`);
+        if (el) el.textContent = fn(mp);
+    });
+}
+
+/********************************/
+/****  VISUALIZATION         ****/
+/********************************/
+
 function drawWaveVisualization(profileId) {
+    return;
     const mp = profileId === 'default'
         ? TinyTUS.DEFAULT_MODEM_PROFILE
         : profiles.find(p => p.id === profileId)?.modemProfile;
     if (!mp) return;
 
-    const canvas = document.getElementById(`wave-canvas-${profileId}`);
+    const canvas = $(`wave-canvas-${profileId}`);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
@@ -238,419 +277,303 @@ function drawWaveVisualization(profileId) {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    const isDark      = document.documentElement.classList.contains('dark-scheme');
-    const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-    const axisColor   = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)';
-    const waveColor   = isDark ? '#579ffb' : '#007bff';
-    const markerColor = isDark ? 'rgb(88,128,101)' : '#28a745';
-    const labelColor  = isDark ? 'rgba(255,255,255,0.45)' : '#6c757d';
-    const tagBg       = isDark ? 'rgba(87,159,251,0.12)' : 'rgba(0,123,255,0.08)';
-    const tagFg       = isDark ? '#579ffb' : '#007bff';
+    const dark = document.documentElement.classList.contains('dark-scheme');
+    const C = {
+        grid:   dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+        axis:   dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)',
+        wave:   dark ? '#579ffb' : '#007bff',
+        marker: dark ? 'rgb(88,128,101)'        : '#28a745',
+        label:  dark ? 'rgba(255,255,255,0.45)' : '#6c757d',
+        tagBg:  dark ? 'rgba(87,159,251,0.12)'  : 'rgba(0,123,255,0.08)',
+        tagFg:  dark ? '#579ffb'                : '#007bff',
+        center: dark ? 'rgba(255,255,255,0.1)'  : 'rgba(0,0,0,0.08)',
+    };
 
     const pad = { top: 32, right: 16, bottom: 56, left: 48 };
     const gw  = w - pad.left - pad.right;
     const gh  = h - pad.top  - pad.bottom;
     const cy  = pad.top + gh / 2;
+    const L   = pad.left;
 
     // Grid
-    ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
         const y = pad.top + gh * i / 4;
-        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gw, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + gw, y); ctx.stroke();
     }
 
     // Axes
-    ctx.strokeStyle = axisColor; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, pad.top + gh);
-    ctx.lineTo(pad.left + gw, pad.top + gh); ctx.stroke();
+    ctx.strokeStyle = C.axis; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(L, pad.top); ctx.lineTo(L, pad.top + gh); ctx.lineTo(L + gw, pad.top + gh); ctx.stroke();
 
     // Centre line
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-    ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(pad.left, cy); ctx.lineTo(pad.left + gw, cy); ctx.stroke();
+    ctx.strokeStyle = C.center; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(L, cy); ctx.lineTo(L + gw, cy); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Y labels
-    ctx.fillStyle = labelColor; ctx.font = '10px JetBrains Mono, monospace'; ctx.textAlign = 'right';
-    ctx.fillText('+1', pad.left - 6, pad.top + 4);
-    ctx.fillText(' 0', pad.left - 6, cy + 4);
-    ctx.fillText('\u22121', pad.left - 6, pad.top + gh + 4);
+    // Y-axis labels
+    ctx.fillStyle = C.label; ctx.font = '10px JetBrains Mono, monospace'; ctx.textAlign = 'right';
+    ctx.fillText('+1', L - 6, pad.top + 4);
+    ctx.fillText(' 0', L - 6, cy + 4);
+    ctx.fillText('\u22121', L - 6, pad.top + gh + 4);
 
     // Waveform
-    const numCycles = 4, totalPoints = numCycles * 200;
+    const NUM_CYCLES = 4;
+    const TOTAL_PTS  = NUM_CYCLES * 200;
     let phase = 0;
-    ctx.strokeStyle = waveColor; ctx.lineWidth = 2; ctx.beginPath();
-    for (let i = 0; i <= totalPoints; i++) {
-        const t    = (i / totalPoints) * numCycles;
-        const dt   = numCycles / totalPoints;
+    ctx.strokeStyle = C.wave; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i <= TOTAL_PTS; i++) {
+        const t    = (i / TOTAL_PTS) * NUM_CYCLES;
         const freq = Math.floor(t) % 2 === 0 ? mp.min_tx_freq : mp.max_tx_freq;
-        const norm = freq / 1000;
         let y;
-        if (mp.cphase) { phase += 2 * Math.PI * norm * dt; y = Math.sin(phase); }
-        else           { y = Math.sin(t * Math.PI * 2 * norm); }
-        const x = pad.left + (i / totalPoints) * gw;
+        if (mp.cphase) { phase += 2 * Math.PI * (freq / 1000) * (NUM_CYCLES / TOTAL_PTS); y = Math.sin(phase); }
+        else           { y = Math.sin(t * Math.PI * 2 * freq / 1000); }
+        const x = L + (i / TOTAL_PTS) * gw;
         i === 0 ? ctx.moveTo(x, cy - y * gh * 0.42) : ctx.lineTo(x, cy - y * gh * 0.42);
     }
     ctx.stroke();
 
     // Symbol boundaries
-    ctx.strokeStyle = markerColor; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
-    for (let i = 1; i < numCycles; i++) {
-        const x = pad.left + (i / numCycles) * gw;
+    ctx.strokeStyle = C.marker; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    for (let i = 1; i < NUM_CYCLES; i++) {
+        const x = L + (i / NUM_CYCLES) * gw;
         ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + gh); ctx.stroke();
     }
     ctx.setLineDash([]);
 
     // Bit tags
     ctx.font = 'bold 10px JetBrains Mono, monospace';
-    for (let i = 0; i < numCycles; i++) {
-        const x0    = pad.left + (i / numCycles) * gw;
-        const x1    = pad.left + ((i + 1) / numCycles) * gw;
-        const mx    = (x0 + x1) / 2;
-        const label = `bit ${i % 2}  ${i % 2 === 0 ? mp.min_tx_freq : mp.max_tx_freq} Hz`;
+    for (let i = 0; i < NUM_CYCLES; i++) {
+        const mx    = L + ((i + 0.5) / NUM_CYCLES) * gw;
+        const bit   = i % 2;
+        const label = `bit ${bit}  ${bit === 0 ? mp.min_tx_freq : mp.max_tx_freq} Hz`;
         ctx.textAlign = 'center';
         const tw = ctx.measureText(label).width + 10;
-        ctx.fillStyle = tagBg;
+        ctx.fillStyle = C.tagBg;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(mx - tw / 2, pad.top - 16, tw, 16, 4);
-        else ctx.rect(mx - tw / 2, pad.top - 16, tw, 16);
+        else               ctx.rect(mx - tw / 2, pad.top - 16, tw, 16);
         ctx.fill();
-        ctx.fillStyle = tagFg; ctx.fillText(label, mx, pad.top - 3);
+        ctx.fillStyle = C.tagFg; ctx.fillText(label, mx, pad.top - 3);
     }
 
-    // Period arrow
+    // Period arrow + label
     const period = mp.sample_duration * mp.samples_per_symbol;
-    const arrowY = pad.top + gh + 28;
-    const ax0 = pad.left, ax1 = pad.left + gw / numCycles, asz = 5;
-    ctx.strokeStyle = markerColor; ctx.fillStyle = markerColor; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(ax0, arrowY); ctx.lineTo(ax1, arrowY); ctx.stroke();
-    for (const [x, d] of [[ax0, 1], [ax1, -1]]) {
-        ctx.beginPath();
-        ctx.moveTo(x, arrowY); ctx.lineTo(x + d * asz, arrowY - asz / 2);
-        ctx.lineTo(x + d * asz, arrowY + asz / 2); ctx.closePath(); ctx.fill();
+    const ay     = pad.top + gh + 28;
+    const ax1    = L + gw / NUM_CYCLES;
+    const asz    = 5;
+    ctx.strokeStyle = C.marker; ctx.fillStyle = C.marker; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(L, ay); ctx.lineTo(ax1, ay); ctx.stroke();
+    for (const [x, d] of [[L, 1], [ax1, -1]]) {
+        ctx.beginPath(); ctx.moveTo(x, ay);
+        ctx.lineTo(x + d * asz, ay - asz / 2); ctx.lineTo(x + d * asz, ay + asz / 2);
+        ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle = labelColor; ctx.font = '11px JetBrains Mono, monospace'; ctx.textAlign = 'center';
-    ctx.fillText(`T = ${(period * 1000).toFixed(3)} ms`, (ax0 + ax1) / 2, arrowY + 14);
+    ctx.fillStyle = C.label; ctx.font = '11px JetBrains Mono, monospace'; ctx.textAlign = 'center';
+    ctx.fillText(`T = ${(period * 1000).toFixed(3)} ms`, (L + ax1) / 2, ay + 14);
 }
 
-// Pomocné funkcie na vykreslenie polí
-function fieldWrap(name, inputHtml, helpText = '') {
-    return `
-    <div class="profile-field">
+/********************************/
+/****  FIELD BUILDERS        ****/
+/********************************/
+
+function fieldWrap(name, inputHtml, help = '') {
+    return `<div class="profile-field">
         <label>${PARAM_LABELS[name] ?? name}</label>
         ${inputHtml}
-        ${helpText ? `<div class="help-text">${helpText}</div>` : ''}
+        ${help ? `<div class="help-text">${help}</div>` : ''}
     </div>`;
 }
 
-function numField(name, mp, idSuffix, readonly, opts = {}) {
-    const { min, max, step = 1, help = '' } = opts;
+function numField(name, mp, id, readonly, { min, max, step = 1, help = '' } = {}) {
     const val = mp[name] ?? 0;
     if (readonly) return fieldWrap(name, `<input type="number" value="${val}" disabled>`, help);
-    return fieldWrap(name, `
-        <input type="number" value="${val}"
-            data-profile-id="${idSuffix}" data-field="${name}"
-            ${min != null ? `min="${min}"` : ''} ${max != null ? `max="${max}"` : ''}
-            step="${step}">`, help);
+    return fieldWrap(name, `<input type="number" value="${val}" data-profile-id="${id}" data-field="${name}"
+        ${min != null ? `min="${min}"` : ''} ${max != null ? `max="${max}"` : ''} step="${step}">`, help);
 }
 
-function toggleField(name, mp, idSuffix, readonly, help = '') {
+function toggleField(name, mp, id, readonly, help = '') {
     const checked = mp[name] ? 'checked' : '';
     if (readonly) return fieldWrap(name, `<input type="checkbox" ${checked} disabled>`, help);
-    return fieldWrap(name, `
-        <input type="checkbox" ${checked}
-            data-profile-id="${idSuffix}" data-field="${name}" data-type="checkbox">`, help);
+    return fieldWrap(name, `<input type="checkbox" ${checked}
+        data-profile-id="${id}" data-field="${name}" data-type="checkbox">`, help);
 }
 
-function sliderField(name, mp, idSuffix, readonly, opts = {}) {
-    const { min = 0, max = 1, step = 0.01, help = '', icon = '', format } = opts;
+function sliderField(name, mp, id, readonly, { min = 0, max = 1, step = 0.01, help = '', icon = '', format } = {}) {
     const val     = mp[name] ?? 0;
     const display = format ? format(val) : parseFloat(val).toFixed(2);
-
-    let labelExpr;
-    if      (name === 'ecc_percent') labelExpr = "Math.round(parseFloat(this.value)*100)+'%'";
-    else if (name === 'max_tx_amp')  labelExpr = "parseFloat(this.value).toFixed(2)";
-    else                             labelExpr = "parseFloat(this.value).toFixed(3)";
-
-    return fieldWrap(name, `
-        <div class="slider-row">
-            ${icon ? `<i class="${icon} slider-icon"></i>` : ''}
-            <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
-                ${readonly
-                    ? 'disabled'
-                    : `data-profile-id="${idSuffix}" data-field="${name}"
-                       oninput="this.nextElementSibling.textContent=${labelExpr}"`}>
-            <span class="slider-label">${display}</span>
-        </div>`, help);
+    const expr    = name === 'ecc_percent' ? "Math.round(parseFloat(this.value)*100)+'%'"
+                  : name === 'max_tx_amp'  ? "parseFloat(this.value).toFixed(2)"
+                  :                          "parseFloat(this.value).toFixed(3)";
+    return fieldWrap(name, `<div class="slider-row">
+        ${icon ? `<i class="${icon} slider-icon"></i>` : ''}
+        <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
+            ${readonly ? 'disabled' : `data-profile-id="${id}" data-field="${name}" oninput="this.nextElementSibling.textContent=${expr}"`}>
+        <span class="slider-label">${display}</span>
+    </div>`, help);
 }
 
-// Vykreslenie polí profilu
+/********************************/
+/****  PROFILE CARD HTML     ****/
+/********************************/
+
 function renderProfileFields(mp, idSuffix, readonly) {
-    const num    = (name, opts)      => numField(name, mp, idSuffix, readonly, opts);
-    const toggle = (name, help = '') => toggleField(name, mp, idSuffix, readonly, help);
-    const slider = (name, opts)      => sliderField(name, mp, idSuffix, readonly, opts);
+    const n = (name, opts)      => numField(name, mp, idSuffix, readonly, opts);
+    const t = (name, help = '') => toggleField(name, mp, idSuffix, readonly, help);
+    const s = (name, opts)      => sliderField(name, mp, idSuffix, readonly, opts);
+    const divider = title       => `<div class="section-divider"><div class="section-title">${title}</div></div>`;
+    const row = (...fields)     => `<div class="profile-field-row">${fields.join('')}</div>`;
 
     return `
-        <div class="section-divider"><div class="section-title">Základné parametre</div></div>
-        <div class="profile-field-row">
-            ${num('sample_rate',        { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' })}
-            ${num('samples_per_symbol', { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' })}
-        </div>
-        <div class="profile-field-row">
-            ${num('bits_per_symbol',    { min: 1, max: 8,  help: 'Počet bitov na symbol' })}
-            ${num('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' })}
-        </div>
-        <div class="profile-field-row">
-            ${slider('ecc_percent', {
-                min: 0, max: 1, step: 0.05,
-                help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
-                format: v => `${Math.round(v * 100)} %`
-            })}
-        </div>
-        <div class="profile-field-row">
-            ${slider('squelch_thresh', {
-                min: 0, max: 1, step: 0.005,
-                help: 'Prahová hodnota squelch — signály pod touto úrovňou sú ignorované',
-                icon: 'fas fa-filter',
-                format: v => parseFloat(v).toFixed(3)
-            })}
-        </div>
-        <div class="profile-field-row" style="gap: 24px; align-items: center;">
-            ${toggle('cphase',      'Spojitá fáza (CPM)')}
-            ${toggle('dss_enabled', 'Rozptyl spektra (DSS)')}
+        ${divider('Základné parametre')}
+        ${row(n('sample_rate', { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' }),
+              n('samples_per_symbol', { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' }))}
+        ${row(n('bits_per_symbol', { min: 1, max: 8, help: 'Počet bitov na symbol' }),
+              n('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' }))}
+        ${row(s('ecc_percent', { min: 0, max: 1, step: 0.05,
+              help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
+              format: v => `${Math.round(v * 100)} %` }))}
+        ${row(s('squelch_thresh', { min: 0, max: 1, step: 0.005, icon: 'fas fa-filter',
+              help: 'Prahová hodnota squelch — signály pod touto úrovňou sú ignorované',
+              format: v => parseFloat(v).toFixed(3) }))}
+        <div class="profile-field-row" style="gap:24px;align-items:center;">
+            ${t('cphase', 'Spojitá fáza (CPM)')} ${t('dss_enabled', 'Rozptyl spektra (DSS)')}
         </div>
 
-        <div class="section-divider"><div class="section-title">RX Parametre (príjem)</div></div>
-        <div class="profile-field-row">
-            ${num('min_rx_freq', { min: 100, max: 20000 })}
-            ${num('max_rx_freq', { min: 100, max: 20000 })}
-        </div>
+        ${divider('RX Parametre (príjem)')}
+        ${row(n('min_rx_freq', { min: 100, max: 20000 }), n('max_rx_freq', { min: 100, max: 20000 }))}
 
-        <div class="section-divider"><div class="section-title">TX Parametre (vysielanie)</div></div>
-        <div class="profile-field-row">
-            ${slider('max_tx_amp', {
-                min: 0, max: 1, step: 0.01,
-                help: 'Maximálna amplitúda vysielaného signálu',
-                icon: 'fas fa-volume-high',
-                format: v => parseFloat(v).toFixed(2)
-            })}
-        </div>
-        <div id="tx-freq-row-${idSuffix}" class="profile-field-row" style="display: flex">
+        ${divider('TX Parametre (vysielanie)')}
+        ${row(s('max_tx_amp', { min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
+              help: 'Maximálna amplitúda vysielaného signálu',
+              format: v => parseFloat(v).toFixed(2) }))}
+        <div id="tx-freq-row-${idSuffix}" class="profile-field-row-full">
             ${renderFreqPicker(mp, idSuffix, readonly)}
         </div>`;
 }
 
-function waveInfoHtml(mp, idSuffix) {
-    const period  = mp.sample_duration * mp.samples_per_symbol;
-    const nyquist = mp.sample_rate / 2;
-    const item    = (label, key, val) => `
-        <div class="wave-info-item">
-            <span class="wave-info-label">${label}</span><br>
-            <span data-wave-info="${key}-${idSuffix}">${val}</span>
-        </div>`;
-    return `
-        <div class="wave-info">
-            ${item('Symbolová rýchlosť:',  'symbol-rate',  mp.symbol_rate?.toFixed(3) ?? '–')}
-            ${item('Perióda symbolu:',      'period',       `${(period * 1000).toFixed(3)} ms`)}
-            ${item('Nyquist frekvencia:',   'nyquist',      `${nyquist} Hz`)}
-        </div>`;
-}
+function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = false }) {
+    const suffix      = isDefault ? 'default' : id;
+    const profileAttr = isDefault ? '' : `data-profile-id="${id}"`;
 
-function updateWaveInfo(profileId, mp) {
-    const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
-    const set    = (key, val) => {
-        const el = document.querySelector(`[data-wave-info="${key}${suffix}"]`);
-        if (el) el.textContent = val;
-    };
-    const period  = mp.sample_duration * mp.samples_per_symbol;
-    const nyquist = mp.sample_rate / 2;
-    set('symbol-rate', mp.symbol_rate?.toFixed(3) ?? '–');
-    set('period',      `${(period * 1000).toFixed(3)} ms`);
-    set('nyquist',     `${nyquist} Hz`);
-    set('bps',         mp.bps ?? '–');
-    set('bits-symbol', mp.bits_per_symbol ?? '–');
-    set('min-rx-freq', `${mp.min_rx_freq} Hz`);
-    set('max-rx-freq', `${mp.max_rx_freq} Hz`);
-    set('min-tx-freq', `${mp.min_tx_freq} Hz`);
-    set('max-tx-freq', `${mp.max_tx_freq} Hz`);
-}
+    const headerLeft = isDefault
+        ? `<i id="profile-toggle-default" class="fas fa-chevron-right profile-toggle"></i>
+           <span class="profile-name-display">Predvolený profil</span>
+           <span class="profile-tag profile-tag--readonly"><i class="fas fa-lock"></i> Len na čítanie</span>`
+        : `<i id="profile-toggle-${id}" class="fas fa-chevron-right profile-toggle"></i>
+           <input type="text" id="profile-name-input-${id}" class="profile-name-input"
+                  value="${name}" data-profile-id="${id}" data-field="name"
+                  maxlength="${MAX_PROFILE_NAME}" placeholder="Názov profilu"
+                  onclick="event.stopPropagation()">`;
 
-function renderDefaultProfileCard() {
-    const mp      = TinyTUS.DEFAULT_MODEM_PROFILE;
-    if (!mp) return '';
-
-    const active  = isDefaultActive();
+    const headerRight = `
+        <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
+                data-action="${isDefault ? 'use-default' : 'use-profile'}" ${profileAttr} ${active ? 'disabled' : ''}>
+            ${active ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť'}
+        </button>
+        ${!isDefault ? `<button class="delete-profile-button" data-profile-id="${id}" data-action="delete">
+            <i class="fas fa-times"></i></button>` : ''}`;
 
     return `
-    <div class="profile-item profile-item--default ${active ? 'profile-item--active' : ''}">
-        <div class="profile-header" data-action="toggle-default">
-            <div class="profile-header-left">
-                <i id="profile-toggle-default" class="fas fa-chevron-right profile-toggle"></i>
-                <span class="profile-name-display">Predvolený profil</span>
-                <span class="profile-tag profile-tag--readonly">
-                    <i class="fas fa-lock"></i> Len na čítanie
-                </span>
-            </div>
-            <div class="profile-header-right">
-                <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
-                        data-action="use-default"
-                        ${active ? 'disabled' : ''}>
-                    ${active ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť'}
-                </button>
-            </div>
+    <div class="profile-item ${isDefault ? 'profile-item--default' : ''} ${active ? 'profile-item--active' : ''}">
+        <div class="profile-header" data-action="${isDefault ? 'toggle-default' : 'toggle'}" ${profileAttr}>
+            <div class="profile-header-left">${headerLeft}</div>
+            <div class="profile-header-right">${headerRight}</div>
         </div>
-        <div id="profile-content-default" class="profile-content">
-            <div class="wave-visualization">
+        <div id="profile-content-${suffix}" class="profile-content">
+            <!--- <div class="wave-visualization">
                 <div class="wave-viz-header"><i class="fas fa-wave-square"></i> Vizualizácia signálu</div>
-                <div class="wave-canvas-container"><canvas id="wave-canvas-default"></canvas></div>
-                ${waveInfoHtml(mp, 'default')}
-            </div>
-            ${renderProfileFields(mp, 'default', true)}
+                <div class="wave-canvas-container"><canvas id="wave-canvas-${suffix}"></canvas></div>
+                ${waveInfoHtml(mp, suffix)}
+            </div> -->
+            ${renderProfileFields(mp, suffix, readonly)}
         </div>
     </div>`;
 }
 
+/********************************/
+/****  RENDER                ****/
+/********************************/
+
 function renderProfiles() {
     if (!container) return;
-
-    const defaultCard = renderDefaultProfileCard();
-
-    if (profiles.length === 0) {
-        container.innerHTML = defaultCard +
-            '<div class="empty-state">Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>';
-        return;
-    }
-
-    const profileCards = profiles.map(profile => {
-        const mp      = profile.modemProfile;
-        const active  = isProfileActive(profile);
-
-        return `
-        <div class="profile-item ${active ? 'profile-item--active' : ''}">
-            <div class="profile-header" data-profile-id="${profile.id}" data-action="toggle">
-                <div class="profile-header-left">
-                    <i id="profile-toggle-${profile.id}" class="fas fa-chevron-right profile-toggle"></i>
-                    <span id="profile-name-display-${profile.id}" class="profile-name-display">${profile.name}</span>
-                </div>
-                <div class="profile-header-right">
-                    <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
-                            data-profile-id="${profile.id}" data-action="use-profile"
-                            ${active ? 'disabled' : ''}>
-                        ${active ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť'}
-                    </button>
-                    <button class="delete-profile-button" data-profile-id="${profile.id}" data-action="delete">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <div id="profile-content-${profile.id}" class="profile-content">
-                <div class="profile-field">
-                    <label>Názov profilu</label>
-                    <input type="text" value="${profile.name}"
-                           data-profile-id="${profile.id}" data-field="name" maxlength="32">
-                </div>
-
-                <div class="wave-visualization">
-                    <div class="wave-viz-header"><i class="fas fa-wave-square"></i> Vizualizácia signálu</div>
-                    <div class="wave-canvas-container"><canvas id="wave-canvas-${profile.id}"></canvas></div>
-                    ${waveInfoHtml(mp, profile.id)}
-                </div>
-
-                ${renderProfileFields(mp, profile.id, false)}
-            </div>
-        </div>`;
-    }).join('');
-
-    container.innerHTML = defaultCard + profileCards;
+    const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
+    container.innerHTML = [
+        ...profiles.map(p => profileCardHtml({ id: p.id, name: p.name, mp: p.modemProfile, active: isProfileActive(p) })),
+        defaultMp ? profileCardHtml({ mp: defaultMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
+        profiles.length === 0 ? '<div class="empty-state">Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>' : '',
+    ].join('');
     initFreqPickers();
 }
 
-// Delegovanie udalostí
-if (container) {
-    container.addEventListener('click', (e) => {
-        // Zmazanie profilu
-        const deleteBtn = e.target.closest('[data-action="delete"]');
-        if (deleteBtn) {
-            e.stopPropagation();
-            // Ak je stlačený SHIFT, odstránime bez potvrdenia
-            if (e.shiftKey) {
-                doDeleteProfile(parseInt(deleteBtn.dataset.profileId));
-                return;
-            }
+/********************************/
+/****  EVENT DELEGATION      ****/
+/********************************/
 
-            deleteProfile(parseInt(deleteBtn.dataset.profileId));
-            return;
+container?.addEventListener('click', e => {
+    const btn = action => e.target.closest(`[data-action="${action}"]`);
+
+    if (btn('delete')) {
+        e.stopPropagation();
+        const id = parseInt(btn('delete').dataset.profileId);
+        return e.shiftKey ? doDeleteProfile(id) : deleteProfile(id);
+    }
+    if (btn('use-profile')) {
+        e.stopPropagation();
+        const profile = profiles.find(p => p.id === parseInt(btn('use-profile').dataset.profileId));
+        return profile && setActiveProfile(profile.modemProfile);
+    }
+    if (btn('use-default'))    { e.stopPropagation(); return setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE); }
+    if (btn('toggle-default')) { return toggleProfile('default'); }
+    if (btn('toggle'))         { return toggleProfile(parseInt(btn('toggle').dataset.profileId)); }
+});
+
+container?.addEventListener('change', e => {
+    const { profileId, field, type } = e.target.dataset;
+    if (!profileId || !field) return;
+    const id = parseInt(profileId);
+    const value = type === 'checkbox' ? (e.target.checked ? 1 : 0) : e.target.value;
+    updateProfile(id, field, value);
+});
+
+container?.addEventListener('input', e => {
+    if (e.target.classList.contains('profile-name-input')) {
+        const { profileId, field } = e.target.dataset;
+        if (profileId && field === 'name') {
+            updateProfile(parseInt(profileId), field, e.target.value);
         }
+    }
+});
 
-        // Použitie profilu
-        const useBtn = e.target.closest('[data-action="use-profile"]');
-        if (useBtn) {
-            e.stopPropagation();
-            const profile = profiles.find(p => p.id === parseInt(useBtn.dataset.profileId));
-            if (profile) setActiveProfile(profile.modemProfile);
-            return;
-        }
+addButton?.addEventListener('click', addProfile);
+confirmButton?.addEventListener('click', confirmDelete);
+cancelButton?.addEventListener('click', closeModal);
+confirmationModal?.addEventListener('click', e => { if (e.target === confirmationModal) closeModal(); });
 
-        // Použitie predvoleného
-        const useDefaultBtn = e.target.closest('[data-action="use-default"]');
-        if (useDefaultBtn) {
-            e.stopPropagation();
-            setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
-            return;
-        }
+/********************************/
+/****  OBSERVERS & INIT      ****/
+/********************************/
 
-        // Rozbalenie/zbalenie predvolenej karty
-        const toggleDefault = e.target.closest('[data-action="toggle-default"]');
-        if (toggleDefault) {
-            toggleDefaultProfile();
-            return;
-        }
+const allProfileIds = () => ['default', ...profiles.map(p => p.id)];
+const redrawExpanded = () => allProfileIds().forEach(id => {
+    if ($(`profile-content-${id}`)?.classList.contains('expanded')) drawWaveVisualization(id);
+});
 
-        // Rozbalenie/zbalenie užívateľského profilu
-        const header = e.target.closest('[data-action="toggle"]');
-        if (header) {
-            toggleProfile(parseInt(header.dataset.profileId));
-        }
-    });
+new MutationObserver(redrawExpanded)
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-    container.addEventListener('change', (e) => {
-        const el = e.target;
-        if (!el.dataset.profileId || !el.dataset.field) return;
-        const id    = parseInt(el.dataset.profileId);
-        const value = el.dataset.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
-        updateProfile(id, el.dataset.field, value);
-    });
-}
+window.addEventListener('resize', redrawExpanded);
 
-if (addButton)      addButton.addEventListener('click', addProfile);
-if (confirmButton)  confirmButton.addEventListener('click', confirmDelete);
-if (cancelButton)   cancelButton.addEventListener('click', closeModal);
-if (confirmationModal) {
-    confirmationModal.addEventListener('click', e => {
-        if (e.target === confirmationModal) closeModal();
-    });
-}
+let scrollTimeout;
+configTabContent?.addEventListener('scroll', () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(saveConfigState, 150);
+});
 
-// Sledovanie zmien schémy a prekreslenie
-new MutationObserver(() => {
-    // Prekreslenie predvolenej karty, ak je otvorená
-    const defContent = document.getElementById('profile-content-default');
-    if (defContent?.classList.contains('expanded')) drawWaveVisualization('default');
-
-    // Prekreslenie užívateľských profilov
-    profiles.forEach(p => {
-        const content = document.getElementById(`profile-content-${p.id}`);
-        if (content?.classList.contains('expanded')) drawWaveVisualization(p.id);
-    });
-}).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-
-// Inicializácia
 window.addEventListener('refresh-local-storage', saveProfiles);
 
-// Čakanie na načítanie WASM pred vykresľovaním, pretože predvolený profil
-// vyžaduje existenciu TinyTUS.DEFAULT_MODEM_PROFILE
 TinyTUS.afterLoad(() => {
     loadProfiles();
     renderProfiles();
+    restoreConfigState();
 });

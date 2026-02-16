@@ -7,8 +7,14 @@
     /* max-width: 900px; */
     margin: 0 auto;
     padding: 24px;
+    overflow-x: hidden;
+    box-sizing: border-box;
 
-    margin-bottom: 24px;
+    /* Nedajme tu margin lebo nam to oreze obsah tabu. */
+}
+
+#tab-config * {
+    box-sizing: border-box;
 }
 
 #tab-config h3 {
@@ -51,6 +57,11 @@
     font-size: 14px;
     background: var(--config-input-bg, transparent);
     color: var(--msger-header-colour);
+    max-width: 100%;
+}
+
+#tab-config input[type="text"] {
+    max-width: 100%;
 }
 
 separator {
@@ -154,11 +165,14 @@ separator {
     align-items: center;
     gap: 12px;
     flex: 1;
+    min-width: 0;
 }
 
 .profile-toggle {
     color: var(--msger-header-colour);
     transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 2px;
 }
 
 .profile-toggle.expanded {
@@ -168,11 +182,40 @@ separator {
 .profile-name-display {
     font-weight: 500;
     color: var(--msger-header-colour);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-name-input {
+    font-weight: 500;
+    color: var(--msger-header-colour);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+    max-width: 200px;
+    min-width: 120px;
+    width: auto;
+    transition: all 0.2s;
+}
+
+.profile-name-input:hover {
+    background: var(--config-input-bg, rgba(255, 255, 255, 0.05));
+    border-color: var(--config-border, rgba(255, 255, 255, 0.15));
+}
+
+.profile-name-input:focus {
+    outline: none;
+    background: var(--config-input-bg, rgba(255, 255, 255, 0.08));
+    border-color: #579ffb;
 }
 
 .profile-header-right {
     display: flex;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .delete-profile-button {
@@ -226,12 +269,19 @@ separator {
     font-size: 14px;
     background: var(--config-input-bg, transparent);
     color: var(--msger-header-colour);
+    max-width: 100%;
+    width: 100%;
 }
 
 .profile-field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+}
+
+.profile-field-row-full {
+    display: block;
+    width: 100%;
 }
 
 .wave-visualization {
@@ -290,6 +340,12 @@ separator {
     margin: 24px 0 16px 0;
     padding-top: 16px;
     border-top: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+}
+
+.section-divider:first-child {
+    margin: 24px 0 16px 0;
+    padding-top: 0px;
+    border-top: none;
 }
 
 .section-title {
@@ -383,13 +439,24 @@ separator {
 }
 
 @media (max-width: 600px) {
+    #tab-config {
+        padding: 12px;
+    }
+
+    #tab-config h3 {
+        font-size: 16px;
+        margin: 16px 0 8px 0;
+    }
+
     .config-option {
         flex-direction: column;
         align-items: flex-start;
+        padding: 10px;
     }
 
     .config-option > span {
         min-width: unset;
+        font-size: 13px;
     }
 
     .profile-field-row {
@@ -398,6 +465,235 @@ separator {
 
     .wave-info {
         grid-template-columns: 1fr;
+    }
+
+    .profile-item {
+        margin: 8px 0;
+    }
+
+    .profile-header {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .profile-header-left {
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .profile-header-right {
+        gap: 6px;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .profile-name-input {
+        max-width: 150px;
+        min-width: 80px;
+        font-size: 13px;
+        padding: 3px 6px;
+    }
+
+    .profile-name-display {
+        font-size: 13px;
+    }
+
+    .use-profile-button {
+        font-size: 11px;
+        padding: 5px 10px;
+        white-space: nowrap;
+    }
+
+    .delete-profile-button {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
+
+    .profile-content.expanded {
+        padding: 12px;
+    }
+
+    .profile-field {
+        margin: 10px 0;
+    }
+
+    .profile-field label {
+        font-size: 13px;
+    }
+
+    .profile-field input,
+    .profile-field select {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    .wave-visualization {
+        margin: 12px 0;
+        padding: 12px;
+    }
+
+    .wave-viz-header {
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+
+    .wave-canvas-container {
+        padding: 8px;
+    }
+
+    .wave-info {
+        margin-top: 10px;
+        font-size: 12px;
+    }
+
+    .wave-info-item {
+        padding: 6px 10px;
+    }
+
+    .section-divider {
+        margin: 16px 0 12px 0;
+        padding-top: 12px;
+    }
+
+    .section-title {
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+
+    .section-description {
+        font-size: 12px;
+    }
+
+    .help-text {
+        font-size: 11px;
+    }
+
+    .profiles-header {
+        margin: 12px 0;
+    }
+
+    #add-profile-button {
+        padding: 7px 12px;
+        font-size: 13px;
+        gap: 6px;
+    }
+
+    .profile-tag {
+        font-size: 10px;
+        padding: 2px 8px;
+    }
+
+    .modal-content {
+        margin: 20px;
+        max-width: calc(100% - 40px);
+    }
+
+    .slider-row {
+        gap: 8px;
+    }
+
+    .slider-label {
+        min-width: 40px;
+        font-size: 0.8em;
+    }
+
+    .slider-icon {
+        font-size: 12px;
+        width: 14px;
+    }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 400px) {
+    #tab-config {
+        padding: 8px;
+    }
+
+    #tab-config h3 {
+        font-size: 15px;
+    }
+
+    .profile-header-left {
+        gap: 6px;
+    }
+
+    .profile-toggle {
+        font-size: 12px;
+    }
+
+    .profile-name-input {
+        max-width: 120px;
+        min-width: 60px;
+        font-size: 12px;
+    }
+
+    .use-profile-button {
+        font-size: 10px;
+        padding: 4px 8px;
+    }
+
+    .use-profile-button i {
+        font-size: 10px;
+    }
+
+    .delete-profile-button {
+        padding: 4px 8px;
+    }
+
+    .profile-content.expanded {
+        padding: 10px;
+    }
+
+    .profile-field-row {
+        gap: 12px;
+    }
+
+    .wave-visualization {
+        padding: 10px;
+    }
+
+    .section-title {
+        font-size: 13px;
+    }
+
+    #add-profile-button {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    .modal-content {
+        margin: 10px;
+        max-width: calc(100% - 20px);
+        padding: 16px;
+    }
+
+    .modal-footer {
+        gap: 8px;
+    }
+
+    .modal-button {
+        padding: 7px 12px;
+        font-size: 13px;
+    }
+
+    .profile-tag--readonly {
+        font-size: 9px;
+        padding: 2px 6px;
+        gap: 3px;
+    }
+}
+
+/* Ultra small screens - hide tag text, keep icon */
+@media (max-width: 360px) {
+    .profile-tag--readonly {
+        padding: 3px 6px;
+    }
+
+    .profile-name-input {
+        max-width: 100px;
+        min-width: 50px;
     }
 }
 
@@ -426,6 +722,7 @@ separator {
     line-height:     1;
     user-select:     none;
     vertical-align:  middle;
+    flex-shrink:     0;
 
     /* Smooth in/out when toggled */
     transition: opacity 0.2s ease, box-shadow 0.2s ease;
