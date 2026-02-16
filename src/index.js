@@ -18,9 +18,25 @@ if (!navigator.mediaDevices) {
 const button = document.getElementById("connect-usb-device-button");
 const infoDiv = document.getElementById("usb-device-info");
 
-// TODO: TOTO TREBA NAHRADIT KONSTANTAMI Z KNIZNICE
-const VENDOR_ID = 0x16c0;
-const PRODUCT_ID = 0x05dc;
+window.addEventListener("message-send-started", async (message) => {
+    if (port == null) return;
+
+    if (!port.configuration)
+        await port.selectConfiguration(1);
+
+    await port.claimInterface(0);
+    await port.controlTransferIn({requestType:'vendor',recipient:'device',request:1,value:0,index:0},16);
+})
+
+window.addEventListener("last-message-send-completed", async () => {
+    if (port == null) return;
+
+    setTimeout(async () => {
+        await port.controlTransferIn(
+            {requestType:'vendor',recipient:'device',request:0,value:0,index:0}
+        ,16);
+    }, 300)
+})
 
 async function openDevice(device) {
     if (!device) {
@@ -35,12 +51,20 @@ async function openDevice(device) {
         await device.claimInterface(0);
 
         infoDiv.textContent = `Pripojené: ${device.productName} (Vendor ID: 0x${device.vendorId.toString(16)})`;
-        displayMessageAtBottom(systemMessage(infoDiv.textContent, "info"));
+        window.dispatchEvent(new CustomEvent("usb-device-connected", {
+            "detail": {
+                "device": device
+            }
+        }));
         button.classList.add("paired");
         port = device
     } catch (error) {
         console.error("Error connecting to USB device:", error);
-        displayMessageAtBottom(systemMessage("USB zariadenie sa neporadilo spárovať.", "error"));
+        window.dispatchEvent(new CustomEvent("usb-device-connection-failed", {
+            "detail": {
+                "error": error
+            }
+        }));
         port = null;
     }
 }
@@ -56,7 +80,7 @@ async function tryDisconnectUSB() {
     infoDiv.textContent = "";
     button.classList.remove("paired");
 
-    displayMessageAtBottom(systemMessage("USB zariadenie odpojené...", "info"));
+    window.dispatchEvent(new CustomEvent("usb-device-disconnected"));
 }
 
 async function requestUSBDevice(vendorId, productId) {
@@ -73,7 +97,11 @@ async function requestUSBDevice(vendorId, productId) {
 
 button.addEventListener("click", async () => {
     if (!port) {
-        openDevice(await requestUSBDevice(VENDOR_ID, PRODUCT_ID)); }
+        openDevice(await requestUSBDevice(
+            TinyTUS.CONSTS.U16_USB_SWITCH_VENDOR_ID,
+            TinyTUS.CONSTS.U16_USB_SWITCH_PRODUCT_ID
+        ));
+    }
     else { tryDisconnectUSB(); }
 });
 
@@ -82,7 +110,7 @@ button.addEventListener("click", async () => {
 if (navigator.usb) {
     button.disabled = false;
     navigator.usb.addEventListener('connect', (event) => {
-        if (event.device.vendorId === VENDOR_ID && event.device.productId === PRODUCT_ID) {
+        if (event.device.vendorId === TinyTUS.CONSTS.U16_USB_SWITCH_VENDOR_ID && event.device.productId === TinyTUS.CONSTS.U16_USB_SWITCH_PRODUCT_ID) {
             openDevice(event.device);
         }
     });
@@ -94,13 +122,15 @@ if (navigator.usb) {
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-        navigator.usb.getDevices().then(devices => {
-            for (const device of devices) {
-                if (device.vendorId === VENDOR_ID && device.productId === PRODUCT_ID) {
-                    openDevice(device);
+        TinyTUS.afterLoad(() => {
+            navigator.usb.getDevices().then(devices => {
+                for (const device of devices) {
+                    if (device.vendorId === TinyTUS.CONSTS.U16_USB_SWITCH_VENDOR_ID && device.productId === TinyTUS.CONSTS.U16_USB_SWITCH_PRODUCT_ID) {
+                        openDevice(device);
+                    }
                 }
-            }
-        })
+            })
+        });
     });
 } else {
     infoDiv.style.color = "#ff6666";
@@ -109,13 +139,9 @@ if (navigator.usb) {
 
 ////////// WASM
 
-window.addEventListener("wasm-library-loaded", () => {
-    print("ON LOADED");
-});
-
 // Toto kniznica zavola ked uspesne prijme ramec.
 TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
-    const bytes = TinyTUS.getReturnValue("u8", frame_ptr, frame_len);
+    const bytes = TinyTUS.getDynamicBufferFromPointer("u8", frame_ptr, frame_len);
 
     console.log("Received frame of length", frame_len, "data:", bytes);
 

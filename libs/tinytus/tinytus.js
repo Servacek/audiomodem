@@ -28,6 +28,17 @@ import { ModemProfile } from "./modem_profile.js";
 let EXPORTS = null;
 let _LOADED = false;
 
+const TYPE_TO_ARRAY = {
+    "i16": Int16Array,
+    "i32": Int32Array,
+    "f64": Float64Array,
+    "i8": Int8Array,
+    "u8": Uint8Array,
+    "u16": Uint16Array,
+    "u32": Uint32Array,
+    "f32": Float32Array,
+}
+
 ///////////////////////////////////////
 
 // Fills the input memory buffer with the provided bytes from the byte array
@@ -75,7 +86,13 @@ async function _init(path) {
     // print(exports);
     const env = {
         _emscripten_memcpy_js: (dest, src, num) => TinyTUS.MEMORY.copyWithin(dest, src, src + num),
-        emscripten_notify_memory_growth: (index) => { },
+        emscripten_notify_memory_growth: (index) => {
+            TinyTUS.BUFFER = EXPORTS.memory.buffer;
+            TinyTUS.MEMORY = new Uint8Array(EXPORTS.memory.buffer);
+            TinyTUS.MEMORY_U16 = new Uint16Array(EXPORTS.memory.buffer);
+            TinyTUS.MEMORY_U32 = new Uint32Array(EXPORTS.memory.buffer);
+            TinyTUS.MEMORY_F32 = new Float32Array(EXPORTS.memory.buffer);
+        },
     };
 
     // Mapping functions
@@ -102,13 +119,25 @@ async function _init(path) {
                         num += len;
                     }
                     TinyTUS.MEMORY_U32[((pnum) >> 2)] = num;
-                    console.log(s);
+                    if (fd === 1) {
+                        if (s.startsWith("[TINYTUS][ERROR]")) {
+                            console.error(s);
+                        } else if (s.startsWith("[TINYTUS][WARN]")) {
+                            console.warn(s);
+                        } else {
+                            console.log(s);
+                        }
+                    } else if (fd === 2) {
+                        console.error(s);
+                    } else {
+                        console.warn(`Unknown file descriptor ${fd} in fd_write, message: ${s}`);
+                    }
                     return 0;
                 },
                 fd_close: () => 0,
                 fd_seek: () => 0,
                 fd_read: () => 0,
-                proc_exit: () => {},
+                proc_exit: () => { },
                 environ_sizes_get: () => 0,
                 environ_get: () => 0
             },
@@ -123,10 +152,37 @@ async function _init(path) {
     TinyTUS.MEMORY_U16 = new Uint16Array(EXPORTS.memory.buffer);
     TinyTUS.MEMORY_U32 = new Uint32Array(EXPORTS.memory.buffer);
     TinyTUS.MEMORY_F32 = new Float32Array(EXPORTS.memory.buffer);
-    TinyTUS.MEMORY_STACK_START = TinyTUS.MEMORY.length - EXPORTS.emscripten_stack_get_free();
 
-    TinyTUS.INPUT_BUFFER_PTR = TinyTUS.MEMORY_STACK_START + 4096;
-    TinyTUS.OUTPUT_BUFFER_PTR = TinyTUS.INPUT_BUFFER_PTR + 1024;
+    // Allocate buffers via WASM's malloc so they don't collide with the heap
+    // 1024 float32 samples = 4096 bytes
+    const INPUT_BUFFER_SIZE = 1024 * 4;  // bytes
+    const OUTPUT_BUFFER_SIZE = 1024 * 4;  // bytes
+
+    TinyTUS.INPUT_BUFFER_PTR = EXPORTS.malloc(INPUT_BUFFER_SIZE);
+    TinyTUS.OUTPUT_BUFFER_PTR = EXPORTS.malloc(OUTPUT_BUFFER_SIZE);
+    TinyTUS.OUT_LEN_PTR = EXPORTS.malloc(4);  // space for one uint32_t
+    if (TinyTUS.OUT_LEN_PTR === 0) {
+        throw new Error("Failed to allocate WASM out_len buffer");
+    }
+
+    if (TinyTUS.INPUT_BUFFER_PTR === 0 || TinyTUS.OUTPUT_BUFFER_PTR === 0) {
+        throw new Error("Failed to allocate WASM I/O buffers");
+    }
+
+    TinyTUS.CONSTS = {};
+
+    for (let exportName in EXPORTS) {
+        if (EXPORTS[exportName] instanceof WebAssembly.Global) {
+            const ptr = EXPORTS[exportName].value;
+            const type = exportName.split("_")[0].toLowerCase();
+            if (!TYPE_TO_ARRAY.hasOwnProperty(type)) {
+                console.warn(`Skipping export ${exportName} with unsupported type prefix "${type}"`);
+                continue;
+            }
+            TinyTUS.CONSTS[exportName] = TinyTUS.getValueFromPointer(type, ptr);
+            // console.log(`Exported global ${exportName} (${type} @ ${ptr}):`, TinyTUS.CONSTS[exportName]);
+        }
+    }
 }
 
 function _load(path = LIBRARY_PATH) {
@@ -155,17 +211,6 @@ function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
 ////////////////////////////////////
 // Exporty
 
-const TYPE_TO_ARRAY = {
-    "i16": Int16Array,
-    "i32": Int32Array,
-    "f64": Float64Array,
-    "i8": Int8Array,
-    "u8": Uint8Array,
-    "u16": Uint16Array,
-    "u32": Uint32Array,
-    "f32": Float32Array,
-}
-
 let currentStream = null;
 let currentContext = null;
 let currentRecorder = null;
@@ -182,9 +227,32 @@ export let TinyTUS = {
     afterLoad: requiresLoadedWASM,
     loadLibrary: _load,
     getValueFromPointer(type, ptr) {
-        return TinyTUS.getReturnValue(type, ptr, 1)[0];
+        try {
+            if (!TYPE_TO_ARRAY.hasOwnProperty(type)) {
+                throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(', ')}`);
+            }
+            if (typeof ptr !== 'number' || !Number.isInteger(ptr) || ptr < 0) {
+                throw new TypeError(`Pointer must be a non-negative integer, got ${ptr}`);
+            }
+
+            const bytesPerElement = TYPE_TO_ARRAY[type].BYTES_PER_ELEMENT;
+
+            if (ptr % bytesPerElement !== 0) {
+                console.warn(`Warning: Pointer ${ptr} is not aligned for ${type} (requires ${bytesPerElement}-byte alignment)`);
+            }
+
+            // Read directly without freeing — this is a static constant, not a heap allocation
+            const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, 1);
+            return typedArray[0];
+
+        } catch (error) {
+            console.error('Error in getValueFromPointer:', error.message);
+            console.error('Parameters:', { type, ptr });
+            throw new Error(`getValueFromPointer failed: ${error.message}`);
+        }
     },
-    getReturnValue(type, ptr, length) {
+    // Vytiahne buffer z WASM pamate a zaroven tuto pamat uvolni.
+    getDynamicBufferFromPointer(type, ptr, length) {
         try {
             // Validate type parameter
             if (typeof type !== 'string') {
@@ -232,19 +300,17 @@ export let TinyTUS = {
                 );
             }
 
-            // Create and return the typed array view
             const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, length);
+            const copy = typedArray.slice();
             EXPORTS.fsk_free_wave(ptr);
-
-            // Return a copy to prevent issues with buffer detachment
-            return typedArray.slice();
+            return copy;
 
         } catch (error) {
-            console.error('Error in getReturnValue:', error.message);
+            console.error('Error in getDynamicBufferFromPointer:', error.message);
             console.error('Parameters:', { type, ptr, length });
 
             // Re-throw with additional context
-            throw new Error(`getReturnValue failed: ${error.message}`);
+            throw new Error(`getDynamicBufferFromPointer failed: ${error.message}`);
         }
     },
 
@@ -293,7 +359,7 @@ export let TinyTUS = {
         const messageBytes = new TextEncoder().encode(message);
         fillInputBuffer(messageBytes);
 
-        const outLenPtr = TinyTUS.MEMORY_STACK_START + 2048;
+        const outLenPtr = TinyTUS.OUT_LEN_PTR;
         const modulatedPtr = TinyTUS.EXPORTS.modulate_payload(
             _modemProfileOrPtrToPtr(modem_profile),
             TinyTUS.INPUT_BUFFER_PTR,
@@ -301,7 +367,7 @@ export let TinyTUS = {
             outLenPtr
         );
 
-        return TinyTUS.getReturnValue(
+        return TinyTUS.getDynamicBufferFromPointer(
             "f32", modulatedPtr, TinyTUS.getValueFromPointer("i32", outLenPtr)
         );
     },
@@ -322,7 +388,8 @@ export let TinyTUS = {
         }
 
         // Destroy GFSK demodulator state
-        if (currentDemodState !== null) {
+        // Check for both null and 0 (NULL pointer from C)
+        if (currentDemodState !== null && currentDemodState !== 0) {
             TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState);
             currentDemodState = null;
         }
@@ -340,7 +407,7 @@ export let TinyTUS = {
         // Create new demodulator
         const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
         currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
-        if (currentDemodState === -1) {
+        if (currentDemodState === 0 || currentDemodState === null) {
             throw new Error("Failed to create GFSK demodulator state.");
         }
 

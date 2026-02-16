@@ -1,12 +1,15 @@
+/**
+ * @file config.js
+ * @description Správa modemových profilov a ich konfigurácie
+ */
+
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
-import { renderFreqPicker, initFreqPickers, updateFreqPickerRange } from '../freq_picker.js';
+import { renderFreqPicker, initFreqPickers } from '../freq_picker.js';
 
 const PARAM_LABELS = {
-    param:              "Modulovaný parameter",
     min_rx_freq:        "Min RX frekvencia (Hz)",
     max_rx_freq:        "Max RX frekvencia (Hz)",
-    car_freq:           "Nosná frekvencia (Hz)",
     sample_rate:        "Vzorkovacia frekvencia (Hz)",
     symbol_rate:        "Symbolová rýchlosť (Bd)",
     bps:                "Bity za sekundu",
@@ -22,52 +25,21 @@ const PARAM_LABELS = {
     max_tx_amp:         "Max TX amplitúda",
     min_tx_phs:         "Min TX fáza (0–180°)",
     max_tx_phs:         "Max TX fáza (0–180°)",
+    samples_per_symbol: "Počet vzorkov na jeden symbol",
 };
 
-const PARAM_TYPES = {
-    0: "Frekvencia",
-    1: "Amplitúda",
-    2: "Fáza"
-};
-
-const defaultModemParams = {
-    param:              0,
-    min_rx_freq:        1200,
-    max_rx_freq:        2200,
-    car_freq:           3000,
-    sample_rate:        8000,
-    symbol_rate:        100,
-    bps:                100,
-    bits_per_symbol:    1,
-    bytes_per_tx_block: 3,
-    ecc_percent:        0.4,
-    dss_enabled:        0,
-    squelch_thresh:     0.1,
-    cphase:             1,
-    min_tx_freq:        800,
-    max_tx_freq:        1600,
-    min_tx_amp:         0.0,
-    max_tx_amp:         0.85,
-    min_tx_phs:         0,
-    max_tx_phs:         180,
-};
-
-// ─── State ────────────────────────────────────────────────────────────────────
-
+// Stav aplikácie
 let profiles = [];
-let profileIdCounter = 1;
 let profileToDelete = null;
 
-// ─── DOM refs ─────────────────────────────────────────────────────────────────
-
+// Referencie na DOM prvky
 const container         = document.getElementById('profiles-container');
 const addButton         = document.getElementById('add-profile-button');
 const confirmationModal = document.getElementById('confirmation-modal');
 const confirmButton     = document.getElementById('confirmation-confirm-button');
 const cancelButton      = document.getElementById('confirmation-cancel-button');
 
-// ─── Persistence ──────────────────────────────────────────────────────────────
-
+// Načítavanie a ukladanie profilov do local storage
 function loadProfiles() {
     const saved = localStorage.getItem('modemProfiles');
     if (!saved) return;
@@ -78,8 +50,7 @@ function loadProfiles() {
             name:         p.name,
             modemProfile: new ModemProfile(p),
         }));
-        profileIdCounter = Math.max(...profiles.map(p => p.id), 0) + 1;
-    } catch {
+    } catch (e) {
         profiles = [];
     }
 }
@@ -93,12 +64,7 @@ function saveProfiles() {
     localStorage.setItem('modemProfiles', JSON.stringify(serialized));
 }
 
-// ─── Currently-used profile ───────────────────────────────────────────────────
-
-/**
- * Returns the ptr of the currently active profile, or null for the default.
- * null means "use DEFAULT_MODEM_PROFILE".
- */
+// Vracia ukazovateľ na aktuálne používaný profil, alebo null pre predvolený
 function getActiveProfilePtr() {
     const p = TinyTUS.currentlyUsedModemProfile;
     return (p && p !== TinyTUS.DEFAULT_MODEM_PROFILE) ? p.ptr : null;
@@ -114,20 +80,33 @@ function isDefaultActive() {
 
 function setActiveProfile(modemProfile) {
     TinyTUS.currentlyUsedModemProfile = modemProfile;
-    // Broadcast so the chat tab (or any other tab) can react.
+    // Odoslanie udalosti označujúcej zmenu aktívneho profilu
     window.dispatchEvent(new CustomEvent("active-modem-profile-changed", {
         detail: { profile: modemProfile }
     }));
     renderProfiles();
 }
 
-// ─── Profile CRUD ─────────────────────────────────────────────────────────────
+function findFreeProfileID() {
+    const ids = new Set(profiles.map(p => p.id));
+    let id = 1;
+    while (ids.has(id)) id++;
+    return id;
+}
 
-function addProfile() {
-    const modemProfile = new ModemProfile(defaultModemParams);
+// Operácie CRUD pre profily
+function addProfile(event = null) {
+    const MAX_PROFILES = 10;
+    if (profiles.length >= MAX_PROFILES) {
+        alert("Maximálny počet profilov je " + MAX_PROFILES + ". Odstráňte niektorý z existujúcich profilov, aby ste mohli pridať nový.");
+        return;
+    }
+
+    const modemProfile = new ModemProfile();
+    const profile_id = findFreeProfileID();
     const newProfile = {
-        id:           profileIdCounter++,
-        name:         `Profil ${profileIdCounter - 1}`,
+        id:           profile_id,
+        name:         `Profil ${profile_id}`,
         modemProfile,
     };
     profiles.push(newProfile);
@@ -143,7 +122,8 @@ function addProfile() {
             content.classList.add('expanded');
             document.getElementById(`profile-toggle-${newProfile.id}`)?.classList.add('expanded');
         }
-        if (nameInput) {
+        // Nastavme fokus na novo vytvorený profil, len ak nedržíme SHIFT
+        if (nameInput && !(event?.shiftKey)) {
             nameInput.focus();
             nameInput.select();
             drawWaveVisualization(newProfile.id);
@@ -153,6 +133,18 @@ function addProfile() {
     }, 100);
 }
 
+function doDeleteProfile(id) {
+    const profile = profiles.find(p => p.id === id);
+    if (profile?.modemProfile) {
+        // Návrat na predvolený profil, ak sa odstraňuje aktívny profil
+        if (isProfileActive(profile)) setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
+        profile.modemProfile.destroy();
+    }
+    profiles = profiles.filter(p => p.id !== id);
+    saveProfiles();
+    renderProfiles();
+}
+
 function deleteProfile(id) {
     profileToDelete = id;
     confirmationModal.style.display = 'flex';
@@ -160,15 +152,7 @@ function deleteProfile(id) {
 
 function confirmDelete() {
     if (profileToDelete !== null) {
-        const profile = profiles.find(p => p.id === profileToDelete);
-        if (profile?.modemProfile) {
-            // Fall back to default if the active profile is being deleted.
-            if (isProfileActive(profile)) setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
-            profile.modemProfile.destroy();
-        }
-        profiles = profiles.filter(p => p.id !== profileToDelete);
-        saveProfiles();
-        renderProfiles();
+        doDeleteProfile(profileToDelete);
         profileToDelete = null;
     }
     closeModal();
@@ -179,8 +163,7 @@ function closeModal() {
     profileToDelete = null;
 }
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-
+// Pomocné funkcie UI
 function toggleProfile(id) {
     const content = document.getElementById(`profile-content-${id}`);
     const toggle  = document.getElementById(`profile-toggle-${id}`);
@@ -209,9 +192,13 @@ function updateProfile(id, field, value) {
         if (display) display.textContent = profile.name;
     } else {
         profile.modemProfile[field] = parseFloat(value) || 0;
-        if (field === 'param') updateTxParameterVisibility(id, profile.modemProfile.param);
+        // if (field === 'param') updateTxParameterVisibility(id, profile.modemProfile.param);
     }
     saveProfiles();
+
+    window.dispatchEvent(new CustomEvent("modem-profile-updated", {
+        detail: { profile: profile.modemProfile }
+    }));
 
     const content = document.getElementById(`profile-content-${id}`);
     if (content?.classList.contains('expanded')) {
@@ -220,20 +207,19 @@ function updateProfile(id, field, value) {
     }
 }
 
-function updateTxParameterVisibility(profileId, modulationType) {
-    const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
-    const freqRow = document.getElementById(`tx-freq-row${suffix}`);
-    const ampRow  = document.getElementById(`tx-amp-row${suffix}`);
-    const phsRow  = document.getElementById(`tx-phs-row${suffix}`);
-    if (!freqRow || !ampRow || !phsRow) return;
+// function updateTxParameterVisibility(profileId, modulationType) {
+//     const suffix = profileId === 'default' ? '-default' : `-${profileId}`;
+//     const freqRow = document.getElementById(`tx-freq-row${suffix}`);
+//     const ampRow  = document.getElementById(`tx-amp-row${suffix}`);
+//     const phsRow  = document.getElementById(`tx-phs-row${suffix}`);
+//     if (!freqRow || !ampRow || !phsRow) return;
 
-    freqRow.style.display = modulationType === 0 ? '' : 'none';
-    ampRow.style.display  = modulationType === 1 ? '' : 'none';
-    phsRow.style.display  = modulationType === 2 ? '' : 'none';
-}
+//     freqRow.style.display = modulationType === 0 ? '' : 'none';
+//     ampRow.style.display  = modulationType === 1 ? '' : 'none';
+//     phsRow.style.display  = modulationType === 2 ? '' : 'none';
+// }
 
-// ─── Wave visualization ───────────────────────────────────────────────────────
-
+// Vizualizácia vlnového tvaru
 function drawWaveVisualization(profileId) {
     const mp = profileId === 'default'
         ? TinyTUS.DEFAULT_MODEM_PROFILE
@@ -265,7 +251,7 @@ function drawWaveVisualization(profileId) {
     const markerColor = isDark ? 'rgb(88,128,101)' : '#28a745';
     const labelColor  = isDark ? 'rgba(255,255,255,0.5)' : '#6c757d';
 
-    // Axes
+    // Osi
     ctx.strokeStyle = axisColor;
     ctx.lineWidth   = 2;
     ctx.beginPath();
@@ -274,7 +260,7 @@ function drawWaveVisualization(profileId) {
     ctx.lineTo(width - padSide, padTop + graphHeight);
     ctx.stroke();
 
-    // Grid
+    // Mriežka
     ctx.strokeStyle = gridColor;
     ctx.lineWidth   = 1;
     for (let i = 1; i < 4; i++) {
@@ -285,7 +271,7 @@ function drawWaveVisualization(profileId) {
         ctx.stroke();
     }
 
-    // Waveform
+    // Vlnový tvar
     ctx.strokeStyle = waveColor;
     ctx.lineWidth   = 3;
     ctx.beginPath();
@@ -300,23 +286,13 @@ function drawWaveVisualization(profileId) {
         const dt = numCycles / totalPoints;
         let y;
 
-        if (mp.param === 0) {
-            const freq           = Math.floor(t) % 2 ? mp.max_tx_freq : mp.min_tx_freq;
-            const normalizedFreq = freq / 1000;
-            if (mp.cphase) {
-                phase += 2 * Math.PI * normalizedFreq * dt;
-                y = Math.sin(phase);
-            } else {
-                y = Math.sin(t * Math.PI * 2 * normalizedFreq);
-            }
-        } else if (mp.param === 1) {
-            const amp           = Math.floor(t) % 2 ? mp.max_tx_amp : mp.min_tx_amp;
-            const normalizedAmp = amp / 255;
-            y = Math.sin(t * Math.PI * 2 * 2) * normalizedAmp;
-        } else {
-            const phaseShift = (Math.floor(t) % 2 ? mp.max_tx_phs : mp.min_tx_phs) * Math.PI / 180;
-            phase = t * Math.PI * 2 * 2 + phaseShift;
+        const freq           = Math.floor(t) % 2 ? mp.max_tx_freq : mp.min_tx_freq;
+        const normalizedFreq = freq / 1000;
+        if (mp.cphase) {
+            phase += 2 * Math.PI * normalizedFreq * dt;
             y = Math.sin(phase);
+        } else {
+            y = Math.sin(t * Math.PI * 2 * normalizedFreq);
         }
 
         const x    = padSide + (i / totalPoints) * graphWidth;
@@ -325,7 +301,7 @@ function drawWaveVisualization(profileId) {
     }
     ctx.stroke();
 
-    // Bit-period markers
+    // Značky bitovej periódy
     ctx.strokeStyle = markerColor;
     ctx.lineWidth   = 2;
     ctx.setLineDash([5, 5]);
@@ -338,7 +314,7 @@ function drawWaveVisualization(profileId) {
     }
     ctx.setLineDash([]);
 
-    // Period arrow
+    // Šípka periódy
     const arrowY      = padTop + graphHeight + 30;
     const arrowStartX = padSide;
     const arrowEndX   = padSide + graphWidth / numCycles;
@@ -367,7 +343,7 @@ function drawWaveVisualization(profileId) {
     ctx.textAlign   = 'center';
     ctx.fillText(`Perióda: ${period.toFixed(4)}s`, (arrowStartX + arrowEndX) / 2, arrowY + 20);
 
-    // Y-axis labels
+    // Popisky na osi Y
     ctx.fillStyle = labelColor;
     ctx.font      = '12px sans-serif';
     ctx.textAlign = 'right';
@@ -376,9 +352,7 @@ function drawWaveVisualization(profileId) {
     ctx.fillText('-1.0', padSide - 10, padTop + graphHeight + 5);
 }
 
-// ─── Rendering ────────────────────────────────────────────────────────────────
-
-/** Shared field rows — used for both default (readonly) and editable profiles */
+// Vykreslenie
 function renderProfileFields(mp, idSuffix, readonly) {
     const field = (name, inputHtml, helpText = '') => `
         <div class="profile-field">
@@ -411,25 +385,15 @@ function renderProfileFields(mp, idSuffix, readonly) {
     return `
         <div class="section-divider"><div class="section-title">Základné parametre</div></div>
 
-        <div class="profile-field">
-            <label>${PARAM_LABELS.param}</label>
-            <select ${readonly ? 'disabled' : `data-profile-id="${idSuffix}" data-field="param"`}>
-                <option value="0" ${mp.param === 0 ? 'selected' : ''}>0 – Frekvencia (FSK)</option>
-                <option value="1" ${mp.param === 1 ? 'selected' : ''}>1 – Amplitúda (ASK)</option>
-                <option value="2" ${mp.param === 2 ? 'selected' : ''}>2 – Fáza (PSK)</option>
-            </select>
-        </div>
-
         <div class="profile-field-row">
             ${num('sample_rate',        { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' })}
-            ${num('symbol_rate',        { min: 1, max: 10000, step: 0.001, help: 'Symbolov za sekundu' })}
+            ${num('samples_per_symbol',        { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' })}
         </div>
         <div class="profile-field-row">
             ${num('bits_per_symbol',    { min: 1, max: 8,   help: 'Počet bitov na symbol' })}
             ${num('bytes_per_tx_block', { min: 1, max: 32,  help: 'Bajtov v jednom TX bloku' })}
         </div>
         <div class="profile-field-row">
-            ${num('car_freq',    { min: 100, max: 20000, help: 'Nosná frekvencia signálu' })}
             ${num('ecc_percent', { min: 0, max: 1, step: 0.05, help: 'Podiel ECC bajtov (0.0 = žiadne, 1.0 = 100 %)' })}
         </div>
         <div class="profile-field-row">
@@ -449,18 +413,8 @@ function renderProfileFields(mp, idSuffix, readonly) {
         <div class="section-divider"><div class="section-title">TX Parametre (vysielanie)</div></div>
 
         <div id="tx-freq-row-${idSuffix}" class="profile-field-row"
-            style="display: ${mp.param === 0 ? '' : 'none'}">
+            style="display: flex">
             ${renderFreqPicker(mp, idSuffix, readonly)}
-        </div>
-        <div id="tx-amp-row-${idSuffix}" class="profile-field-row"
-             style="display: ${mp.param === 1 ? '' : 'none'}">
-            ${num('min_tx_amp', { min: 0, max: 1, step: 0.01, help: 'Pre bit 0' })}
-            ${num('max_tx_amp', { min: 0, max: 1, step: 0.01, help: 'Pre bit 1' })}
-        </div>
-        <div id="tx-phs-row-${idSuffix}" class="profile-field-row"
-             style="display: ${mp.param === 2 ? '' : 'none'}">
-            ${num('min_tx_phs', { min: 0, max: 180, help: 'Pre bit 0 (0–180°)' })}
-            ${num('max_tx_phs', { min: 0, max: 180, help: 'Pre bit 1 (0–180°)' })}
         </div>
     `;
 }
@@ -481,13 +435,12 @@ function renderDefaultProfileCard() {
                 <span class="profile-tag profile-tag--readonly">
                     <i class="fas fa-lock"></i> Len na čítanie
                 </span>
-                ${active ? '<span class="profile-tag profile-tag--active"><i class="fas fa-circle"></i> Aktívny</span>' : ''}
             </div>
             <div class="profile-header-right">
                 <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
                         data-action="use-default"
                         ${active ? 'disabled' : ''}>
-                    ${active ? '<i class="fas fa-check"></i> Používa sa' : '<i class="fas fa-play"></i> Použiť'}
+                    ${active ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť'}
                 </button>
             </div>
         </div>
@@ -497,7 +450,7 @@ function renderDefaultProfileCard() {
                 <div class="wave-canvas-container"><canvas id="wave-canvas-default"></canvas></div>
                 <div class="wave-info">
                     <div class="wave-info-item">
-                        <span class="wave-info-label">Vzoriek na symbol:</span> ${mp.samples_per_symbol?.toFixed(2) ?? '–'}
+                        <span class="wave-info-label">Symbolová rýchlosť:</span> ${mp.symbol_rate?.toFixed(3) ?? '–'}
                     </div>
                     <div class="wave-info-item">
                         <span class="wave-info-label">Perióda symbolu:</span>
@@ -505,9 +458,6 @@ function renderDefaultProfileCard() {
                     </div>
                     <div class="wave-info-item">
                         <span class="wave-info-label">Nyquist frekvencia:</span> ${nyquist} Hz
-                    </div>
-                    <div class="wave-info-item">
-                        <span class="wave-info-label">Modulácia:</span> ${PARAM_TYPES[mp.param] ?? 'Neznámy'}
                     </div>
                 </div>
             </div>
@@ -538,13 +488,12 @@ function renderProfiles() {
                 <div class="profile-header-left">
                     <i id="profile-toggle-${profile.id}" class="fas fa-chevron-right profile-toggle"></i>
                     <span id="profile-name-display-${profile.id}" class="profile-name-display">${profile.name}</span>
-                    ${active ? '<span class="profile-tag profile-tag--active"><i class="fas fa-circle"></i> Aktívny</span>' : ''}
                 </div>
                 <div class="profile-header-right">
                     <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
                             data-profile-id="${profile.id}" data-action="use-profile"
                             ${active ? 'disabled' : ''}>
-                        ${active ? '<i class="fas fa-check"></i> Používa sa' : '<i class="fas fa-play"></i> Použiť'}
+                        ${active ? '<i class="fas fa-check"></i> Používa sa' : 'Použiť'}
                     </button>
                     <button class="delete-profile-button" data-profile-id="${profile.id}" data-action="delete">
                         <i class="fas fa-times"></i>
@@ -563,7 +512,7 @@ function renderProfiles() {
                     <div class="wave-canvas-container"><canvas id="wave-canvas-${profile.id}"></canvas></div>
                     <div class="wave-info">
                         <div class="wave-info-item">
-                            <span class="wave-info-label">Vzoriek na symbol:</span> ${mp.samples_per_symbol.toFixed(2)}
+                            <span class="wave-info-label">Symbolová rýchlosť:</span> ${mp.symbol_rate?.toFixed(2) ?? '–'}
                         </div>
                         <div class="wave-info-item">
                             <span class="wave-info-label">Perióda symbolu:</span>
@@ -573,7 +522,7 @@ function renderProfiles() {
                             <span class="wave-info-label">Nyquist frekvencia:</span> ${nyquist} Hz
                         </div>
                         <div class="wave-info-item">
-                            <span class="wave-info-label">Modulácia:</span> ${PARAM_TYPES[mp.param] ?? 'Neznámy'}
+                            <span class="wave-info-label">Frekvenčná modulácia</span>}
                         </div>
                     </div>
                 </div>
@@ -587,19 +536,24 @@ function renderProfiles() {
     initFreqPickers();
 }
 
-// ─── Event delegation ─────────────────────────────────────────────────────────
-
+// Delegovanie udalostí
 if (container) {
     container.addEventListener('click', (e) => {
-        // Delete
+        // Zmazanie profilu
         const deleteBtn = e.target.closest('[data-action="delete"]');
         if (deleteBtn) {
             e.stopPropagation();
+            // Ak je stlačený SHIFT, odstránime bez potvrdenia
+            if (e.shiftKey) {
+                doDeleteProfile(parseInt(deleteBtn.dataset.profileId));
+                return;
+            }
+
             deleteProfile(parseInt(deleteBtn.dataset.profileId));
             return;
         }
 
-        // Use profile
+        // Použitie profilu
         const useBtn = e.target.closest('[data-action="use-profile"]');
         if (useBtn) {
             e.stopPropagation();
@@ -608,7 +562,7 @@ if (container) {
             return;
         }
 
-        // Use default
+        // Použitie predvoleného
         const useDefaultBtn = e.target.closest('[data-action="use-default"]');
         if (useDefaultBtn) {
             e.stopPropagation();
@@ -616,14 +570,14 @@ if (container) {
             return;
         }
 
-        // Toggle default card
+        // Rozbalenie/zbalenie predvolenej karty
         const toggleDefault = e.target.closest('[data-action="toggle-default"]');
         if (toggleDefault) {
             toggleDefaultProfile();
             return;
         }
 
-        // Toggle user profile
+        // Rozbalenie/zbalenie užívateľského profilu
         const header = e.target.closest('[data-action="toggle"]');
         if (header) {
             toggleProfile(parseInt(header.dataset.profileId));
@@ -648,26 +602,24 @@ if (confirmationModal) {
     });
 }
 
-// ─── Theme observer ───────────────────────────────────────────────────────────
-
+// Sledovanie zmien schémy a prekreslenie
 new MutationObserver(() => {
-    // Redraw default card if open
+    // Prekreslenie predvolenej karty, ak je otvorená
     const defContent = document.getElementById('profile-content-default');
     if (defContent?.classList.contains('expanded')) drawWaveVisualization('default');
 
-    // Redraw user profiles
+    // Prekreslenie užívateľských profilov
     profiles.forEach(p => {
         const content = document.getElementById(`profile-content-${p.id}`);
         if (content?.classList.contains('expanded')) drawWaveVisualization(p.id);
     });
 }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
+// Inicializácia
 window.addEventListener('refresh-local-storage', saveProfiles);
 
-// Wait for WASM to be ready before rendering, since the default profile
-// needs TinyTUS.DEFAULT_MODEM_PROFILE to exist.
+// Čakanie na načítanie WASM pred vykresľovaním, pretože predvolený profil
+// vyžaduje existenciu TinyTUS.DEFAULT_MODEM_PROFILE
 TinyTUS.afterLoad(() => {
     loadProfiles();
     renderProfiles();

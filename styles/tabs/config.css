@@ -7,6 +7,8 @@
     /* max-width: 900px; */
     margin: 0 auto;
     padding: 24px;
+
+    margin-bottom: 24px;
 }
 
 #tab-config h3 {
@@ -31,18 +33,6 @@
     font-weight: 500;
 }
 
-#tab-config input[type="text"],
-#tab-config input[type="number"] {
-    padding: 8px 12px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-    border-radius: 4px;
-    font-size: 14px;
-    background: var(--config-input-bg, transparent);
-    color: var(--msger-header-colour);
-}
-
-#tab-config input[type="text"]:focus,
-#tab-config input[type="number"]:focus,
 #tab-config select:focus {
     outline: none;
     border-color: var(--msger-send-button-bg);
@@ -476,11 +466,11 @@ separator {
 }
 
 /* The dot icon pulses like a live indicator */
-.profile-tag--active i {
+/* .profile-tag--active i {
     animation: dot-pulse 2.4s ease-in-out infinite;
-}
+} */
 
-@keyframes dot-pulse {
+/* @keyframes dot-pulse {
     0%, 100% { opacity: 1;    transform: scale(1); }
     50%       { opacity: 0.4; transform: scale(0.75); }
 }
@@ -488,7 +478,7 @@ separator {
 @keyframes tag-pulse {
     0%, 100% { box-shadow: 0 0 0   0px rgba(29, 185, 123, 0); }
     50%       { box-shadow: 0 0 0   3px rgba(29, 185, 123, 0.12); }
-}
+} */
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -584,14 +574,14 @@ separator {
 
 .profile-item--active {
     border-color: rgba(29, 185, 123, 0.30) !important;
-    box-shadow:   0 0 0 1px rgba(29, 185, 123, 0.15),
-                  0 2px 12px rgba(29, 185, 123, 0.06);
+    /* box-shadow:   0 0 0 1px rgba(29, 185, 123, 0.15),
+                  0 2px 12px rgba(29, 185, 123, 0.06); */
 }
 
 .dark-scheme .profile-item--active {
     border-color: rgba(34, 214, 142, 0.25) !important;
-    box-shadow:   0 0 0 1px rgba(34, 214, 142, 0.12),
-                  0 2px 16px rgba(34, 214, 142, 0.06);
+    /* box-shadow:   0 0 0 1px rgba(34, 214, 142, 0.12),
+                  0 2px 16px rgba(34, 214, 142, 0.06); */
 }
 
 /* Default profile card gets a subtle tinted left border to distinguish it */
@@ -612,7 +602,7 @@ separator {
 }
 
 /* Aby bol sa interaktivny vyber frekvencneho pasma roztiahol po celej sirke */
-#tx-freq-row-1 {
+/* .profile-field-row:tx {
     display: flex;
-    gap: 16px;
-}
+    flex-direction: row;
+} */

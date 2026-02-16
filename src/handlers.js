@@ -165,6 +165,11 @@ usernameModalInput.addEventListener("input", () => {
     loginButton.disabled = !usernameModalInput.value.trim()
 })
 
+function onUserLoggedIn() {
+    window.userLoggedIn = true;
+    window.dispatchEvent(new CustomEvent("user-logged"));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const savedUsername = localStorage.getItem('username');
     if (!savedUsername) {
@@ -181,11 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 loginModal.style.display = 'none'; // hide the modal
             }
 
-            window.dispatchEvent(new CustomEvent('user-logged'));
+            onUserLoggedIn();
         });
     } else {
         usernameConfigInput.value = savedUsername;
-        window.dispatchEvent(new CustomEvent('user-logged'));
+        onUserLoggedIn();
         loginRememberMeConfig.checked = true; // Remembered the username so this is most likely true;
     }
 });

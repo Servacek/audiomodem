@@ -109,10 +109,13 @@
                     <span>Používateľské meno</span>
                     <input id="username-config-input" type="text" value="Anonymný" maxlength="16">
                     <div style="white-space: nowrap;">
-                        <input id="remember-me-config" type="checkbox">
-                        <label for="remember-me-config">Zapamätať si ma</label>
+                        <label for="remember-me-config">
+                            <input id="remember-me-config" type="checkbox"> Zapamätať si ma
+                        </label>
                     </div>
                 </label>
+
+                <separator>
 
                 <h3>Modemové profily</h3>
                 <p class="section-description">
@@ -135,7 +138,7 @@
 
                 <label class="config-sub-header">
                     <h3>USB Zariadenia</h3>
-                    <div id="usb-device-info">Žiadne zariadenie nepripojené</div><br>
+                    <div id="usb-device-info"><i>Zatiaľ žiadne pripojené zariadenia...</i></div><br>
                     <button id="connect-usb-device-button" class="unpaired" disabled>
                         <i class="fas fa-usb"></i>
                     </button>

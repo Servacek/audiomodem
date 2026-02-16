@@ -24,14 +24,12 @@ const bufferSizeInput = document.getElementById("buffer-size-input");
 var messagesToSend = [];
 var currentlySendingMessage = null;
 
-let port = null;
-
 const textEncoder = new TextEncoder("utf-8");
 
 ////////////////////
 
 TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
-    const bytes = TinyTUS.getReturnValue("u8", frame_ptr, frame_len);
+    const bytes = TinyTUS.getDynamicBufferFromPointer("u8", frame_ptr, frame_len);
 
     console.log("Received frame of length", frame_len, "data:", bytes);
 
@@ -76,16 +74,13 @@ function sendNextMessage() {
         }, 50);
 
         source.onended = () => {
-            print("Message sent!");
-            clearInterval(intervalId);
+            clearInterval(intervalId); // Vypnime progress aktualizovanie progress baru.
+
             currentlySendingMessage.dispatchEvent(new Event("sent"));
             currentlySendingMessage = null;
-            if (messagesToSend.length <= 0 && port != null) {
-                setTimeout(async () => {
-                    await port.controlTransferIn(
-                        {requestType:'vendor',recipient:'device',request:0,value:0,index:0}
-                    ,16);
-                }, 300)
+            window.dispatchEvent(new CustomEvent("message-send-completed"));
+            if (messagesToSend.length <= 0) {
+                window.dispatchEvent(new CustomEvent("last-message-send-completed"));
             }
 
             sendNextMessage();
@@ -102,15 +97,20 @@ async function sendMessage(message) {
         message.progressBar.style.display = "none";
     })
 
-    if (!currentlySendingMessage && port != null) {
-        if (!port.configuration)
-            await port.selectConfiguration(1);
-        await port.claimInterface(0);
-        await port.controlTransferIn({requestType:'vendor',recipient:'device',request:1,value:0,index:0},16);
-        setTimeout(() => sendNextMessage(), 300);
-    } else {
-        sendNextMessage();
-    }
+    window.dispatchEvent(new CustomEvent("message-send-started", {
+        "detail": { message: message }
+    }));
+    sendNextMessage();
+
+    // if (!currentlySendingMessage && port != null) {
+    //     window.dispatchEvent(new CustomEvent("message-sent", {
+    //         "detail": { message: message }
+    //     }));
+
+    //     setTimeout(() => sendNextMessage(), 300);
+    // } else {
+    //     sendNextMessage();
+    // }
 }
 
 // TODO: This is temporary until we decide on the design.
@@ -327,8 +327,8 @@ function displayMessageAtBottom(msg) {
     messageArea.appendChild(msg);
     scrollToBottom();
 
-    // A new message was received but
-    if (messageArea.offsetParent === null) {
+    if (messageArea.offsetParent === null && msg?.system !== true) {
+        // Nemame otvoreny cet a prisla nam sprava.
         document.getElementById('chat-button').classList.add('new-message');
     }
 }
@@ -401,6 +401,7 @@ function systemMessage(text, type, icon = null) {
     const msg = createMessageBase();
     msg.classList.add("system-message", "system-message-" + type);
     msg.style.color = CONST.SYSTEM_MESSAGE_COLORS[type];
+    msg.system = true;
 
     const iconElement = document.createElement("i");
     iconElement.className = icon || CONST.SYSTEM_MESSAGE_ICONS[type];
@@ -468,11 +469,11 @@ if (!navigator.mediaDevices) {
 let userLoggedIn = false;
 let wasmLoaded = false;
 
-const initStateUpdate = () => {
+const initStateUpdate = async () => {
     // if (userLoggedIn && wasmLoaded) {
     if (wasmLoaded) {
         /** @type {Error}  */
-        const error = TinyTUS.tryStartListeningForIncomingMessages(
+        const error = await TinyTUS.tryStartListeningForIncomingMessages(
             TinyTUS.currentlyUsedModemProfile,
             (event) => {
                 window.dispatchEvent(new CustomEvent("audioprocess", {
@@ -481,21 +482,28 @@ const initStateUpdate = () => {
             }
         );
         if (error != null) {
-            displayMessageAtBottom(systemMessage(error.message, "error"));
+            displayMessageAtBottom(systemMessage("Nepodarilo sa spustiť prijímanie správ: " + error.message, "error"));
         }
     }
 }
 
-print("ADDING LISTENER");
-window.addEventListener("wasm-library-loaded", () => {
-    print("ON LOADED");
-    wasmLoaded = true;
-    initStateUpdate();
+// Ked otvorime cet, odstran notifikacie o novych spravach.
+document.getElementById('chat-button').addEventListener('click', () => {
+    document.getElementById('chat-button').classList.remove('new-message');
 });
 
-window.addEventListener("active-modem-profile-changed", () => {
-    initStateUpdate();
+window.addEventListener("wasm-library-loaded", async () => {
+    wasmLoaded = true;
+    await initStateUpdate();
+});
+
+window.addEventListener("active-modem-profile-changed", async () => {
+    await initStateUpdate();
 })
+
+window.addEventListener("modem-profile-updated", async () => {
+    await initStateUpdate();
+});
 
 window.addEventListener("message-received", (event) => {
     const bytes = event.detail.bytes;
@@ -510,9 +518,19 @@ window.addEventListener("wasm-library-failed", () => {
     displayMessageAtBottom(systemMessage("Načítavanie externých knižníc zlyhalo. Pokúste sa reštartovať stránku, alebo ak chyba pretrváva, kontaktujte správcu.", "error"));
 });
 
-// Ako cet pocuvame kedy sa pripoji uzivatel a zobrazime mu uvitaciu spravu.
-window.addEventListener("user-logged", () => {
-    userLoggedIn = true;
+window.addEventListener("usb-device-connected", (event) => {
+    displayMessageAtBottom(systemMessage(`USB zariadenie pripojené: <span style="color: var(--msger-send-button-bg);">${event.detail.device.productName}</span>`, "info"));
+});
+
+window.addEventListener("usb-device-connection-failed", (event) => {
+    displayMessageAtBottom(systemMessage("USB zariadenie sa neporadilo spárovať.", "error"));
+});
+
+window.addEventListener("usb-device-disconnected", () => {
+    displayMessageAtBottom(systemMessage("USB zariadenie odpojené.", "info"));
+});
+
+function onUserLoggedIn() {
     if (!window.matchMedia("(max-width: 512px)").matches) {
         inputBar.focus(); // Default focus
     };
@@ -522,7 +540,14 @@ window.addEventListener("user-logged", () => {
     const welcomeMessage = systemMessage("Vitaj <span id='username-text'>" + getUsername() + "</span>! Svoju prezývku si môžeš kedykoľvek zmeniť v nastaveniach" + configButtonRef, "welcome");
     displayMessageAtBottom(welcomeMessage);
     initStateUpdate();
-});
+}
+
+// Ako cet pocuvame kedy sa pripoji uzivatel a zobrazime mu uvitaciu spravu.
+window.addEventListener("user-logged", onUserLoggedIn);
+
+if (window.userLoggedIn) {
+    onUserLoggedIn();
+}
 
 // TODO: Add some DB and save/load the messages sent and received.
 // displayMessageAtBottom(createUserMessage("SOMEONE", CONST.ALIGMENT_LEFT, "TITIIIDJOIWNDJNWJNDNWODNWNDONWODNOWNODOWDN"))
