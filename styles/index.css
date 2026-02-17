@@ -312,8 +312,6 @@ footer {
     align-items: center;
     width: 20px;
     height: 20px;
-    background-color: white;
-    border: 2px solid black;
     cursor: pointer;
     margin-right: 10px;
 }
@@ -444,6 +442,60 @@ input[type="number"]:focus {
     outline: none;
     border-color: var(--msger-send-button-bg);
 }
+
+/********************************/
+/******** SELECT MENUS ********/
+/********************************/
+
+/* select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid var(--select-border, rgba(72, 72, 72, 0.15));
+    border-radius: 4px;
+    font-size: 14px;
+    background: var(--select-bg, transparent);
+    color: var(--select-text, var(--msger-header-colour));
+    cursor: pointer;
+    transition: background-color 0.23s, border-color 0.23s;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23aaa" d="M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+}
+
+select:hover {
+    border-color: var(--select-border, rgb(32, 32, 32));
+    background-color: var(--select-bg, rgba(255, 255, 255, 0.08));
+    filter: brightness(1.05);
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--msger-send-button-bg);
+    background-color: var(--select-bg, rgba(0, 0, 0, 0.902));
+}
+
+select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--select-bg, rgba(255, 255, 255, 0.03));
+}
+
+select option {
+    background: var(--msger-bg, #1a1a1a);
+    color: var(--select-text, var(--msger-header-colour));
+    padding: 8px 12px;
+}
+
+:root:not(.dark-scheme) select {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23666" d="M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z"/></svg>');
+}
+
+:root.dark-scheme select {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23aaa" d="M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z"/></svg>');
+} */
 
 /********************************/
 /******** MOBILE DEVICES ********/

@@ -1,230 +1,242 @@
-// import { Tinitus } from '../tinitus.js';
-// import { plotFFT, plotFFTWaterfall, plotWaveform, drawFFT } from '../plotter.js';
-// import * as CONST from "../constants.js";
+// ─── Configuration ───────────────────────────────────────────────────
+const FFT_SIZE = 1024;           // Must be power of 2
+const SAMPLE_RATE = 48000;       // Must match AudioContext sample rate
+const MAX_DISPLAY_FREQ = 6000;   // Max frequency shown on spectrogram (Hz)
+const HOP_SIZE = 256;            // Hop between frames (75% overlap → 4× time resolution)
+const CANVAS_W = 512;            // Fixed pixel width  (stretched via CSS)
+const CANVAS_H = 256;            // Fixed pixel height
+const NOISE_MARGIN = 3.0;        // Adaptive floor = median × this (higher = more noise suppression)
+const ADAPT_RATE = 0.05;         // How fast the noise floor adapts (0–1, lower = smoother)
 
-// const TAB = document.getElementById(CONST.TAB.GRAPH);
+// ─── DOM Elements ────────────────────────────────────────────────────
+const container = document.getElementById("spectrogram-container");
+const graphTab = document.getElementById("tab-graph");
 
-// const fftGraph = document.getElementById("fft-result-graph");
-// const waveformGraph = document.getElementById("input-waveform-graph");
-// const waterfallCheckbox = document.getElementById("waterfall-checkbox");
+// Create canvas with fixed pixel dimensions (CSS stretches it to fill)
+const canvas = document.createElement("canvas");
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
+container.appendChild(canvas);
 
-// function onClick() {fftGraph.paused = !fftGraph.paused;}
+const ctx = canvas.getContext("2d", { willReadFrequently: false });
 
-// fftGraph.addEventListener("click", onClick)
-// waveformGraph.addEventListener("click", onClick)
+// Mark the tab as loaded — this hides the spinner and makes content visible
+graphTab.classList.add("loaded");
 
+// ─── Ring buffer for overlapping frames ──────────────────────────────
+// Keeps FFT_SIZE samples; after first fill, shifts by HOP_SIZE each time.
+const ringBuffer = new Float32Array(FFT_SIZE);
+let ringFilled = 0;   // how many samples collected so far (before first full window)
+let hopCount = 0;     // samples collected since last FFT frame
 
-// function onProcessAudioFFTChunk(e) {
-//     // Do only update the canvas when we are visible and running!
-//     if (fftGraph.paused == true || fftGraph.offsetParent == null) {
-//         return;
-//     }
+// ─── Number of FFT bins we actually display ──────────────────────────
+const binHz = SAMPLE_RATE / FFT_SIZE;
+const numBins = Math.min(Math.ceil(MAX_DISPLAY_FREQ / binHz), FFT_SIZE / 2);
 
-//     if (TAB.classList.contains("loaded") == false) {
-//         TAB.classList.add("loaded");
-//     }
+// ─── Precomputed Hann Window ─────────────────────────────────────────
+const hannWindow = new Float32Array(FFT_SIZE);
+for (let i = 0; i < FFT_SIZE; i++) {
+    hannWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
+}
 
-//     const inputBuffer = e.detail.inputBuffer;
-
-//     // Plot the input waveform we are computing the FFT from.
-//     plotWaveform(waveformGraph, inputBuffer);
-
-//     const fftSize = inputBuffer.length; // Should already be a power of 2.
-//     const startPtr = Tinitus.MEMORY_STACK_START;
-//     const realPtr = startPtr;
-//     const imagPtr = realPtr + fftSize*4;
-
-//     // Prepare the arrays for the FFT.
-//     Tinitus.MEMORY_F32.set(inputBuffer, realPtr>>2);
-//     Tinitus.MEMORY_F32.fill(0, imagPtr>>2, (imagPtr+fftSize*4)>>2);
-//     Tinitus.EXPORTS.fft(realPtr, imagPtr, fftSize);
-
-//     // Retrieve the computed real and imaginary numbers from memory
-//     const computedReal = new Float32Array(Tinitus.BUFFER, realPtr, fftSize)
-//     const computedImag = new Float32Array(Tinitus.BUFFER, imagPtr, fftSize)
-
-//     // console.log("Computed Real:", computedReal);
-//     // console.log("Computed Imaginary:", computedImag);
-
-//     // for (let i = 0; i < computedImag.length; i++) {
-//     //     console.log(`Computed Imaginary [${i}]:`, computedImag[i]);
-//     // }
-
-//     const SAMPLING_FREQUENCY = Tinitus.MEMORY_U32[48000/4];
-
-//     const maxFreq = 5000; // Define the maximum frequency to display
-//     const freqBinSize = SAMPLING_FREQUENCY / fftSize; // Frequency resolution
-
-//     // Generate frequencies array and calculate magnitudes
-//     const frequencies = Array.from({ length: fftSize / 2 }, (_, i) => Math.round(i * freqBinSize));
-//     const magnitudes = computedReal.map((r, i) => Math.sqrt(r * r + computedImag[i] * computedImag[i]));
-
-//     // Filter frequencies and magnitudes for the desired range
-//     const filteredFrequencies = frequencies.filter((freq) => freq <= maxFreq);
-//     const filteredMagnitudes = magnitudes.slice(0, filteredFrequencies.length); // Match the filtered frequencies
-//     //const filteredMagnitudesDB = filteredMagnitudes.map((mag) => 20 * Math.log10(mag));
-
-//     // Plot the result
-//     // plotFFT(fft_graph, filteredFrequencies, filteredMagnitudes);
-//     if (waterfallCheckbox.checked) {
-//         plotFFTWaterfall(fftGraph, filteredFrequencies, filteredMagnitudes);
-//     } else {
-//         drawFFT(fftGraph, filteredFrequencies, filteredMagnitudes);
-//     }
-
-//     const peakMagnitudeIndex = filteredMagnitudes.indexOf(Math.max(...filteredMagnitudes));
-//     const peakFrequency = filteredFrequencies[peakMagnitudeIndex];
-//     const peakFrequencySpan = document.getElementById("peak-frequency");
-//     peakFrequencySpan.textContent = `Peak frequency: ${peakFrequency} Hz`;
-
-//     //console.log(getPeakFrequency(normalizedBuffer));
-
-//     // if (res && res.length > 0) {
-//     //     res = new TextDecoder("utf-8").decode(res);
-//     //     rxData.value = res;
-//     // }
-// }
-
-// window.addEventListener("audioprocess", onProcessAudioFFTChunk);
-
-import { TinyTUS } from '../../libs/tinytus/tinytus.js';
-import { plotWaveform, plotFFTWaterfall, drawFFT } from '../plotter.js';
-import * as CONST from "../constants.js";
-
-/**
- * Spectrogram Visualizer
- * Handles FFT computation and visualization with waterfall mode
- */
-class SpectrogramVisualizer {
-    constructor() {
-        // DOM elements
-        this.tab = document.getElementById(CONST.TAB.GRAPH);
-        this.fftCanvas = document.getElementById("fft-result-graph");
-        this.waveformCanvas = document.getElementById("input-waveform-graph");
-        this.waterfallCheckbox = document.getElementById("waterfall-checkbox");
-        this.peakFrequencyDisplay = document.getElementById("peak-frequency");
-
-        // Configuration
-        this.config = {
-            maxDisplayFrequency: 5000, // Hz
-            defaultSampleRate: 48000   // Hz
-        };
-
-        // State
-        this.isPaused = false;
-
-        this.init();
-    }
-
-    init() {
-        this.attachEventListeners();
-        window.addEventListener("audioprocess", (e) => this.onAudioProcess(e));
-    }
-
-    attachEventListeners() {
-        const togglePause = () => {
-            this.isPaused = !this.isPaused;
-            this.fftCanvas.paused = this.isPaused;
-        };
-
-        this.fftCanvas.addEventListener("click", togglePause);
-        this.waveformCanvas.addEventListener("click", togglePause);
-    }
-
-    onAudioProcess(event) {
-        if (!this.shouldRender()) return;
-
-        this.markTabAsLoaded();
-
-        const inputBuffer = event.detail.inputBuffer;
-        this.renderWaveform(inputBuffer);
-
-        const fftResult = this.computeFFT(inputBuffer);
-        const spectrum = this.extractSpectrum(fftResult, inputBuffer.length);
-
-        this.renderSpectrum(spectrum);
-        this.updatePeakFrequency(spectrum);
-    }
-
-    shouldRender() {
-        return !this.isPaused && this.fftCanvas.offsetParent !== null;
-    }
-
-    markTabAsLoaded() {
-        if (!this.tab.classList.contains("loaded")) {
-            this.tab.classList.add("loaded");
+// ─── Bit-reversal table ──────────────────────────────────────────────
+const bitReversalTable = new Uint32Array(FFT_SIZE);
+{
+    const bits = Math.log2(FFT_SIZE) | 0;
+    for (let i = 0; i < FFT_SIZE; i++) {
+        let reversed = 0, val = i;
+        for (let b = 0; b < bits; b++) {
+            reversed = (reversed << 1) | (val & 1);
+            val >>= 1;
         }
-    }
-
-    renderWaveform(buffer) {
-        plotWaveform(this.waveformCanvas, buffer);
-    }
-
-    computeFFT(inputBuffer) {
-        const fftSize = inputBuffer.length;
-        const startPtr = TinyTUS.MEMORY_STACK_START;
-        const realPtr = startPtr;
-        const imagPtr = realPtr + fftSize * 4;
-
-        // Prepare input arrays
-        TinyTUS.MEMORY_F32.set(inputBuffer, realPtr >> 2);
-        TinyTUS.MEMORY_F32.fill(0, imagPtr >> 2, (imagPtr + fftSize * 4) >> 2);
-
-        // Compute FFT
-        TinyTUS.EXPORTS.fft(realPtr, imagPtr, fftSize);
-
-        // Extract results
-        const real = new Float32Array(TinyTUS.BUFFER, realPtr, fftSize);
-        const imag = new Float32Array(TinyTUS.BUFFER, imagPtr, fftSize);
-
-        return { real, imag };
-    }
-
-    extractSpectrum(fftResult, fftSize) {
-        const sampleRate = TinyTUS.MEMORY_U32[this.config.defaultSampleRate / 4];
-        const freqBinSize = sampleRate / fftSize;
-        const nyquistBins = fftSize / 2;
-
-        // Calculate magnitudes
-        const magnitudes = Array.from({ length: nyquistBins }, (_, i) => {
-            const real = fftResult.real[i];
-            const imag = fftResult.imag[i];
-            return Math.sqrt(real * real + imag * imag);
-        });
-
-        // Generate frequency bins
-        const frequencies = Array.from({ length: nyquistBins },
-            (_, i) => Math.round(i * freqBinSize));
-
-        // Filter to display range
-        const maxIdx = frequencies.findIndex(f => f > this.config.maxDisplayFrequency);
-        const cutoffIdx = maxIdx === -1 ? frequencies.length : maxIdx;
-
-        return {
-            frequencies: frequencies.slice(0, cutoffIdx),
-            magnitudes: magnitudes.slice(0, cutoffIdx)
-        };
-    }
-
-    renderSpectrum(spectrum) {
-        if (this.waterfallCheckbox.checked) {
-            plotFFTWaterfall(this.fftCanvas, spectrum.frequencies, spectrum.magnitudes, {
-                magnitudeScaling: 'log',
-                noiseFloor: 0.005,
-                colormap: 'viridis'
-            });
-        } else {
-            drawFFT(this.fftCanvas, spectrum.frequencies, spectrum.magnitudes);
-        }
-    }
-
-    updatePeakFrequency(spectrum) {
-        const peakIdx = spectrum.magnitudes.indexOf(Math.max(...spectrum.magnitudes));
-        const peakFreq = spectrum.frequencies[peakIdx];
-
-        this.peakFrequencyDisplay.textContent = `Peak frequency: ${peakFreq} Hz`;
+        bitReversalTable[i] = reversed;
     }
 }
 
-const spectrogramVisualizer = new SpectrogramVisualizer();
-spectrogramVisualizer.init();
+// ─── Precomputed twiddle factors ─────────────────────────────────────
+const twiddleRe = new Float64Array(FFT_SIZE / 2);
+const twiddleIm = new Float64Array(FFT_SIZE / 2);
+for (let i = 0; i < FFT_SIZE / 2; i++) {
+    const a = (-2 * Math.PI * i) / FFT_SIZE;
+    twiddleRe[i] = Math.cos(a);
+    twiddleIm[i] = Math.sin(a);
+}
+
+// ─── Precomputed colour LUT (256 entries) ────────────────────────────
+// High-contrast colormap: black → blue → cyan → green → yellow → red → white
+const colourLUT = new Uint8Array(256 * 3);
+for (let i = 0; i < 256; i++) {
+    const v = i / 255;
+    let r, g, b;
+    if (v < 0.15) {
+        // Black → deep blue
+        const t = v / 0.15;
+        r = 0; g = 0; b = Math.round(140 * t);
+    } else if (v < 0.35) {
+        // Deep blue → cyan
+        const t = (v - 0.15) / 0.20;
+        r = 0; g = Math.round(255 * t); b = Math.round(140 + 115 * t);
+    } else if (v < 0.55) {
+        // Cyan → green
+        const t = (v - 0.35) / 0.20;
+        r = 0; g = 255; b = Math.round(255 * (1 - t));
+    } else if (v < 0.75) {
+        // Green → yellow
+        const t = (v - 0.55) / 0.20;
+        r = Math.round(255 * t); g = 255; b = 0;
+    } else if (v < 0.90) {
+        // Yellow → red
+        const t = (v - 0.75) / 0.15;
+        r = 255; g = Math.round(255 * (1 - t)); b = 0;
+    } else {
+        // Red → white
+        const t = (v - 0.90) / 0.10;
+        r = 255; g = Math.round(255 * t); b = Math.round(255 * t);
+    }
+    colourLUT[i * 3]     = r;
+    colourLUT[i * 3 + 1] = g;
+    colourLUT[i * 3 + 2] = b;
+}
+
+// ─── Reusable row ImageData ──────────────────────────────────────────
+const rowImageData = ctx.createImageData(CANVAS_W, 1);
+const rowPixels = rowImageData.data; // Uint8ClampedArray
+
+// ─── FFT (in-place, radix-2 Cooley-Tukey) ────────────────────────────
+function fft(re, im) {
+    const N = re.length;
+    for (let i = 0; i < N; i++) {
+        const j = bitReversalTable[i];
+        if (j > i) {
+            let t = re[i]; re[i] = re[j]; re[j] = t;
+            t = im[i]; im[i] = im[j]; im[j] = t;
+        }
+    }
+    for (let size = 2; size <= N; size *= 2) {
+        const half = size >> 1, step = N / size;
+        for (let i = 0; i < N; i += size) {
+            for (let k = 0; k < half; k++) {
+                const tw = k * step;
+                const eIdx = i + k, oIdx = eIdx + half;
+                const oR = re[oIdx] * twiddleRe[tw] - im[oIdx] * twiddleIm[tw];
+                const oI = re[oIdx] * twiddleIm[tw] + im[oIdx] * twiddleRe[tw];
+                re[oIdx] = re[eIdx] - oR;
+                im[oIdx] = im[eIdx] - oI;
+                re[eIdx] += oR;
+                im[eIdx] += oI;
+            }
+        }
+    }
+}
+
+// ─── Cached FFT work arrays ─────────────────────────────────────────
+const fftRe = new Float64Array(FFT_SIZE);
+const fftIm = new Float64Array(FFT_SIZE);
+
+// ─── Adaptive noise floor state ──────────────────────────────────────
+let noiseFloor = 0.001;          // Initial estimate, will auto-adjust
+let medianEstimate = 0.001;      // Running estimate of median magnitude
+
+// ─── Process one FFT frame and draw one spectrogram row ──────────────
+function processFrame(samples) {
+    // Window + copy into work arrays
+    for (let i = 0; i < FFT_SIZE; i++) {
+        fftRe[i] = samples[i] * hannWindow[i];
+        fftIm[i] = 0;
+    }
+
+    fft(fftRe, fftIm);
+
+    // Compute magnitudes for all displayed bins
+    const mags = new Float32Array(numBins);
+    for (let i = 0; i < numBins; i++) {
+        mags[i] = Math.sqrt(fftRe[i] * fftRe[i] + fftIm[i] * fftIm[i]) / FFT_SIZE;
+    }
+
+    // Update adaptive noise floor: track the median magnitude
+    // Use a partial sort to find the median efficiently
+    const sorted = mags.slice().sort();
+    const frameMedian = sorted[numBins >> 1];
+    medianEstimate += ADAPT_RATE * (frameMedian - medianEstimate);
+    noiseFloor = Math.max(medianEstimate * NOISE_MARGIN, 1e-6);
+
+    const logFloor = Math.log10(noiseFloor);
+    const invLogFloor = 1 / -logFloor;
+
+    // Scroll the existing image up by 1 pixel (single GPU-accelerated op)
+    ctx.drawImage(canvas, 0, -1);
+
+    // Build the new bottom row into rowImageData
+    const xScale = CANVAS_W / numBins;
+
+    for (let i = 0; i < numBins; i++) {
+        const logVal = Math.log10(Math.max(mags[i], noiseFloor));
+        const norm = Math.max(0, Math.min(1, (logVal - logFloor) * invLogFloor));
+        const lut = (norm * 255) | 0;
+
+        const r = colourLUT[lut * 3];
+        const g = colourLUT[lut * 3 + 1];
+        const b = colourLUT[lut * 3 + 2];
+
+        // Fill all pixels that this bin covers
+        const x0 = (i * xScale) | 0;
+        const x1 = ((i + 1) * xScale) | 0;
+        for (let x = x0; x < x1; x++) {
+            const p = x * 4;
+            rowPixels[p]     = r;
+            rowPixels[p + 1] = g;
+            rowPixels[p + 2] = b;
+            rowPixels[p + 3] = 255;
+        }
+    }
+
+    // Draw the single new row at the bottom
+    ctx.putImageData(rowImageData, 0, CANVAS_H - 1);
+}
+
+// ─── Audio event handler ─────────────────────────────────────────────
+window.addEventListener("audioprocess", (e) => {
+    // Only process when the graph tab is visible
+    if (!graphTab.classList.contains("opened")) return;
+
+    const input = e.detail.inputBuffer.getChannelData(0);
+    const len = input.length;
+    let offset = 0;
+
+    while (offset < len) {
+        if (ringFilled < FFT_SIZE) {
+            // Initial fill — accumulate until we have a full window
+            const need = FFT_SIZE - ringFilled;
+            const toCopy = Math.min(need, len - offset);
+            ringBuffer.set(input.subarray(offset, offset + toCopy), ringFilled);
+            ringFilled += toCopy;
+            offset += toCopy;
+            if (ringFilled >= FFT_SIZE) {
+                processFrame(ringBuffer);
+                hopCount = 0;
+            }
+        } else {
+            // Overlap mode — shift by HOP_SIZE and process
+            const need = HOP_SIZE - hopCount;
+            const toCopy = Math.min(need, len - offset);
+            // Shift old samples left and append new ones at the end
+            if (hopCount === 0 && toCopy === HOP_SIZE) {
+                // Fast path: shift + copy in one go
+                ringBuffer.copyWithin(0, HOP_SIZE);
+                ringBuffer.set(input.subarray(offset, offset + toCopy), FFT_SIZE - HOP_SIZE);
+            } else {
+                // Partial: append into the tail region
+                if (hopCount === 0) {
+                    ringBuffer.copyWithin(0, HOP_SIZE);
+                }
+                ringBuffer.set(input.subarray(offset, offset + toCopy), FFT_SIZE - HOP_SIZE + hopCount);
+            }
+            hopCount += toCopy;
+            offset += toCopy;
+            if (hopCount >= HOP_SIZE) {
+                processFrame(ringBuffer);
+                hopCount = 0;
+            }
+        }
+    }
+});

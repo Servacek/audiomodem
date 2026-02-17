@@ -5,26 +5,27 @@
 
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
-import { renderFreqPicker, initFreqPickers } from '../freq_picker.js';
 
 /********************************/
 /****  CONSTANTS             ****/
 /********************************/
 
-const MAX_PROFILES     = 10;
+const MAX_PROFILES = 10;
 const MAX_PROFILE_NAME = 24;
 
 const PARAM_LABELS = {
-    min_rx_freq:        "Min RX frekvencia (Hz)",
-    max_rx_freq:        "Max RX frekvencia (Hz)",
-    sample_rate:        "Vzorkovacia frekvencia (Hz)",
-    bits_per_symbol:    "Bity na symbol",
+    min_tx_freq: "Frekvenčný offset vysielača",
+    sample_rate: "Vzorkovacia frekvencia (Hz)",
+    bits_per_symbol: "Bity na symbol",
     bytes_per_tx_block: "Bajtov v TX bloku",
-    ecc_percent:        "Podiel samoopravných bajtov",
-    dss_enabled:        "DSS (rozptyl spektra)",
-    squelch_thresh:     "Squelch prah",
-    cphase:             "Spojitá fáza",
-    max_tx_amp:         "Max TX amplitúda (hlasitosť)",
+    symbols_per_marker: "Symboly na marker",
+    bits_in_marker: "Bity v markeri",
+    frames_per_tx_block: "Rámce v TX bloku",
+    ecc_percent: "Podiel samoopravných bajtov",
+    dss_enabled: "DSS (rozptyl spektra)",
+    squelch_thresh: "Squelch prah",
+    cphase: "Spojitá fáza",
+    max_tx_amp: "Max TX amplitúda (hlasitosť)",
     samples_per_symbol: "Počet vzorkov na jeden symbol",
 };
 
@@ -36,12 +37,12 @@ let profiles = [];
 let profileToDelete = null;
 
 const $ = id => document.getElementById(id);
-const container         = $('profiles-container');
-const addButton         = $('add-profile-button');
+const container = $('profiles-container');
+const addButton = $('add-profile-button');
 const confirmationModal = $('confirmation-modal');
-const confirmButton     = $('confirmation-confirm-button');
-const cancelButton      = $('confirmation-cancel-button');
-const configTabContent  = $('tab-config');
+const confirmButton = $('confirmation-confirm-button');
+const cancelButton = $('confirmation-cancel-button');
+const configTabContent = $('tab-config');
 const usbProfileSelector = $('usb-profile-selector');
 
 /********************************/
@@ -121,9 +122,9 @@ function saveConfigState() {
     const expanded = ['default', ...profiles.map(p => p.id)]
         .filter(id => $(`profile-content-${id}`)?.classList.contains('expanded'));
     localStorage.setItem('configTabState', JSON.stringify({
-        activeProfileId:  isDefaultActive() ? 'default' : profiles.find(p => isProfileActive(p))?.id ?? 'default',
+        activeProfileId: isDefaultActive() ? 'default' : profiles.find(p => isProfileActive(p))?.id ?? 'default',
         expandedProfiles: expanded,
-        scrollPosition:   configTabContent?.scrollTop || 0,
+        scrollPosition: configTabContent?.scrollTop || 0,
     }));
 }
 
@@ -142,7 +143,7 @@ function restoreConfigState() {
 
         state.expandedProfiles?.forEach(id => {
             const content = $(`profile-content-${id}`);
-            const toggle  = $(`profile-toggle-${id}`);
+            const toggle = $(`profile-toggle-${id}`);
             if (!content || !toggle) return;
             content.classList.add('expanded');
             toggle.classList.add('expanded');
@@ -159,7 +160,7 @@ function restoreConfigState() {
 /********************************/
 
 const isProfileActive = profile => TinyTUS.currentlyUsedModemProfile === profile.modemProfile;
-const isDefaultActive = ()      => TinyTUS.currentlyUsedModemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
+const isDefaultActive = () => TinyTUS.currentlyUsedModemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
 
 function updateActiveProfileUI(modemProfile) {
     // Remove active class from all profiles
@@ -186,9 +187,9 @@ function updateActiveProfileUI(modemProfile) {
     });
 }
 
-function setActiveProfile(modemProfile) {
+function setActiveProfile(modemProfile, source = 'manual') {
     TinyTUS.currentlyUsedModemProfile = modemProfile;
-    window.dispatchEvent(new CustomEvent("active-modem-profile-changed", { detail: { profile: modemProfile } }));
+    window.dispatchEvent(new CustomEvent("active-modem-profile-changed", { detail: { profile: modemProfile, source: source } }));
     updateActiveProfileUI(modemProfile);
     saveConfigState();
 }
@@ -205,14 +206,14 @@ function addProfile(event = null) {
         alert(`Maximálny počet profilov je ${MAX_PROFILES}. Odstráňte niektorý z existujúcich profilov.`);
         return;
     }
-    const id         = findFreeProfileID();
+    const id = findFreeProfileID();
     const newProfile = { id, name: `Profil ${id}`, modemProfile: new ModemProfile() };
     profiles.unshift(newProfile);
     saveProfiles();
     renderProfiles();
 
     setTimeout(() => {
-        const content   = $(`profile-content-${id}`);
+        const content = $(`profile-content-${id}`);
         const nameInput = $(`profile-name-input-${id}`);
         content?.classList.add('expanded');
         $(`profile-toggle-${id}`)?.classList.add('expanded');
@@ -221,7 +222,6 @@ function addProfile(event = null) {
             nameInput.select();
             drawWaveVisualization(id);
         }
-        initFreqPickers();
     }, 100);
 }
 
@@ -258,7 +258,7 @@ function closeModal() {
 
 function toggleProfile(id) {
     const content = $(`profile-content-${id}`);
-    const toggle  = $(`profile-toggle-${id}`);
+    const toggle = $(`profile-toggle-${id}`);
     const opening = !content.classList.contains('expanded');
     content.classList.toggle('expanded');
     toggle?.classList.toggle('expanded');
@@ -278,7 +278,6 @@ function updateProfile(id, field, value) {
         if ($(`profile-content-${id}`)?.classList.contains('expanded')) {
             updateWaveInfo(id, profile.modemProfile);
             drawWaveVisualization(id);
-            initFreqPickers();
         }
     }
     saveProfiles();
@@ -290,18 +289,17 @@ function updateProfile(id, field, value) {
 
 const waveInfoKeys = [
     ['Symbolová rýchlosť:', 'symbol-rate', mp => mp.symbol_rate?.toFixed(3) ?? '–'],
-    ['Perióda symbolu:',    'period',      mp => `${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(3)} ms`],
-    ['Nyquist frekvencia:', 'nyquist',     mp => `${mp.sample_rate / 2} Hz`],
+    ['Perióda symbolu:', 'period', mp => `${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(3)} ms`],
+    ['Nyquist frekvencia:', 'nyquist', mp => `${mp.sample_rate / 2} Hz`],
 ];
 
 function waveInfoHtml(mp, idSuffix) {
-    return `<div class="wave-info">${
-        waveInfoKeys.map(([label, key, fn]) => `
+    return `<div class="wave-info">${waveInfoKeys.map(([label, key, fn]) => `
             <div class="wave-info-item">
                 <span class="wave-info-label">${label}</span><br>
                 <span data-wave-info="${key}-${idSuffix}">${fn(mp)}</span>
             </div>`).join('')
-    }</div>`;
+        }</div>`;
 }
 
 function updateWaveInfo(profileId, mp) {
@@ -328,29 +326,29 @@ function drawWaveVisualization(profileId) {
 
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const w   = canvas.offsetWidth;
-    const h   = 260;
+    const w = canvas.offsetWidth;
+    const h = 260;
     canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.height = `${h}px`;
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
     const dark = document.documentElement.classList.contains('dark-scheme');
     const C = {
-        grid:   dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-        axis:   dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)',
-        wave:   dark ? '#579ffb' : '#007bff',
-        marker: dark ? 'rgb(88,128,101)'        : '#28a745',
-        label:  dark ? 'rgba(255,255,255,0.45)' : '#6c757d',
-        tagBg:  dark ? 'rgba(87,159,251,0.12)'  : 'rgba(0,123,255,0.08)',
-        tagFg:  dark ? '#579ffb'                : '#007bff',
-        center: dark ? 'rgba(255,255,255,0.1)'  : 'rgba(0,0,0,0.08)',
+        grid: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+        axis: dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)',
+        wave: dark ? '#579ffb' : '#007bff',
+        marker: dark ? 'rgb(88,128,101)' : '#28a745',
+        label: dark ? 'rgba(255,255,255,0.45)' : '#6c757d',
+        tagBg: dark ? 'rgba(87,159,251,0.12)' : 'rgba(0,123,255,0.08)',
+        tagFg: dark ? '#579ffb' : '#007bff',
+        center: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
     };
 
     const pad = { top: 32, right: 16, bottom: 56, left: 48 };
-    const gw  = w - pad.left - pad.right;
-    const gh  = h - pad.top  - pad.bottom;
-    const cy  = pad.top + gh / 2;
-    const L   = pad.left;
+    const gw = w - pad.left - pad.right;
+    const gh = h - pad.top - pad.bottom;
+    const cy = pad.top + gh / 2;
+    const L = pad.left;
 
     // Grid
     ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
@@ -376,15 +374,15 @@ function drawWaveVisualization(profileId) {
 
     // Waveform
     const NUM_CYCLES = 4;
-    const TOTAL_PTS  = NUM_CYCLES * 200;
+    const TOTAL_PTS = NUM_CYCLES * 200;
     let phase = 0;
     ctx.strokeStyle = C.wave; ctx.lineWidth = 2; ctx.beginPath();
     for (let i = 0; i <= TOTAL_PTS; i++) {
-        const t    = (i / TOTAL_PTS) * NUM_CYCLES;
+        const t = (i / TOTAL_PTS) * NUM_CYCLES;
         const freq = Math.floor(t) % 2 === 0 ? mp.min_tx_freq : mp.max_tx_freq;
         let y;
         if (mp.cphase) { phase += 2 * Math.PI * (freq / 1000) * (NUM_CYCLES / TOTAL_PTS); y = Math.sin(phase); }
-        else           { y = Math.sin(t * Math.PI * 2 * freq / 1000); }
+        else { y = Math.sin(t * Math.PI * 2 * freq / 1000); }
         const x = L + (i / TOTAL_PTS) * gw;
         i === 0 ? ctx.moveTo(x, cy - y * gh * 0.42) : ctx.lineTo(x, cy - y * gh * 0.42);
     }
@@ -401,24 +399,24 @@ function drawWaveVisualization(profileId) {
     // Bit tags
     ctx.font = 'bold 10px JetBrains Mono, monospace';
     for (let i = 0; i < NUM_CYCLES; i++) {
-        const mx    = L + ((i + 0.5) / NUM_CYCLES) * gw;
-        const bit   = i % 2;
+        const mx = L + ((i + 0.5) / NUM_CYCLES) * gw;
+        const bit = i % 2;
         const label = `bit ${bit}  ${bit === 0 ? mp.min_tx_freq : mp.max_tx_freq} Hz`;
         ctx.textAlign = 'center';
         const tw = ctx.measureText(label).width + 10;
         ctx.fillStyle = C.tagBg;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(mx - tw / 2, pad.top - 16, tw, 16, 4);
-        else               ctx.rect(mx - tw / 2, pad.top - 16, tw, 16);
+        else ctx.rect(mx - tw / 2, pad.top - 16, tw, 16);
         ctx.fill();
         ctx.fillStyle = C.tagFg; ctx.fillText(label, mx, pad.top - 3);
     }
 
     // Period arrow + label
     const period = mp.sample_duration * mp.samples_per_symbol;
-    const ay     = pad.top + gh + 28;
-    const ax1    = L + gw / NUM_CYCLES;
-    const asz    = 5;
+    const ay = pad.top + gh + 28;
+    const ax1 = L + gw / NUM_CYCLES;
+    const asz = 5;
     ctx.strokeStyle = C.marker; ctx.fillStyle = C.marker; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(L, ay); ctx.lineTo(ax1, ay); ctx.stroke();
     for (const [x, d] of [[L, 1], [ax1, -1]]) {
@@ -457,11 +455,12 @@ function toggleField(name, mp, id, readonly, help = '') {
 }
 
 function sliderField(name, mp, id, readonly, { min = 0, max = 1, step = 0.01, help = '', icon = '', format } = {}) {
-    const val     = mp[name] ?? 0;
+    const val = mp[name] ?? 0;
     const display = format ? format(val) : parseFloat(val).toFixed(2);
-    const expr    = name === 'ecc_percent' ? "Math.round(parseFloat(this.value)*100)+'%'"
-                  : name === 'max_tx_amp'  ? "parseFloat(this.value).toFixed(2)"
-                  :                          "parseFloat(this.value).toFixed(3)";
+    const expr = name === 'ecc_percent' ? "Math.round(parseFloat(this.value)*100)+'%'"
+        : name === 'max_tx_amp' ? "parseFloat(this.value).toFixed(2)"
+            : name === 'min_tx_freq' ? `Math.round(this.value) + ' Hz (Bin #' + Math.round(this.value / ${step}) + ')'`
+                : "parseFloat(this.value).toFixed(3)";
     return fieldWrap(name, `<div class="slider-row">
         ${icon ? `<i class="${icon} slider-icon"></i>` : ''}
         <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
@@ -470,47 +469,74 @@ function sliderField(name, mp, id, readonly, { min = 0, max = 1, step = 0.01, he
     </div>`, help);
 }
 
+function selectField(name, mp, id, readonly, { options = [], help = '' } = {}) {
+    const val = mp[name] ?? options[0];
+    if (readonly) {
+        return fieldWrap(name, `<select disabled><option>${val}</option></select>`, help);
+    }
+    const optionsHtml = options.map(opt =>
+        `<option value="${opt}" ${opt == val ? 'selected' : ''}>${opt}</option>`
+    ).join('');
+    return fieldWrap(name, `<select data-profile-id="${id}" data-field="${name}">${optionsHtml}</select>`, help);
+}
+
 /********************************/
 /****  PROFILE CARD HTML     ****/
 /********************************/
 
 function renderProfileFields(mp, idSuffix, readonly) {
-    const n = (name, opts)      => numField(name, mp, idSuffix, readonly, opts);
+    const n = (name, opts) => numField(name, mp, idSuffix, readonly, opts);
     const t = (name, help = '') => toggleField(name, mp, idSuffix, readonly, help);
-    const s = (name, opts)      => sliderField(name, mp, idSuffix, readonly, opts);
-    const divider = title       => `<div class="section-divider"><div class="section-title">${title}</div></div>`;
-    const row = (...fields)     => `<div class="profile-field-row">${fields.join('')}</div>`;
+    const s = (name, opts) => sliderField(name, mp, idSuffix, readonly, opts);
+    const sel = (name, opts) => selectField(name, mp, idSuffix, readonly, opts);
+    const divider = title => `<div class="section-divider"><div class="section-title">${title}</div></div>`;
+    const row = (...fields) => `<div class="profile-field-row">${fields.join('')}</div>`;
 
     return `
         ${divider('Základné parametre')}
         ${row(n('sample_rate', { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' }),
-              n('samples_per_symbol', { min: 1, max: 10000, step: 2, help: 'Počet vzoriek na jeden symbol' }))}
-        ${row(n('bits_per_symbol', { min: 1, max: 8, help: 'Počet bitov na symbol' }),
-              n('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' }))}
-        ${row(s('ecc_percent', { min: 0, max: 1, step: 0.05,
-              help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
-              format: v => `${Math.round(v * 100)} %` }))}
-        ${row(s('squelch_thresh', { min: 0, max: 1, step: 0.005, icon: 'fas fa-filter',
-              help: 'Prahová hodnota squelch — signály pod touto úrovňou sú ignorované',
-              format: v => parseFloat(v).toFixed(3) }))}
+        sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }))}
+        ${row(sel('bits_per_symbol', { options: [1, 2, 4, 8], help: 'Počet bitov na symbol (1, 2, 4 alebo 8)' }),
+            n('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' }))}
+        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Počet symbolov v markeri' }),
+                n('bits_in_marker', { min: 1, max: 255, help: 'Počet bitov v markeri' }))}
+        ${row(n('frames_per_tx_block', { min: 1, max: 255, help: 'Počet rámcov v TX bloku' }))}
+        ${s('ecc_percent', {
+                    min: 0, max: 1, step: 0.05,
+                    help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
+                    format: v => `${Math.round(v * 100)} %`
+                })}
+        ${s('squelch_thresh', {
+                    min: 0, max: 1, step: 0.005, icon: 'fas fa-filter',
+                    help: 'Prahová hodnota squelch — signály pod touto úrovňou sú ignorované',
+                    format: v => parseFloat(v).toFixed(3)
+                })}
         <div class="profile-field-row" style="gap:24px;align-items:center;">
             ${t('cphase', 'Spojitá fáza (CPM)')} ${t('dss_enabled', 'Rozptyl spektra (DSS)')}
         </div>
 
-        ${divider('RX Parametre (príjem)')}
-        ${row(n('min_rx_freq', { min: 100, max: 20000 }), n('max_rx_freq', { min: 100, max: 20000 }))}
-
         ${divider('TX Parametre (vysielanie)')}
-        ${row(s('max_tx_amp', { min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
-              help: 'Maximálna amplitúda vysielaného signálu',
-              format: v => parseFloat(v).toFixed(2) }))}
-        <div id="tx-freq-row-${idSuffix}" class="profile-field-row-full">
-            ${renderFreqPicker(mp, idSuffix, readonly)}
-        </div>`;
+        ${s('max_tx_amp', {
+                    min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
+                    help: 'Maximálna amplitúda vysielaného signálu',
+                    format: v => parseFloat(v).toFixed(2)
+                })}
+        ${s('min_tx_freq', {
+                    min: 0,
+                    max: 20000,
+                    step: mp.freq_bin_hz || 1,
+                    icon: 'fas fa-wave-square',
+                    help: 'Frekvenčný offset vysielača (zarovnaný na FFT bin)',
+                    format: v => {
+                        const binHz = mp.freq_bin_hz || 1;
+                        const binNum = Math.round(v / binHz);
+                        return `${Math.round(v)} Hz (Bin #${binNum})`;
+                    }
+                })}`;
 }
 
 function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = false }) {
-    const suffix      = isDefault ? 'default' : id;
+    const suffix = isDefault ? 'default' : id;
     const profileAttr = isDefault ? '' : `data-profile-id="${id}"`;
 
     const headerLeft = isDefault
@@ -560,7 +586,6 @@ function renderProfiles() {
         defaultMp ? profileCardHtml({ mp: defaultMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
         profiles.length === 0 ? '<div class="empty-state">Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>' : '',
     ].join('');
-    initFreqPickers();
     populateUsbProfileSelector();
 }
 
@@ -581,9 +606,9 @@ container?.addEventListener('click', e => {
         const profile = profiles.find(p => p.id === parseInt(btn('use-profile').dataset.profileId));
         return profile && setActiveProfile(profile.modemProfile);
     }
-    if (btn('use-default'))    { e.stopPropagation(); return setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE); }
+    if (btn('use-default')) { e.stopPropagation(); return setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE); }
     if (btn('toggle-default')) { return toggleProfile('default'); }
-    if (btn('toggle'))         { return toggleProfile(parseInt(btn('toggle').dataset.profileId)); }
+    if (btn('toggle')) { return toggleProfile(parseInt(btn('toggle').dataset.profileId)); }
 });
 
 container?.addEventListener('change', e => {
@@ -610,10 +635,7 @@ function syncAutoProfileWithUSBState() {
         if (autoProfile && TinyTUS.currentlyUsedModemProfile !== autoProfile) {
             console.log('Applying USB auto-profile:', autoProfile);
             lastProfileBeforeAutoSet = TinyTUS.currentlyUsedModemProfile;
-            TinyTUS.currentlyUsedModemProfile = autoProfile;
-            window.dispatchEvent(new CustomEvent("active-modem-profile-changed", {
-                detail: { profile: autoProfile, source: 'usb-auto' }
-            }));
+            setActiveProfile(autoProfile, 'usb-auto');
         }
     } catch (e) {
         console.warn('Failed to apply USB auto-profile:', e);
@@ -670,7 +692,7 @@ window.addEventListener("active-modem-profile-changed", (e) => {
 window.addEventListener("usb-device-disconnected", () => {
     if (lastProfileBeforeAutoSet) {
         console.log('Restoring previous profile after USB disconnect:', lastProfileBeforeAutoSet);
-        TinyTUS.currentlyUsedModemProfile = lastProfileBeforeAutoSet;
+        setActiveProfile(lastProfileBeforeAutoSet, 'usb-auto');
     }
 });
 

@@ -27,6 +27,11 @@
     --username-color: #0b0b0b;
     --theme-button-icon: "\f186\00a0"; /* fa-moon */
 
+    --select-border: #ccc;
+    --select-bg: #fff;
+    --select-text: #333;
+    --select-arrow: %23666;
+
     --mobile-width: 600px;
 }
 
@@ -62,6 +67,11 @@
     --msger-input-placeholder-fg: #838384;
     --msg-img-bg: #ddd;
     --username-color: #ddd;
+
+    --select-border: rgba(255, 255, 255, 0.2);
+    --select-bg: rgba(255, 255, 255, 0.06);
+    --select-text: #a6a7a7;
+    --select-arrow: %23aaa;
 }
 
 :root:not(.dark-scheme) #tab-config {
@@ -71,6 +81,7 @@
     --profile-header-bg: #f8f9fa;
     --profile-header-hover-bg: #e9ecef;
     --spin-button-filter: none;
+    --select-arrow-color: %23666;
 }
 
 :root.dark-scheme #tab-config {
@@ -80,4 +91,5 @@
     --profile-header-bg: rgba(255, 255, 255, 0.04);
     --profile-header-hover-bg: rgba(255, 255, 255, 0.08);
     --spin-button-filter: invert(0.7);
+    --select-arrow-color: %23aaa;
 }

@@ -100,17 +100,8 @@ async function sendMessage(message) {
     window.dispatchEvent(new CustomEvent("message-send-started", {
         "detail": { message: message }
     }));
-    sendNextMessage();
-
-    // if (!currentlySendingMessage && port != null) {
-    //     window.dispatchEvent(new CustomEvent("message-sent", {
-    //         "detail": { message: message }
-    //     }));
-
-    //     setTimeout(() => sendNextMessage(), 300);
-    // } else {
-    //     sendNextMessage();
-    // }
+    // Ak mame pripojene USB - pockajme chvilku kym sa zopne.
+    setTimeout(() => sendNextMessage(), window.port != null ? 500 : 0);
 }
 
 // TODO: This is temporary until we decide on the design.

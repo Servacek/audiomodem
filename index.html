@@ -67,9 +67,9 @@
                 <button id="oscillator-button" class="tab-button" title="Oscilátor">
                     <i class="fas fa-wave-square"></i>
                 </button>
-                <!-- <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
+                <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
                     <i class="fas fa-chart-simple"></i>
-                </button> -->
+                </button>
                 <button id="config-button" class="tab-button" title="Nastavenia">
                     <i class="fas fa-gear"></i>
                 </button>
@@ -120,8 +120,6 @@
                 <h3>Modemové profily</h3>
                 <p class="section-description">
                     Modemové profily definujú parametre modulácie a demodulácie zvukového signálu.
-                    Každý profil obsahuje nastavenia pre typ modulácie (FSK, ASK, PSK), frekvenčný rozsah,
-                    vzorkovaciu frekvenciu a ďalšie parametre ovplyvňujúce prenos dát.
                 </p>
                 <div class="profiles-header">
                     <button id="add-profile-button">
@@ -191,8 +189,9 @@
                     <i class="fas fa-spinner fa-spin"></i>
                     <span>Načítavam...</span>
                 </div>
+                <div id="spectrogram-container"></div>
 
-                <div id="graph-controls">
+                <!-- <div id="graph-controls">
                     <span id="peak-frequency"></span>
 
                     <label>
@@ -208,7 +207,7 @@
 
                 <div id="fft-graph">
                     <canvas id="fft-result-graph"></canvas>
-                </div>
+                </div> -->
             </div>
 
             <div id="tab-oscillator" class="tab loaded">

@@ -36,11 +36,12 @@ window.addEventListener("message-send-started", async (message) => {
 window.addEventListener("last-message-send-completed", async () => {
     if (port == null) return;
 
+    // Sprava sa cela prehrala, mozeme poslat prikaz na rozopnutie rele.
     setTimeout(async () => {
         await port.controlTransferIn(
             {requestType:'vendor',recipient:'device',request:0,value:0,index:0}
         ,16);
-    }, 300)
+    }, 500) // Pockajme chvilu aby sme sa uistili, ze sa cela sprava moze prehrat.
 })
 
 async function openDevice(device) {
