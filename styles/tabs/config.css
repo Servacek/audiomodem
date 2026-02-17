@@ -763,18 +763,29 @@ separator {
     }
 
     .slider-row {
+        flex-direction: column;
+        align-items: stretch;
         gap: 8px;
     }
 
+    .slider-row input[type="range"] {
+        width: 100%;
+        order: 2;
+    }
+
     .slider-label {
-        min-width: 160px;
-        width: 160px;
-        font-size: 0.8em;
+        min-width: unset;
+        width: 100%;
+        text-align: center;
+        font-size: 0.85em;
+        order: 3;
     }
 
     .slider-icon {
         font-size: 12px;
         width: 14px;
+        order: 1;
+        align-self: flex-start;
     }
 }
 

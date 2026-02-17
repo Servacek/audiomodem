@@ -544,7 +544,8 @@ window.addEventListener("message-received", (event) => {
     const bytes = event.detail.bytes;
     const textDecoder = new TextDecoder("utf-8");
     const decodedText = textDecoder.decode(new Uint8Array(bytes));
-    const newMessage = createUserMessage("SOMEONE", CONST.ALIGMENT_LEFT, decodedText);
+    // TODO: Replace with actual name.
+    const newMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText);
     displayMessageAtBottom(newMessage);
 })
 
