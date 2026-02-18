@@ -16,11 +16,11 @@ const MAX_PROFILE_NAME = 24;
 const PARAM_LABELS = {
     min_tx_freq: "Frekvenčný offset vysielača",
     sample_rate: "Vzorkovacia frekvencia (Hz)",
-    bits_per_symbol: "Bity na symbol",
-    bytes_per_tx_block: "Bajtov v TX bloku",
-    symbols_per_marker: "Symboly na marker",
-    bits_in_marker: "Bity v markeri",
-    frames_per_tx_block: "Rámce v TX bloku",
+    bits_per_symbol: "Počet bitov na jeden tón",
+    bytes_per_tx_block: "Počet bajtov v symbole",
+    symbols_per_marker: "Počet symbolov na marker",
+    bits_in_marker: "Počet tón v markeri",
+    frames_per_tx_block: "Počet tónov v symbole",
     ecc_percent: "Podiel samoopravných bajtov",
     dss_enabled: "DSS (rozptyl spektra)",
     squelch_thresh: "Squelch prah",
@@ -494,12 +494,12 @@ function renderProfileFields(mp, idSuffix, readonly) {
 
     return `
         ${divider('Základné parametre')}
-        ${row(n('sample_rate', { min: 8000, max: 96000, step: 1000, help: 'Odporúčané: 8 000 – 48 000 Hz' }),
+        ${row(n('sample_rate', { min: 8000, max: 96000, step: 1000, help: 'Vzorkovacia frekvencia modulátora a demodulátor (8 000 – 48 000 Hz)' }),
         sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }))}
-        ${row(sel('bits_per_symbol', { options: [1, 2, 4, 8], help: 'Počet bitov na symbol (1, 2, 4 alebo 8)' }),
-            n('bytes_per_tx_block', { min: 1, max: 32, help: 'Bajtov v jednom TX bloku' }))}
-        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Počet symbolov v markeri' }),
-                n('bits_in_marker', { min: 1, max: 255, help: 'Počet bitov v markeri' }))}
+        ${row(sel('bits_per_symbol', { options: [1, 2, 4, 8], help: 'Koľko bitov má reprezentovať jeden tón v symbole (1, 2, 4 alebo 8)' }),
+            n('bytes_per_tx_block', { min: 1, max: 32, help: 'Koľko bajtov má jeden symbol obsahovať. Každý z bajtov bude rozdelený do jednotlivých tónov.' }))}
+        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Koľko dĺžok symbolu má jeden marker začiatku alebo konca trvať.' }),
+                n('bits_in_marker', { min: 1, max: 255, help: 'Koľko tónov má marker začiatku alebo konca obsahovať.' }))}
         ${row(n('frames_per_tx_block', { min: 1, max: 255, help: 'Počet rámcov v TX bloku' }))}
         ${s('ecc_percent', {
                     min: 0, max: 1, step: 0.05,
@@ -512,7 +512,7 @@ function renderProfileFields(mp, idSuffix, readonly) {
                     format: v => parseFloat(v).toFixed(3)
                 })}
         <div class="profile-field-row" style="gap:24px;align-items:center;">
-            ${t('cphase', 'Spojitá fáza (CPM)')} ${t('dss_enabled', 'Rozptyl spektra (DSS)')}
+            ${t('cphase', 'Spojitá fáza (CPM)')} ${t('dss_enabled', 'Vynásobí prenášané bajty pseudonáhodnými číslami, ktoré zaistia rovnomernejšie rozloženie energie v signály.')}
         </div>
 
         ${divider('TX Parametre (vysielanie)')}

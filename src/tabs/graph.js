@@ -1,14 +1,13 @@
-// ─── Configuration ───────────────────────────────────────────────────
 const FFT_SIZE = 1024;           // Must be power of 2
 const SAMPLE_RATE = 48000;       // Must match AudioContext sample rate
-const MAX_DISPLAY_FREQ = 6000;   // Max frequency shown on spectrogram (Hz)
+const MIN_DISPLAY_FREQ = 1800;      // Min frequency shown on spectrogram (Hz)
+const MAX_DISPLAY_FREQ = 8000;   // Max frequency shown on spectrogram (Hz)
 const HOP_SIZE = 256;            // Hop between frames (75% overlap → 4× time resolution)
 const CANVAS_W = 512;            // Fixed pixel width  (stretched via CSS)
 const CANVAS_H = 256;            // Fixed pixel height
 const NOISE_MARGIN = 3.0;        // Adaptive floor = median × this (higher = more noise suppression)
 const ADAPT_RATE = 0.05;         // How fast the noise floor adapts (0–1, lower = smoother)
 
-// ─── DOM Elements ────────────────────────────────────────────────────
 const container = document.getElementById("spectrogram-container");
 const graphTab = document.getElementById("tab-graph");
 
@@ -23,23 +22,21 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
 // Mark the tab as loaded — this hides the spinner and makes content visible
 graphTab.classList.add("loaded");
 
-// ─── Ring buffer for overlapping frames ──────────────────────────────
 // Keeps FFT_SIZE samples; after first fill, shifts by HOP_SIZE each time.
 const ringBuffer = new Float32Array(FFT_SIZE);
 let ringFilled = 0;   // how many samples collected so far (before first full window)
 let hopCount = 0;     // samples collected since last FFT frame
 
-// ─── Number of FFT bins we actually display ──────────────────────────
 const binHz = SAMPLE_RATE / FFT_SIZE;
-const numBins = Math.min(Math.ceil(MAX_DISPLAY_FREQ / binHz), FFT_SIZE / 2);
+const minBin = Math.floor(MIN_DISPLAY_FREQ / binHz);
+const maxBin = Math.min(Math.ceil(MAX_DISPLAY_FREQ / binHz), FFT_SIZE / 2);
+const numBins = maxBin - minBin;
 
-// ─── Precomputed Hann Window ─────────────────────────────────────────
 const hannWindow = new Float32Array(FFT_SIZE);
 for (let i = 0; i < FFT_SIZE; i++) {
     hannWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
 }
 
-// ─── Bit-reversal table ──────────────────────────────────────────────
 const bitReversalTable = new Uint32Array(FFT_SIZE);
 {
     const bits = Math.log2(FFT_SIZE) | 0;
@@ -53,7 +50,6 @@ const bitReversalTable = new Uint32Array(FFT_SIZE);
     }
 }
 
-// ─── Precomputed twiddle factors ─────────────────────────────────────
 const twiddleRe = new Float64Array(FFT_SIZE / 2);
 const twiddleIm = new Float64Array(FFT_SIZE / 2);
 for (let i = 0; i < FFT_SIZE / 2; i++) {
@@ -62,7 +58,6 @@ for (let i = 0; i < FFT_SIZE / 2; i++) {
     twiddleIm[i] = Math.sin(a);
 }
 
-// ─── Precomputed colour LUT (256 entries) ────────────────────────────
 // High-contrast colormap: black → blue → cyan → green → yellow → red → white
 const colourLUT = new Uint8Array(256 * 3);
 for (let i = 0; i < 256; i++) {
@@ -98,11 +93,9 @@ for (let i = 0; i < 256; i++) {
     colourLUT[i * 3 + 2] = b;
 }
 
-// ─── Reusable row ImageData ──────────────────────────────────────────
 const rowImageData = ctx.createImageData(CANVAS_W, 1);
 const rowPixels = rowImageData.data; // Uint8ClampedArray
 
-// ─── FFT (in-place, radix-2 Cooley-Tukey) ────────────────────────────
 function fft(re, im) {
     const N = re.length;
     for (let i = 0; i < N; i++) {
@@ -129,15 +122,12 @@ function fft(re, im) {
     }
 }
 
-// ─── Cached FFT work arrays ─────────────────────────────────────────
 const fftRe = new Float64Array(FFT_SIZE);
 const fftIm = new Float64Array(FFT_SIZE);
 
-// ─── Adaptive noise floor state ──────────────────────────────────────
 let noiseFloor = 0.001;          // Initial estimate, will auto-adjust
 let medianEstimate = 0.001;      // Running estimate of median magnitude
 
-// ─── Process one FFT frame and draw one spectrogram row ──────────────
 function processFrame(samples) {
     // Window + copy into work arrays
     for (let i = 0; i < FFT_SIZE; i++) {
@@ -147,10 +137,11 @@ function processFrame(samples) {
 
     fft(fftRe, fftIm);
 
-    // Compute magnitudes for all displayed bins
+    // Compute magnitudes for displayed bins (from minBin to maxBin)
     const mags = new Float32Array(numBins);
     for (let i = 0; i < numBins; i++) {
-        mags[i] = Math.sqrt(fftRe[i] * fftRe[i] + fftIm[i] * fftIm[i]) / FFT_SIZE;
+        const binIdx = minBin + i;
+        mags[i] = Math.sqrt(fftRe[binIdx] * fftRe[binIdx] + fftIm[binIdx] * fftIm[binIdx]) / FFT_SIZE;
     }
 
     // Update adaptive noise floor: track the median magnitude
@@ -194,7 +185,6 @@ function processFrame(samples) {
     ctx.putImageData(rowImageData, 0, CANVAS_H - 1);
 }
 
-// ─── Audio event handler ─────────────────────────────────────────────
 window.addEventListener("audioprocess", (e) => {
     // Only process when the graph tab is visible
     if (!graphTab.classList.contains("opened")) return;
