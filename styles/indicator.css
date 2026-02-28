@@ -1,13 +1,53 @@
 /* ─── Microphone status dot (header title) ──────────────────────────────── */
 
+.header {
+    /* existing styles stay, just ensure this: */
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+}
+
+/* Left slot — theme button */
+.header #theme-toggle-button {
+    justify-self: start;
+}
+
+/* Center slot — title + dot */
 #header-title {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    text-align: center;
-    left: 50%;
-    transform: translateX(-50%);
-    position: absolute;
+    justify-self: center;
+    /* Remove the absolute positioning entirely */
+    position: static;
+    transform: none;
+    left: auto;
+    right: auto;
+    margin: 0;
+    width: auto;
+    pointer-events: none;
+}
+
+#header-title .mic-status-dot {
+    pointer-events: auto;
+}
+
+/* Right slot — tab buttons */
+.header #tab-buttons {
+    justify-self: end;
+}
+
+@media (max-width: 600px) {
+    #header-title {
+        font-size: 0;
+        gap: 0;
+    }
+
+    #header-title .mic-status-dot {
+        font-size: 0;
+        margin-right: 0;
+        pointer-events: auto;
+    }
 }
 
 .mic-status-dot {
