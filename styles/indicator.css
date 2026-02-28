@@ -1,0 +1,88 @@
+/* ─── Microphone status dot (header title) ──────────────────────────────── */
+
+#header-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    left: 50%;
+    transform: translateX(-50%);
+    position: absolute;
+}
+
+.mic-status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    /* Smooth colour transitions */
+    transition: background-color 0.4s ease, box-shadow 0.4s ease;
+    /* Keeps the dot vertically centred with the text cap-height */
+    position: relative;
+    top: 0px;
+}
+
+/* ── idle: mic not yet acquired (page just loaded) ── */
+.mic-status-dot.mic-status--idle {
+    background-color: #666;
+    box-shadow: none;
+}
+
+/* ── waiting: mic acquired but AudioContext needs a gesture ── */
+.mic-status-dot.mic-status--waiting {
+    background-color: #f0a500;
+    box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.7);
+    animation: mic-pulse-amber 2s ease-out infinite;
+}
+
+/* ── listening: mic running, silence (no signal above threshold) ── */
+.mic-status-dot.mic-status--listening {
+    background-color: #888;
+    box-shadow: 0 0 4px 1px rgba(160, 160, 160, 0.4);
+    animation: none;
+}
+
+/* ── active: mic running AND receiving audio above threshold ── */
+.mic-status-dot.mic-status--active {
+    background-color: #3ecf6e;
+    box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);
+    animation: mic-pulse-green 1.4s ease-out infinite;
+}
+
+/* ── blocked: permission denied or hard error ── */
+.mic-status-dot.mic-status--blocked {
+    background-color: #e05252;
+    box-shadow: 0 0 5px 1px rgba(224, 82, 82, 0.5);
+    animation: none;
+}
+
+/* ── Pulse keyframes ── */
+@keyframes mic-pulse-green {
+    0% {
+        box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 8px rgba(62, 207, 110, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(62, 207, 110, 0);
+    }
+}
+
+@keyframes mic-pulse-amber {
+    0% {
+        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 8px rgba(240, 165, 0, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0);
+    }
+}

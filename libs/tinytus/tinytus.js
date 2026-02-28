@@ -21,10 +21,6 @@ import { ModemProfile } from "./modem_profile.js";
 //   that means we need to allocate at least 2048 bytes of memory for the input.
 // Looks like constants in the memory are stored from 1024.
 
-// export let
-//     EXPORTS = null, MEMORY = null, MEMORY_F32 = null, MEMORY_U16 = null, MEMORY_U32 = null,
-//     MEMORY_STACK_START = null, INPUT_BUFFER_PTR = null, OUTPUT_BUFFER_PTR = null,
-//     BUFFER = null, LOADED = false, CONFIG = {};
 let EXPORTS = null;
 let _LOADED = false;
 
@@ -37,11 +33,10 @@ const TYPE_TO_ARRAY = {
     "u16": Uint16Array,
     "u32": Uint32Array,
     "f32": Float32Array,
-}
+};
 
 ///////////////////////////////////////
 
-// Fills the input memory buffer with the provided bytes from the byte array
 export function fillInputBuffer(byteArray) {
     TinyTUS.MEMORY.set(byteArray, TinyTUS.INPUT_BUFFER_PTR);
 }
@@ -50,13 +45,12 @@ export function fillInputBufferWithFloat32(floatArray) {
     TinyTUS.MEMORY_F32.set(floatArray, TinyTUS.INPUT_BUFFER_PTR / 4);
 }
 
-// Returns the bytearray of the output buffer
-// export function getOutputBuffer(length) {
-//     return new Float32Array(TINYTUS.EXPORTS.memory.buffer, TINYTUS.OUTPUT_BUFFER_PTR, length).slice();
-// }
+export function isWASMLoaded() {
+    return _LOADED;
+}
 
 export function requiresLoadedWASM(block) {
-    if (_LOADED == true) {
+    if (_LOADED === true) {
         block();
     } else {
         window.addEventListener("wasm-library-loaded", block);
@@ -67,26 +61,11 @@ export function requiresLoadedWASM(block) {
 // Privatne funkcie
 
 async function _init(path) {
-
-
-    //
-    /// TODO: Figure out how to change the size of the memory.
-    // Increase the memory size by updating the `memory` property with a larger initial value and/or maximum value.
-    // const memory = new WebAssembly.Memory({
-    //     initial: 8096, // 256 pages (each page is 64KiB)
-    //     maximum: 8096,  // optional, can set a limit (512 pages in this case)
-    // });
-
-    // Use instatiateStreaming instead of instantiate because it is more efficient
-    // since it doesn't require converting the WASM module to ByteArray.
     const response = await fetch(path);
-    // const wasmBuffer = await response.arrayBuffer();
-    // const module = await WebAssembly.compile(wasmBuffer);
-    // const exports = WebAssembly.Module.exports(module);
-    // print(exports);
+
     const env = {
         _emscripten_memcpy_js: (dest, src, num) => TinyTUS.MEMORY.copyWithin(dest, src, src + num),
-        emscripten_notify_memory_growth: (index) => {
+        emscripten_notify_memory_growth: (_index) => {
             TinyTUS.BUFFER = EXPORTS.memory.buffer;
             TinyTUS.MEMORY = new Uint8Array(EXPORTS.memory.buffer);
             TinyTUS.MEMORY_U16 = new Uint16Array(EXPORTS.memory.buffer);
@@ -95,54 +74,45 @@ async function _init(path) {
         },
     };
 
-    // Mapping functions
     for (let funcName in TinyTUS.MAPPINGS) {
         env[funcName] = TinyTUS.MAPPINGS[funcName];
     }
 
-    const { instance } = await WebAssembly.instantiateStreaming(
-        response,
-        {
-            env: env,
-            // Support for printf
-            wasi_snapshot_preview1: {
-                fd_write: (fd, iov, iovcnt, pnum) => {
-                    var num = 0;
-                    let s = "";
-                    for (var i = 0; i < iovcnt; i++) {
-                        var ptr = TinyTUS.MEMORY_U32[((iov) >> 2)];
-                        var len = TinyTUS.MEMORY_U32[(((iov) + (4)) >> 2)];
-                        iov += 8;
-                        for (var j = 0; j < len; j++) {
-                            s += String.fromCharCode(TinyTUS.MEMORY[ptr + j]);
-                        }
-                        num += len;
+    const { instance } = await WebAssembly.instantiateStreaming(response, {
+        env,
+        wasi_snapshot_preview1: {
+            fd_write: (fd, iov, iovcnt, pnum) => {
+                let num = 0;
+                let s = "";
+                for (let i = 0; i < iovcnt; i++) {
+                    const ptr = TinyTUS.MEMORY_U32[((iov) >> 2)];
+                    const len = TinyTUS.MEMORY_U32[(((iov) + 4) >> 2)];
+                    iov += 8;
+                    for (let j = 0; j < len; j++) {
+                        s += String.fromCharCode(TinyTUS.MEMORY[ptr + j]);
                     }
-                    TinyTUS.MEMORY_U32[((pnum) >> 2)] = num;
-                    if (fd === 1) {
-                        if (s.startsWith("[TINYTUS][ERROR]")) {
-                            console.error(s);
-                        } else if (s.startsWith("[TINYTUS][WARN]")) {
-                            console.warn(s);
-                        } else {
-                            console.log(s);
-                        }
-                    } else if (fd === 2) {
-                        console.error(s);
-                    } else {
-                        console.warn(`Unknown file descriptor ${fd} in fd_write, message: ${s}`);
-                    }
-                    return 0;
-                },
-                fd_close: () => 0,
-                fd_seek: () => 0,
-                fd_read: () => 0,
-                proc_exit: () => { },
-                environ_sizes_get: () => 0,
-                environ_get: () => 0
+                    num += len;
+                }
+                TinyTUS.MEMORY_U32[((pnum) >> 2)] = num;
+                if (fd === 1) {
+                    if (s.startsWith("[TINYTUS][ERROR]")) console.error(s);
+                    else if (s.startsWith("[TINYTUS][WARN]")) console.warn(s);
+                    else console.log(s);
+                } else if (fd === 2) {
+                    console.error(s);
+                } else {
+                    console.warn(`Unknown file descriptor ${fd} in fd_write, message: ${s}`);
+                }
+                return 0;
             },
-        } // Pass the memory object to the module
-    );
+            fd_close: () => 0,
+            fd_seek: () => 0,
+            fd_read: () => 0,
+            proc_exit: () => { },
+            environ_sizes_get: () => 0,
+            environ_get: () => 0,
+        },
+    });
 
     EXPORTS = instance.exports;
     TinyTUS.EXPORTS = EXPORTS;
@@ -153,24 +123,18 @@ async function _init(path) {
     TinyTUS.MEMORY_U32 = new Uint32Array(EXPORTS.memory.buffer);
     TinyTUS.MEMORY_F32 = new Float32Array(EXPORTS.memory.buffer);
 
-    // Allocate buffers via WASM's malloc so they don't collide with the heap
-    // 1024 float32 samples = 4096 bytes
-    const INPUT_BUFFER_SIZE = 1024 * 4;  // bytes
-    const OUTPUT_BUFFER_SIZE = 1024 * 4;  // bytes
+    const INPUT_BUFFER_SIZE = 1024 * 4;
+    const OUTPUT_BUFFER_SIZE = 1024 * 4;
 
     TinyTUS.INPUT_BUFFER_PTR = EXPORTS.malloc(INPUT_BUFFER_SIZE);
     TinyTUS.OUTPUT_BUFFER_PTR = EXPORTS.malloc(OUTPUT_BUFFER_SIZE);
-    TinyTUS.OUT_LEN_PTR = EXPORTS.malloc(4);  // space for one uint32_t
-    if (TinyTUS.OUT_LEN_PTR === 0) {
-        throw new Error("Failed to allocate WASM out_len buffer");
-    }
+    TinyTUS.OUT_LEN_PTR = EXPORTS.malloc(4);
 
-    if (TinyTUS.INPUT_BUFFER_PTR === 0 || TinyTUS.OUTPUT_BUFFER_PTR === 0) {
+    if (!TinyTUS.OUT_LEN_PTR || !TinyTUS.INPUT_BUFFER_PTR || !TinyTUS.OUTPUT_BUFFER_PTR) {
         throw new Error("Failed to allocate WASM I/O buffers");
     }
 
     TinyTUS.CONSTS = {};
-
     for (let exportName in EXPORTS) {
         if (EXPORTS[exportName] instanceof WebAssembly.Global) {
             const ptr = EXPORTS[exportName].value;
@@ -180,7 +144,6 @@ async function _init(path) {
                 continue;
             }
             TinyTUS.CONSTS[exportName] = TinyTUS.getValueFromPointer(type, ptr);
-            // console.log(`Exported global ${exportName} (${type} @ ${ptr}):`, TinyTUS.CONSTS[exportName]);
         }
     }
 }
@@ -191,7 +154,6 @@ function _load(path = LIBRARY_PATH) {
         _LOADED = true;
         console.info("Successfully initialized WASM!");
         TinyTUS.onLoaded();
-
         window.dispatchEvent(new CustomEvent("wasm-library-loaded"));
     }).catch((error) => {
         _LOADED = false;
@@ -199,7 +161,6 @@ function _load(path = LIBRARY_PATH) {
         window.dispatchEvent(new CustomEvent("wasm-library-failed"));
     });
 }
-
 
 function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
     if (modem_profile_or_ptr instanceof ModemProfile) {
@@ -209,150 +170,117 @@ function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
 }
 
 ////////////////////////////////////
-// Exporty
+// Audio state
 
 let currentStream = null;
 let currentContext = null;
 let currentRecorder = null;
 let currentDemodState = null;
 
+// Cleans up all audio resources. Returns a Promise that resolves when the
+// AudioContext is fully closed so callers can await proper teardown.
+async function _stopListeningAsync() {
+    // Stop mic tracks first so the browser indicator light turns off promptly
+    if (currentStream) {
+        try { currentStream.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
+        currentStream = null;
+    }
+
+    if (currentRecorder) {
+        try {
+            currentRecorder.onaudioprocess = null;
+            currentRecorder.disconnect();
+        } catch (e) { /* ignore */ }
+        currentRecorder = null;
+    }
+
+    if (currentContext) {
+        try {
+            if (currentContext.state !== "closed") {
+                await currentContext.close();
+            }
+        } catch (e) { /* ignore */ }
+        currentContext = null;
+    }
+
+    if (currentDemodState !== null && currentDemodState !== 0) {
+        try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (e) { /* ignore */ }
+        currentDemodState = null;
+    }
+}
+
+////////////////////////////////////
+// Exporty
+
 export let TinyTUS = {
     MAPPINGS: {
-        play_waveform: function (modem_profile_ptr, ptr, length, sample_rate) { return 0; },
-        on_byte_received: function (byte) { return 0; },
-        on_frame_received: function (ptr, length) { return 0; },
-        on_bytes_received: function (ptr, length) { return 0; },
+        play_waveform: (modem_profile_ptr, ptr, length, sample_rate) => 0,
+        on_byte_received: (byte) => 0,
+        on_frame_received: (ptr, length) => 0,
+        on_bytes_received: (ptr, length) => 0,
     },
     EXPORTS: {},
     afterLoad: requiresLoadedWASM,
     loadLibrary: _load,
+
     getValueFromPointer(type, ptr) {
-        try {
-            if (!TYPE_TO_ARRAY.hasOwnProperty(type)) {
-                throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(', ')}`);
-            }
-            if (typeof ptr !== 'number' || !Number.isInteger(ptr) || ptr < 0) {
-                throw new TypeError(`Pointer must be a non-negative integer, got ${ptr}`);
-            }
+        if (!TYPE_TO_ARRAY.hasOwnProperty(type))
+            throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(", ")}`);
+        if (typeof ptr !== "number" || !Number.isInteger(ptr) || ptr < 0)
+            throw new TypeError(`Pointer must be a non-negative integer, got ${ptr}`);
 
-            const bytesPerElement = TYPE_TO_ARRAY[type].BYTES_PER_ELEMENT;
+        const bytesPerElement = TYPE_TO_ARRAY[type].BYTES_PER_ELEMENT;
+        if (ptr % bytesPerElement !== 0)
+            console.warn(`Pointer ${ptr} is not aligned for ${type} (requires ${bytesPerElement}-byte alignment)`);
 
-            if (ptr % bytesPerElement !== 0) {
-                console.warn(`Warning: Pointer ${ptr} is not aligned for ${type} (requires ${bytesPerElement}-byte alignment)`);
-            }
-
-            // Read directly without freeing — this is a static constant, not a heap allocation
-            const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, 1);
-            return typedArray[0];
-
-        } catch (error) {
-            console.error('Error in getValueFromPointer:', error.message);
-            console.error('Parameters:', { type, ptr });
-            throw new Error(`getValueFromPointer failed: ${error.message}`);
-        }
+        return new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, 1)[0];
     },
-    // Vytiahne buffer z WASM pamate a zaroven tuto pamat uvolni.
+
     getDynamicBufferFromPointer(type, ptr, length) {
-        try {
-            // Validate type parameter
-            if (typeof type !== 'string') {
-                throw new TypeError(`Type must be a string, got ${typeof type}`);
-            }
+        if (!TYPE_TO_ARRAY.hasOwnProperty(type))
+            throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(", ")}`);
+        if (typeof ptr !== "number" || !Number.isInteger(ptr) || ptr < 0)
+            throw new RangeError(`Pointer must be a non-negative integer, got ${ptr}`);
+        if (typeof length !== "number" || !Number.isInteger(length) || length < 0)
+            throw new RangeError(`Length must be a non-negative integer, got ${length}`);
 
-            if (!TYPE_TO_ARRAY.hasOwnProperty(type)) {
-                throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(', ')}`);
-            }
-
-            // Validate ptr parameter
-            if (typeof ptr !== 'number' || !Number.isInteger(ptr)) {
-                throw new TypeError(`Pointer must be an integer, got ${typeof ptr}`);
-            }
-
-            if (ptr < 0) {
-                throw new RangeError(`Pointer must be non-negative, got ${ptr}`);
-            }
-
-            // Validate length parameter
-            if (typeof length !== 'number' || !Number.isInteger(length)) {
-                throw new TypeError(`Length must be an integer, got ${typeof length}`);
-            }
-
-            if (length < 0) {
-                throw new RangeError(`Length must be non-negative, got ${length}`);
-            }
-
-            // Check buffer bounds
-            const bytesPerElement = TYPE_TO_ARRAY[type].BYTES_PER_ELEMENT;
-            const requiredBytes = length * bytesPerElement;
-
-            if (ptr + requiredBytes > TYPE_TO_ARRAY[type].byteLength) {
-                throw new RangeError(
-                    `Memory access out of bounds: trying to read ${requiredBytes} bytes ` +
-                    `at offset ${ptr}, but buffer size is ${buffer.byteLength}`
-                );
-            }
-
-            // Check alignment
-            if (ptr % bytesPerElement !== 0) {
-                console.warn(
-                    `Warning: Pointer ${ptr} is not properly aligned for ${type} ` +
-                    `(requires ${bytesPerElement}-byte alignment)`
-                );
-            }
-
-            const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, length);
-            const copy = typedArray.slice();
-            EXPORTS.fsk_free_wave(ptr);
-            return copy;
-
-        } catch (error) {
-            console.error('Error in getDynamicBufferFromPointer:', error.message);
-            console.error('Parameters:', { type, ptr, length });
-
-            // Re-throw with additional context
-            throw new Error(`getDynamicBufferFromPointer failed: ${error.message}`);
-        }
+        const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, length);
+        const copy = typedArray.slice();
+        EXPORTS.fsk_free_wave(ptr);
+        return copy;
     },
 
     sendMessage(modem_profile, message) {
         const modem_profile_ptr = _modemProfileOrPtrToPtr(modem_profile);
-        console.log("PROFILE:", modem_profile_ptr);
         const messageBytes = new TextEncoder().encode(message);
         fillInputBuffer(messageBytes);
-
-        // Riesi si pamat samostatne
-        TinyTUS.EXPORTS.send_payload(
-            modem_profile_ptr, TinyTUS.INPUT_BUFFER_PTR, messageBytes.length
-        );
+        TinyTUS.EXPORTS.send_payload(modem_profile_ptr, TinyTUS.INPUT_BUFFER_PTR, messageBytes.length);
     },
 
-    onLoaded(block) {
-        // Nedovolme uzivatelovy prepisovat predvoleny profil?
+    onLoaded() {
         TinyTUS.DEFAULT_MODEM_PROFILE = new ModemProfile();
         TinyTUS.DEFAULT_MODEM_PROFILE.readonly = true;
         Object.freeze(TinyTUS.DEFAULT_MODEM_PROFILE);
         TinyTUS.registerProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
-
         this.currentlyUsedModemProfile = TinyTUS.DEFAULT_MODEM_PROFILE;
     },
 
-    /** @param {ModemProfile} */
-    registerProfile(modem_profile) {
-        TinyTUS.MODEM_PROFILES[modem_profile.ptr] = modem_profile;
-
-        return modem_profile;
+    /** @param {ModemProfile} profile */
+    registerProfile(profile) {
+        TinyTUS.MODEM_PROFILES[profile.ptr] = profile;
+        return profile;
     },
 
-    /** @returns {ModemProfile}  */
-    getModemProfileFromPointer(modem_profile_ptr) {
-        return TinyTUS.MODEM_PROFILES[modem_profile_ptr];
+    /** @returns {ModemProfile} */
+    getModemProfileFromPointer(ptr) {
+        return TinyTUS.MODEM_PROFILES[ptr];
     },
 
     /**
-     * Modulate a message into a waveform
-     * @param {ModemProfile|number} modem_profile - ModemProfile object or pointer
-     * @param {string} message - Message to modulate
-     * @returns {Float32Array} The modulated waveform
+     * Modulate a message into a waveform.
+     * @param {string} message
+     * @param {ModemProfile|number|null} modem_profile
+     * @returns {Float32Array}
      */
     modulateMessage(message, modem_profile = null) {
         modem_profile = modem_profile || TinyTUS.DEFAULT_MODEM_PROFILE;
@@ -364,7 +292,7 @@ export let TinyTUS = {
             _modemProfileOrPtrToPtr(modem_profile),
             TinyTUS.INPUT_BUFFER_PTR,
             messageBytes.length,
-            outLenPtr
+            outLenPtr,
         );
 
         return TinyTUS.getDynamicBufferFromPointer(
@@ -372,227 +300,272 @@ export let TinyTUS = {
         );
     },
 
+    // Public sync wrapper kept for callers that don't need to await cleanup.
     stopListening() {
-        try {
-            // Stop audio input tracks
-            if (currentStream) {
-                try {
-                    currentStream.getTracks().forEach(track => {
-                        try {
-                            track.stop();
-                        } catch (e) {
-                            console.warn('Error stopping track:', e);
-                        }
-                    });
-                } catch (e) {
-                    console.warn('Error iterating tracks:', e);
-                }
-                currentStream = null;
-            }
-
-            // Disconnect and close AudioContext
-            if (currentRecorder) {
-                try {
-                    currentRecorder.disconnect();
-                    currentRecorder.onaudioprocess = null;
-                } catch (e) {
-                    console.warn('Error disconnecting recorder:', e);
-                }
-                currentRecorder = null;
-            }
-
-            if (currentContext) {
-                try {
-                    // Check state before closing to avoid errors
-                    if (currentContext.state !== 'closed') {
-                        currentContext.close();
-                    }
-                } catch (e) {
-                    console.warn('Error closing AudioContext:', e);
-                }
-                currentContext = null;
-            }
-
-            // Destroy GFSK demodulator state
-            // Check for both null and 0 (NULL pointer from C)
-            if (currentDemodState !== null && currentDemodState !== 0) {
-                try {
-                    TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState);
-                } catch (e) {
-                    console.warn('Error destroying demodulator:', e);
-                }
-                currentDemodState = null;
-            }
-        } catch (e) {
-            console.error('Error in stopListening:', e);
-        }
+        _stopListeningAsync().catch(e => console.warn("stopListening error:", e));
     },
 
-    // State tracking for initialization
+    // -------------------------------------------------------------------------
+    // Microphone initialisation
+    // -------------------------------------------------------------------------
+
+    /** True while an initialisation attempt is in flight. */
     _initializationInProgress: false,
-    _initializationQueue: null,
 
-    // TODO: Put this part handling audio here as well?
+    /**
+     * Start microphone capture and hook it into the GFSK demodulator.
+     *
+     * Returns null on success, or an Error instance on failure.
+     * Never throws — all errors are returned so callers can react uniformly.
+     *
+     * Design notes vs. the previous implementation:
+     *  - The queue/retry mechanism has been removed.  It masked failures and
+     *    could loop forever.  Callers must debounce themselves if needed.
+     *  - getUserMedia is called only once.  Retrying a denied permission in a
+     *    tight loop can cause browsers to permanently block the origin.
+     *  - AudioContext autoplay policy is handled explicitly: if the context
+     *    cannot be resumed without a user gesture the function returns a
+     *    recoverable error instead of silently dying after a 1500 ms watchdog.
+     *  - stopListening is awaited so previous resources are truly released
+     *    before new ones are acquired.
+     */
     tryStartListeningForIncomingMessages: async (modemProfile, onAudioProcess = null) => {
-        // Prevent concurrent initialization attempts
+        console.group("[TinyTUS] tryStartListeningForIncomingMessages()");
+        console.log("  modemProfile:", modemProfile);
+        console.log("  _initializationInProgress:", TinyTUS._initializationInProgress);
+        console.log("  navigator.mediaDevices:", navigator.mediaDevices);
+
         if (TinyTUS._initializationInProgress) {
-            console.log('Microphone initialization already in progress, queueing request...');
-            // Cancel any pending queued request and queue this new one
-            if (TinyTUS._initializationQueue) {
-                clearTimeout(TinyTUS._initializationQueue.timeoutId);
-            }
-
-            return new Promise((resolve) => {
-                TinyTUS._initializationQueue = {
-                    timeoutId: setTimeout(async () => {
-                        TinyTUS._initializationQueue = null;
-                        const result = await TinyTUS.tryStartListeningForIncomingMessages(modemProfile, onAudioProcess);
-                        resolve(result);
-                    }, 100)
-                };
-            });
+            console.warn("  ⛔ Already in progress — returning null.");
+            console.groupEnd();
+            return null;
         }
-
         TinyTUS._initializationInProgress = true;
 
         try {
-            if (!navigator.mediaDevices) {
-                return new Error("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.")
+            if (!navigator.mediaDevices?.getUserMedia) {
+                console.error("  ⛔ navigator.mediaDevices.getUserMedia not available.");
+                console.groupEnd();
+                return new Error("Neboli detekované žiadne mediálne zariadenia...");
             }
 
-            // Stop any previous listening session and wait for cleanup
-            TinyTUS.stopListening();
+            console.log("  → Stopping any previous session...");
+            await _stopListeningAsync();
+            console.log("  ✅ Previous session stopped.");
 
-            // Give cleanup time to complete
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            // Create new demodulator
             const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
+            console.log("  → Creating GFSK demodulator. modemProfilePtr:", modemProfilePtr);
             currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
-            if (currentDemodState === 0 || currentDemodState === null) {
-                throw new Error("Failed to create GFSK demodulator state.");
+            console.log("  currentDemodState:", currentDemodState);
+            if (!currentDemodState) {
+                console.error("  ⛔ gfsk_demod_create returned null/0.");
+                console.groupEnd();
+                return new Error("Failed to create GFSK demodulator state.");
+            }
+            console.log("  ✅ GFSK demodulator created.");
+
+            console.log("  → Calling getUserMedia...");
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: modemProfile.sampleRate,
+                        latency: 0,
+                    },
+                    video: false,
+                });
+                console.log("  ✅ getUserMedia succeeded. Stream:", currentStream);
+            } catch (e) {
+                console.error("  ⛔ getUserMedia failed:", e.name, e.message);
+                try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (_) { }
+                currentDemodState = null;
+                console.groupEnd();
+                return e;
             }
 
-            // Retry logic for getUserMedia
-            let retries = 3;
-            let lastError = null;
-
-            while (retries > 0) {
-                try {
-                    currentStream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true,
-                            googEchoCancellation: true,
-                            googNoiseSuppression: true,
-                            googAutoGainControl: true,
-                            sampleRate: 48000,           // Match AudioContext
-                            channelCount: 1,              // Mono is fine for data
-                            latency: 0,                   // Minimize latency
-                            googHighpassFilter: false,    // Keep low frequencies
-                        },
-                        video: false,
-                    });
-
-                    // Success - break retry loop
-                    lastError = null;
-                    break;
-                } catch (e) {
-                    lastError = e;
-                    retries--;
-                    if (retries > 0) {
-                        console.warn(`getUserMedia failed, retrying... (${retries} attempts left)`, e);
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-                }
-            }
-
-            if (lastError) {
-                throw lastError;
-            }
-
-            // Verify stream is active
             const audioTracks = currentStream.getAudioTracks();
-            if (audioTracks.length === 0) {
-                throw new Error('No audio tracks found in media stream');
+            console.log("  Audio tracks:", audioTracks.length, audioTracks[0]?.label, "state:", audioTracks[0]?.readyState);
+            if (!audioTracks.length) {
+                console.groupEnd();
+                return new Error("No audio tracks in stream.");
+            }
+            if (audioTracks[0].readyState !== "live") {
+                console.groupEnd();
+                return new Error(`Track not ready: ${audioTracks[0].readyState}`);
             }
 
-            if (audioTracks[0].readyState !== 'live') {
-                throw new Error(`Audio track not ready: ${audioTracks[0].readyState}`);
+            console.log("  → Creating AudioContext. sampleRate:", modemProfile.sampleRate);
+            currentContext = new AudioContext({ sampleRate: modemProfile.sampleRate, latencyHint: "interactive" });
+            console.log("  AudioContext state after creation:", currentContext.state);
+
+            if (currentContext.state === "suspended") {
+                console.warn("  AudioContext suspended — attempting resume...");
+                try { await currentContext.resume(); } catch (_) { }
+                console.log("  AudioContext state after resume attempt:", currentContext.state);
             }
 
-            console.log(`Microphone stream acquired: ${audioTracks[0].label}`);
+            if (currentContext.state === "running") {
+                console.log("  ✅ AudioContext running — connecting audio graph immediately.");
+                _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
+                console.log("  ✅ Fully initialised.");
+                console.groupEnd();
+                return null;
+            }
 
-            currentContext = new AudioContext({
-                latencyHint: "balanced",
-                sampleRate: 48000,
-            });
+            // Suspended — defer to gesture
+            console.warn("  ⚠️ AudioContext still not running (state:", currentContext.state, ") — closing and deferring to gesture.");
+            await currentContext.close();
+            currentContext = null;
 
-            // Handle suspended AudioContext (browser autoplay policy)
-            if (currentContext.state === 'suspended') {
-                console.log('AudioContext suspended, attempting to resume...');
-                try {
-                    await currentContext.resume();
+            window.dispatchEvent(new CustomEvent("microphone-waiting-for-gesture"));
 
-                    // Wait and verify resumption
-                    let attempts = 0;
-                    while (currentContext.state === 'suspended' && attempts < 10) {
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                        attempts++;
-                    }
+            const GESTURE_EVENTS = ["click", "keydown", "touchstart", "pointerdown"];
+            const removeListeners = () =>
+                GESTURE_EVENTS.forEach(ev => document.removeEventListener(ev, handler, true));
 
-                    if (currentContext.state === 'suspended') {
-                        throw new Error('AudioContext remained suspended after resume attempts. User interaction may be required.');
-                    }
+            const handler = async () => {
+                removeListeners();
+                console.group("[TinyTUS] Gesture detected — starting AudioContext");
+                console.log("  currentStream alive:", !!currentStream);
+                console.log("  currentDemodState:", currentDemodState);
 
-                    console.log('AudioContext successfully resumed');
-                } catch (e) {
-                    console.warn('Failed to resume AudioContext:', e);
-                    throw e;
+                if (!currentStream || !currentDemodState) {
+                    console.warn("  ⛔ Stream or demod gone before gesture fired.");
+                    console.groupEnd();
+                    return;
                 }
-            }
+                try {
+                    console.log("  → Creating fresh AudioContext inside gesture handler...");
+                    currentContext = new AudioContext({
+                        sampleRate: modemProfile.sampleRate,
+                        latencyHint: "interactive",
+                    });
+                    await new Promise(r => setTimeout(r, 0));
+                    console.log("  AudioContext state:", currentContext.state);
 
-            // Verify context is running
-            if (currentContext.state !== 'running') {
-                console.warn(`AudioContext in unexpected state: ${currentContext.state}`);
-            }
+                    if (currentContext.state === "suspended") {
+                        console.log("  → Calling resume()...");
+                        await currentContext.resume();
+                        console.log("  AudioContext state after resume:", currentContext.state);
+                    }
 
-            const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
-            const bufferSize = 1024;
-            currentRecorder = currentContext.createScriptProcessor(bufferSize, 1, 1);
+                    if (currentContext.state !== "running") {
+                        throw new Error(`AudioContext still not running: ${currentContext.state}`);
+                    }
 
-            currentRecorder.onaudioprocess = function (event) {
-                const input = event.inputBuffer.getChannelData(0);
-                fillInputBufferWithFloat32(input);
-
-                TinyTUS.EXPORTS.handle_input_samples(
-                    currentDemodState,
-                    TinyTUS.INPUT_BUFFER_PTR,
-                    input.length
-                );
-
-                if (onAudioProcess) {
-                    onAudioProcess(event);
+                    console.log("  ✅ Connecting audio graph.");
+                    _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
+                    console.groupEnd();
+                } catch (e) {
+                    console.error("  ⛔ Failed to start AudioContext on gesture:", e);
+                    await _stopListeningAsync();
+                    window.dispatchEvent(new CustomEvent("mic-blocked"));
+                    console.groupEnd();
                 }
             };
 
-            mediaStreamSource.connect(currentRecorder);
-            currentRecorder.connect(currentContext.destination);
-
-            console.log('Microphone successfully initialized');
+            GESTURE_EVENTS.forEach(ev => document.addEventListener(ev, handler, { once: true, capture: true }));
+            console.log("  ⏳ Waiting for user gesture...");
+            console.groupEnd();
             return null;
+
         } catch (e) {
-            console.error('Microphone initialization failed:', e);
-            TinyTUS.stopListening(); // Clean up on failure
+            console.error("  ⛔ Unexpected error:", e);
+            await _stopListeningAsync();
+            console.groupEnd();
             return e;
         } finally {
             TinyTUS._initializationInProgress = false;
+            console.log("[TinyTUS] _initializationInProgress reset to false.");
         }
     },
+    isLibraryLoaded() {
+        return _LOADED;
+    },
 
-    // This is a map of profilePtr and Profile object
     MODEM_PROFILES: {},
     MODEM_PROFILES_REVERSED: {},
     currentlyUsedModemProfile: null,
 };
+
+window.addEventListener("beforeunload", () => {
+    // Synchronously stop all tracks so Chrome releases the hardware
+    // before the new page starts. _stopListeningAsync is too slow here.
+    if (currentStream) {
+        try { currentStream.getTracks().forEach(t => t.stop()); } catch (_) { }
+    }
+    if (currentContext) {
+        try { currentContext.close(); } catch (_) { }
+    }
+    if (currentDemodState) {
+        try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (_) { }
+        currentDemodState = null;
+    }
+});
+
+/**
+ * Wire up the ScriptProcessorNode between the mic stream and the WASM demod.
+ * Called once the AudioContext is confirmed running.
+ */
+async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
+    if (!currentContext || !currentStream || !currentDemodState) {
+        console.error("[TinyTUS] _connectAudioGraph called with missing state — aborting.");
+        return;
+    }
+
+    if (currentRecorder) {
+        try { currentRecorder.disconnect(); } catch (_) { }
+        currentRecorder = null;
+    }
+
+    await currentContext.audioWorklet.addModule("./libs/tinytus/tinytus-processor.js");
+
+    const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
+    currentRecorder = new AudioWorkletNode(currentContext, "tinytus-processor");
+
+    // Accumulation buffer — collects 128-sample chunks until we have bufferSize
+    let accumulator = new Float32Array(bufferSize);
+    let accumulatorFill = 0;
+
+    currentRecorder.port.onmessage = (event) => {
+        if (!currentDemodState) return;
+
+        const chunk = event.data; // always 128 samples
+        let chunkOffset = 0;
+
+        while (chunkOffset < chunk.length) {
+            const space = bufferSize - accumulatorFill;
+            const toCopy = Math.min(space, chunk.length - chunkOffset);
+            accumulator.set(chunk.subarray(chunkOffset, chunkOffset + toCopy), accumulatorFill);
+            accumulatorFill += toCopy;
+            chunkOffset += toCopy;
+
+            if (accumulatorFill === bufferSize) {
+                // Full buffer ready — send to WASM
+                fillInputBufferWithFloat32(accumulator);
+                TinyTUS.EXPORTS.handle_input_samples(
+                    currentDemodState,
+                    TinyTUS.INPUT_BUFFER_PTR,
+                    bufferSize,
+                );
+
+                if (onAudioProcess) {
+                    const snapshot = accumulator.slice(); // copy for caller
+                    onAudioProcess({ inputBuffer: { getChannelData: () => snapshot } });
+                }
+
+                accumulatorFill = 0;
+                // reuse same buffer — no allocation on hot path
+            }
+        }
+    };
+
+    mediaStreamSource.connect(currentRecorder);
+    currentRecorder.connect(currentContext.destination);
+
+    window.dispatchEvent(new CustomEvent("microphone-started"));
+    console.log(`[TinyTUS] Audio graph connected via AudioWorkletNode. Accumulating 128-sample chunks into ${bufferSize}-sample buffers.`);
+}

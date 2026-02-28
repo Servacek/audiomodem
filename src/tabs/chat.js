@@ -5,10 +5,10 @@
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import * as CONST from '../constants.js';
 import { max, formatDate } from '../utils.js';
+import { setMicStatus } from '../indicator.js';
 
 // TODO: Disable the send button when no content is available.
 // Provide the send button also on mobile in some minimazed form.
-
 
 ////////////////////
 
@@ -17,26 +17,12 @@ const inputBar = document.getElementById("input-bar");
 const messageArea = document.getElementById("message-area");
 const sendMessageButton = document.getElementById("send-message-button");
 
-const bufferSizeInput = document.getElementById("buffer-size-input");
-
 ////////////////////
 
 var messagesToSend = [];
 var currentlySendingMessage = null;
 
-const textEncoder = new TextEncoder("utf-8");
-
 ////////////////////
-
-TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
-    const bytes = TinyTUS.getDynamicBufferFromPointer("u8", frame_ptr, frame_len);
-
-    console.log("Received frame of length", frame_len, "data:", bytes);
-
-    window.dispatchEvent(new CustomEvent("message-received", {
-        "detail": { bytes: bytes }
-    }));
-}
 
 function sendNextMessage() {
     if (currentlySendingMessage) {
@@ -253,6 +239,18 @@ function getUsername() {
     return username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+window.addEventListener("microphone-waiting-for-gesture", () => {
+    displayMessageAtBottom(systemMessage(
+        "Kliknite kdekoľvek na stránku pre aktiváciu mikrofónu.", "info"
+    ));
+});
+
+// window.addEventListener("microphone-started", () => {
+//     displayMessageAtBottom(systemMessage(
+//         "Mikrofón bol aktivovaný.", "success"
+//     ));
+// });
+
 function createSelfMessage(text, image = null) {
     const username = getUsername();
     const message = createUserMessage(username, CONST.ALIGMENT_RIGHT, text);
@@ -450,140 +448,203 @@ imageModal.addEventListener("keydown", (event) => {
 //////// SETUP
 
 if (!navigator.mediaDevices) {
-    // There are no mediaDevices, PANIC!!
     alert("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.");
-    if (confirm("Načítať stránku znova?")) {
-        location.reload();
-    }
+    if (confirm("Načítať stránku znova?")) location.reload();
 }
 
-let userLoggedIn = false;
 let wasmLoaded = false;
-
-// Track if we've attempted initialization after user interaction
 let hasUserInteracted = false;
 
-// Ensure microphone can start by detecting user interaction (for browser autoplay policies)
+// ─── Verbose init ─────────────────────────────────────────────────────────────
+
+let _initCallCount = 0;
+
+const initStateUpdate = async (reason = "unknown") => {
+    const callId = ++_initCallCount;
+    console.group(`[INIT #${callId}] initStateUpdate() — reason: "${reason}"`);
+    console.log("  wasmLoaded:", wasmLoaded);
+    console.log("  hasUserInteracted:", hasUserInteracted);
+    console.log("  _initializationInProgress:", TinyTUS._initializationInProgress);
+    console.log("  currentlyUsedModemProfile:", TinyTUS.currentlyUsedModemProfile);
+
+    if (!wasmLoaded) {
+        console.warn("  ⛔ Bailing — WASM not loaded yet.");
+        console.groupEnd();
+        return;
+    }
+
+    if (!TinyTUS.currentlyUsedModemProfile) {
+        console.warn("  ⛔ Bailing — currentlyUsedModemProfile is null/undefined.");
+        console.groupEnd();
+        return;
+    }
+
+    if (TinyTUS._initializationInProgress) {
+        console.warn("  ⛔ Bailing — initialization already in progress.");
+        console.groupEnd();
+        return;
+    }
+
+    console.log("  ✅ All checks passed — calling tryStartListeningForIncomingMessages...");
+    console.groupEnd();
+
+    const error = await TinyTUS.tryStartListeningForIncomingMessages(
+        TinyTUS.currentlyUsedModemProfile,
+        (event) => {
+            window.dispatchEvent(new CustomEvent("audioprocess", {
+                "detail": { inputBuffer: event.inputBuffer }
+            }));
+        }
+    );
+
+    if (error != null) {
+        console.error(`[INIT #${callId}] ❌ tryStartListening returned error:`, error.name, error.message, error);
+        setMicStatus("blocked");
+
+        let errorMsg = "Nepodarilo sa spustiť prijímanie správ: ";
+        if (error.name === 'NotAllowedError') {
+            errorMsg += "Prístup k mikrofónu bol zamietnutý. Povoľte prístup v nastaveniach prehliadača.";
+        } else if (error.name === 'NotFoundError') {
+            errorMsg += "Nebol nájdený žiadny mikrofón. Skontrolujte pripojenie mikrofónu.";
+        } else if (error.name === 'NotReadableError') {
+            errorMsg += "Mikrofón je už používaný inou aplikáciou. Zatvorte ostatné aplikácie používajúce mikrofón.";
+        } else {
+            errorMsg += error.message;
+        }
+
+        displayMessageAtBottom(systemMessage(
+            errorMsg + " <a href='#' onclick='event.preventDefault(); window.dispatchEvent(new Event(\"retry-microphone\"));' style='color: var(--msger-send-button-bg); text-decoration: underline;'>Skúsiť znova</a>",
+            "error"
+        ));
+    } else {
+        console.log(`[INIT #${callId}] ✅ tryStartListening returned null (success or waiting-for-gesture).`);
+    }
+};
+
+// ─── User interaction unlock ──────────────────────────────────────────────────
+
 function enableUserInteraction() {
     if (hasUserInteracted) return;
     hasUserInteracted = true;
-    console.log('User interaction detected, microphone should be able to start');
+    console.log("[MIC] First user interaction detected.");
 
-    // Try to initialize microphone if WASM is already loaded
     if (wasmLoaded) {
-        initStateUpdate();
+        console.log("[MIC] WASM already loaded — triggering initStateUpdate from user interaction.");
+        initStateUpdate("first-user-interaction");
+    } else {
+        console.log("[MIC] WASM not yet loaded — initStateUpdate will fire from wasm-library-loaded.");
     }
 }
 
-// Listen for any user interaction to unlock audio
 document.addEventListener('click', enableUserInteraction, { once: true });
 document.addEventListener('keydown', enableUserInteraction, { once: true });
 
-const initStateUpdate = async () => {
-    // if (userLoggedIn && wasmLoaded) {
-    if (wasmLoaded) {
-        console.log('Attempting to initialize microphone...');
-
-        /** @type {Error}  */
-        const error = await TinyTUS.tryStartListeningForIncomingMessages(
-            TinyTUS.currentlyUsedModemProfile,
-            (event) => {
-                window.dispatchEvent(new CustomEvent("audioprocess", {
-                    "detail": { inputBuffer: event.inputBuffer }
-                }));
-            }
-        );
-
-        if (error != null) {
-            console.error('Failed to start microphone:', error);
-
-            // Provide specific error messages based on error type
-            let errorMsg = "Nepodarilo sa spustiť prijímanie správ: ";
-            if (error.name === 'NotAllowedError') {
-                errorMsg += "Prístup k mikrofónu bol zamietnutý. Povoľte prístup v nastaveniach prehliadača.";
-            } else if (error.name === 'NotFoundError') {
-                errorMsg += "Nebol nájdený žiadny mikrofón. Skontrolujte pripojenie mikrofónu.";
-            } else if (error.name === 'NotReadableError') {
-                errorMsg += "Mikrofón je už používaný inou aplikáciou. Zatvorte ostatné aplikácie používajúce mikrofón.";
-            } else {
-                errorMsg += error.message;
-            }
-
-            displayMessageAtBottom(systemMessage(errorMsg + " <a href='#' onclick='event.preventDefault(); window.dispatchEvent(new Event(\"retry-microphone\"));' style='color: var(--msger-send-button-bg); text-decoration: underline;'>Skúsiť znova</a>", "error"));
-        } else {
-            console.log('Microphone initialized successfully');
-        }
-    }
-}
-
-// Ked otvorime cet, odstran notifikacie o novych spravach.
-document.getElementById('chat-button').addEventListener('click', () => {
-    document.getElementById('chat-button').classList.remove('new-message');
-});
+// ─── Window event listeners ───────────────────────────────────────────────────
 
 window.addEventListener("wasm-library-loaded", async () => {
+    console.log("[EVENT] wasm-library-loaded fired. Setting wasmLoaded = true.");
     wasmLoaded = true;
-    await initStateUpdate();
+    await initStateUpdate("wasm-library-loaded");
 });
 
-window.addEventListener("active-modem-profile-changed", async () => {
-    await initStateUpdate();
-})
+if (TinyTUS.isLibraryLoaded()) {
+    // WASM already loaded before this listener was registered
+    wasmLoaded = true;
+    initStateUpdate("wasm-already-loaded-on-register");
+} else {
+    window.addEventListener("wasm-library-loaded", async () => {
+        console.log("[EVENT] wasm-library-loaded fired.");
+        wasmLoaded = true;
+        await initStateUpdate("wasm-library-loaded");
+    });
+}
 
-window.addEventListener("modem-profile-updated", async () => {
-    await initStateUpdate();
+window.addEventListener("active-modem-profile-changed", async (e) => {
+    console.log("[EVENT] active-modem-profile-changed fired. detail:", e.detail);
+    await initStateUpdate("active-modem-profile-changed");
+});
+
+window.addEventListener("modem-profile-updated", async (e) => {
+    console.log("[EVENT] modem-profile-updated fired. detail:", e.detail);
+    await initStateUpdate("modem-profile-updated");
 });
 
 window.addEventListener("retry-microphone", async () => {
-    console.log('Retrying microphone initialization...');
+    console.log("[EVENT] retry-microphone fired.");
     displayMessageAtBottom(systemMessage("Pokúšam sa znova spustiť mikrofón...", "info"));
-    await initStateUpdate();
+    // Reset the flag so the retry can actually proceed
+    TinyTUS._initializationInProgress = false;
+    await initStateUpdate("retry-microphone");
+});
+
+window.addEventListener("microphone-waiting-for-gesture", () => {
+    console.log("[MIC] microphone-waiting-for-gesture — AudioContext needs a user gesture.");
+    displayMessageAtBottom(systemMessage(
+        "Kliknite kdekoľvek na stránku pre aktiváciu mikrofónu.", "info"
+    ));
+});
+
+window.addEventListener("microphone-started", () => {
+    console.log("[MIC] microphone-started — audio graph connected and running.");
+});
+
+window.addEventListener("mic-blocked", () => {
+    console.error("[MIC] mic-blocked event received.");
+    setMicStatus("blocked");
 });
 
 window.addEventListener("message-received", (event) => {
+    console.log("[MSG] message-received, byte length:", event.detail.bytes.length);
     const bytes = event.detail.bytes;
     const textDecoder = new TextDecoder("utf-8");
     const decodedText = textDecoder.decode(new Uint8Array(bytes));
-    // TODO: Replace with actual name.
     const newMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText);
     displayMessageAtBottom(newMessage);
-})
+});
 
 window.addEventListener("wasm-library-failed", () => {
+    console.error("[EVENT] wasm-library-failed — WASM could not be loaded.");
     wasmLoaded = false;
+    setMicStatus("blocked");
     displayMessageAtBottom(systemMessage("Načítavanie externých knižníc zlyhalo. Pokúste sa reštartovať stránku, alebo ak chyba pretrváva, kontaktujte správcu.", "error"));
 });
 
 window.addEventListener("usb-device-connected", (event) => {
+    console.log("[USB] Device connected:", event.detail.device.productName);
     displayMessageAtBottom(systemMessage(`USB zariadenie pripojené: <span style="color: var(--msger-send-button-bg);">${event.detail.device.productName}</span>`, "info"));
 });
 
 window.addEventListener("usb-device-connection-failed", (event) => {
+    console.error("[USB] Connection failed:", event.detail.error);
     displayMessageAtBottom(systemMessage("USB zariadenie sa neporadilo spárovať.", "error"));
 });
 
 window.addEventListener("usb-device-disconnected", () => {
+    console.log("[USB] Device disconnected.");
     displayMessageAtBottom(systemMessage("USB zariadenie odpojené.", "info"));
 });
 
-function onUserLoggedIn() {
-    if (!window.matchMedia("(max-width: 512px)").matches) {
-        inputBar.focus(); // Default focus
-    };
+document.getElementById('chat-button').addEventListener('click', () => {
+    document.getElementById('chat-button').classList.remove('new-message');
+});
 
-    const configButtonIcon = document.getElementById("config-button").getElementsByTagName("i")[0]
+// ─── Login ────────────────────────────────────────────────────────────────────
+
+function onUserLoggedIn() {
+    console.log("[AUTH] onUserLoggedIn fired. username:", getUsername());
+    if (!window.matchMedia("(max-width: 512px)").matches) {
+        inputBar.focus();
+    }
+
+    const configButtonIcon = document.getElementById("config-button").getElementsByTagName("i")[0];
     const configButtonRef = "<div id='config-button-ref' onclick='document.getElementById(\"config-button\").click()'>" + configButtonIcon.outerHTML + "</div>";
     const welcomeMessage = systemMessage("Vitaj <span id='username-text'>" + getUsername() + "</span>! Svoju prezývku si môžeš kedykoľvek zmeniť v nastaveniach" + configButtonRef, "welcome");
     displayMessageAtBottom(welcomeMessage);
-    initStateUpdate();
+    initStateUpdate("user-logged-in");
 }
 
-// Ako cet pocuvame kedy sa pripoji uzivatel a zobrazime mu uvitaciu spravu.
 window.addEventListener("user-logged", onUserLoggedIn);
 
 if (window.userLoggedIn) {
     onUserLoggedIn();
 }
-
-// TODO: Add some DB and save/load the messages sent and received.
-// displayMessageAtBottom(createUserMessage("SOMEONE", CONST.ALIGMENT_LEFT, "TITIIIDJOIWNDJNWJNDNWODNWNDONWODNOWNODOWDN"))

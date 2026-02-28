@@ -48,6 +48,7 @@
     <link rel="stylesheet" href="styles/tabs/graph.css">
     <link rel="stylesheet" href="styles/tabs/oscillator.css">
     <link rel="stylesheet" href="styles/freq_picker.css">
+    <link rel="stylesheet" href="styles/indicator.css">
 
     <!-- Libraries -->
     <script src="libs/chart/chart.js"></script>
@@ -56,7 +57,10 @@
 <body>
     <section id="app">
         <header class="header">
-            <div id="header-title">AudioModem</div>
+            <div id="header-title">
+                <span id="mic-status-dot" class="mic-status-dot mic-status--idle" title="Mikrofón: čaká..."></span>
+                AudioModem
+            </div>
             <button id="theme-toggle-button" title="Vzhľad">
                 <i id="theme-toggle-button-icon" class="fas"></i>
             </button>
@@ -143,9 +147,6 @@
                 <div class="usb-device-section">
                     <div class="usb-device-card">
                         <div class="usb-device-header">
-                            <!-- <div class="usb-device-icon">
-                                <i class="fas fa-l"></i>
-                            </div> -->
                             <div class="usb-device-info-wrapper">
                                 <div class="usb-device-status" id="usb-device-status">
                                     <i class="fas fa-circle"></i>
@@ -190,24 +191,6 @@
                     <span>Načítavam...</span>
                 </div>
                 <div id="spectrogram-container"></div>
-
-                <!-- <div id="graph-controls">
-                    <span id="peak-frequency"></span>
-
-                    <label>
-                        <input id="waterfall-checkbox" type="checkbox">
-                        <label for="waterfall-checkbox" class="unselectable">Vodopád</label>
-                    </label>
-                </div>
-
-
-                <div id="waveform-graph">
-                    <canvas id="input-waveform-graph"></canvas>
-                </div>
-
-                <div id="fft-graph">
-                    <canvas id="fft-result-graph"></canvas>
-                </div> -->
             </div>
 
             <div id="tab-oscillator" class="tab loaded">

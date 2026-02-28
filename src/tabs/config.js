@@ -680,13 +680,17 @@ window.addEventListener('refresh-local-storage', saveProfiles);
 window.addEventListener("usb-device-connected", syncAutoProfileWithUSBState);
 
 window.addEventListener("active-modem-profile-changed", (e) => {
-    if (!e.detail?.profile) {
-        // Uzivatel sa rozhodol zmenit profil, uz teraz nebudeeme vraciat spat
-        lastProfileBeforeAutoSet = null;
+    const profile = e.detail?.profile;
+    if (!profile) return;
+
+    if (e.detail?.source === 'usb-auto') {
+        console.log('Active modem profile changed due to USB auto-profile:', profile);
     } else {
-        console.log('Active modem profile changed due to USB auto-profile:', e.detail.profile);
-        updateActiveProfileUI(e.detail.profile);
+        console.log('Active modem profile changed manually, clearing lastProfileBeforeAutoSet');
+        lastProfileBeforeAutoSet = null; // only clear on manual change, not USB auto
     }
+
+    updateActiveProfileUI(profile);
 });
 
 window.addEventListener("usb-device-disconnected", () => {
