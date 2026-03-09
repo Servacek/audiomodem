@@ -1,13 +1,17 @@
-/********************************/
-/********   CONFIG TAB   ********/
-/********************************/
+/* Konfiguracny tab */
 
 
 #tab-config {
     /* max-width: 900px; */
     margin: 0 auto;
-    padding: 24px;
-    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+    /* padding mozeme davat len na boky aby nebol odsadeny sticky profile header */
+    padding-left: 24px;
+    padding-right: 24px;
+    /* overflow-x: clip namiesto hidden — hidden by vytvaral scroll container
+       a zlomil by position: sticky na child elementoch */
+    overflow-x: clip;
     box-sizing: border-box;
 
     /* Nedajme tu margin lebo nam to oreze obsah tabu. */
@@ -76,9 +80,7 @@ separator {
     margin-top: 20px;
 }
 
-/********************************/
-/****  USB DEVICE SECTION    ****/
-/********************************/
+/* Sekcia USB zariadenia */
 
 .usb-device-section {
     margin: 16px 0;
@@ -259,7 +261,7 @@ separator {
     box-shadow: 0 0 0 3px rgba(var(--msger-send-button-bg-rgb, 0, 123, 255), 0.1);
 }
 
-/* Responsive adjustments */
+/* Responzivne upravy */
 @media (max-width: 600px) {
     .usb-device-header {
         flex-wrap: wrap;
@@ -281,9 +283,7 @@ separator {
     }
 }
 
-/********************************/
-/****  END USB SECTION       ****/
-/********************************/
+/* Koniec sekcie USB */
 
 
 .profiles-header {
@@ -315,7 +315,20 @@ separator {
     margin: 12px 0;
     border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
     border-radius: 6px;
-    overflow: hidden;
+    /* overflow: clip neklipne poziciovane potomky, ale nespusti scroll kontajner.
+       To je nutne aby position: sticky fungoval cez tuto vrstvu. */
+    overflow: clip;
+    position: relative;
+}
+
+/* Sentinel pre IntersectionObserver — detekuje kedy je profile-header prilepeny. */
+.profile-sticky-sentinel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    pointer-events: none;
 }
 
 .profile-header {
@@ -323,13 +336,33 @@ separator {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: var(--profile-header-bg, rgba(255, 255, 255, 0.04));
+    background: var(--profile-header-bg, #f8f9fa);
     cursor: pointer;
     user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    box-shadow: none;
+    border-bottom: 1px solid var(--config-border, rgba(0, 0, 0, 0.10));
 }
 
-.profile-header:hover {
-    background: var(--profile-header-hover-bg, rgba(255, 255, 255, 0.08));
+/* Tiene iba ked je header prilepeny (sticky). */
+.profile-header--stuck {
+    box-shadow: var(--profile-header-shadow, 0 2px 8px rgba(0, 0, 0, 0.12));
+}
+
+/* Explicitne solidne pozadie pre sticky header — zabrani presvitatiu obsahu cez nej */
+:root:not(.dark-scheme) .profile-header {
+    background: #f8f9fa;
+}
+:root:not(.dark-scheme) .profile-header:hover {
+    background: #e9ecef;
+}
+:root.dark-scheme .profile-header {
+    background: #1e1d22;
+}
+:root.dark-scheme .profile-header:hover {
+    background: #252430;
 }
 
 .profile-header-left {
@@ -612,7 +645,8 @@ separator {
 
 @media (max-width: 600px) {
     #tab-config {
-        padding: 12px;
+        padding-left: 12px;
+        padding-right: 12px;
     }
 
     #tab-config h3 {
@@ -644,26 +678,36 @@ separator {
     }
 
     .profile-header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+            "left right"
+            "actions actions";
         padding: 10px 12px;
-        flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px 8px;
+        align-items: center;
     }
 
     .profile-header-left {
+        grid-area: left;
         gap: 8px;
-        flex: 1;
         min-width: 0;
+        flex: unset;
     }
 
     .profile-header-right {
+        grid-area: right;
         gap: 6px;
-        width: 100%;
+        flex-shrink: 0;
+        width: auto;
         justify-content: flex-end;
     }
 
     .profile-name-input {
-        max-width: 150px;
-        min-width: 80px;
+        max-width: none;
+        min-width: 0;
+        flex: 1;
         font-size: 13px;
         padding: 3px 6px;
     }
@@ -763,36 +807,52 @@ separator {
     }
 
     .slider-row {
-        flex-direction: column;
-        align-items: stretch;
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        grid-template-areas:
+            "icon range"
+            "label label";
+        align-items: center;
         gap: 8px;
     }
 
     .slider-row input[type="range"] {
+        grid-area: range;
+        min-width: 0;
         width: 100%;
-        order: 2;
     }
 
     .slider-label {
+        grid-area: label;
         min-width: unset;
         width: 100%;
         text-align: center;
         font-size: 0.85em;
-        order: 3;
     }
 
     .slider-icon {
+        grid-area: icon;
         font-size: 12px;
         width: 14px;
-        order: 1;
-        align-self: flex-start;
+        align-self: center;
+    }
+
+    .slider-manual-control {
+        grid-column: 1 / -1;
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    .slider-manual-input {
+        width: 110px;
     }
 }
 
-/* Extra small screens (phones in portrait) */
+/* Velmi male displeje */
 @media (max-width: 400px) {
     #tab-config {
-        padding: 8px;
+        padding-left: 8px;
+        padding-right: 8px;
     }
 
     #tab-config h3 {
@@ -869,7 +929,7 @@ separator {
     }
 }
 
-/* Ultra small screens - hide tag text, keep icon */
+/* Ultra male displeje: skry text tagu, nechaj ikonu */
 @media (max-width: 360px) {
     .profile-tag--readonly {
         padding: 3px 6px;
@@ -889,9 +949,7 @@ separator {
     color-scheme: light;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Profile tags  (.profile-tag, .profile-tag--readonly, .profile-tag--active)
-   ───────────────────────────────────────────────────────────────────────────── */
+/* Tagy profilu */
 
 .profile-tag {
     display:         inline-flex;
@@ -908,7 +966,7 @@ separator {
     vertical-align:  middle;
     flex-shrink:     0;
 
-    /* Smooth in/out when toggled */
+    /* Jemny prechod pri prepinani. */
     transition: opacity 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -917,26 +975,26 @@ separator {
     opacity:   0.8;
 }
 
-/* ── Readonly tag ── */
+/* Tag len na citanie */
 .profile-tag--readonly {
     color:            #8a94a6;
     background:       rgba(138, 148, 166, 0.10);
     border:           1px solid rgba(138, 148, 166, 0.22);
 }
 
-/* Dark mode */
+/* Tmava schema */
 .dark-scheme .profile-tag--readonly {
     color:      #7e8a9e;
     background: rgba(126, 138, 158, 0.12);
     border:     1px solid rgba(126, 138, 158, 0.20);
 }
 
-/* ── Active tag ── */
+/* Aktivny tag */
 .profile-tag--active {
     color:       #1db97b;
     background:  rgba(29, 185, 123, 0.10);
     border:      1px solid rgba(29, 185, 123, 0.28);
-    /* Subtle pulse on the dot */
+    /* Jemna pulzacia. */
     animation:   tag-pulse 2.4s ease-in-out infinite;
 }
 
@@ -946,7 +1004,7 @@ separator {
     border:     1px solid rgba(34, 214, 142, 0.25);
 }
 
-/* The dot icon pulses like a live indicator */
+/* Pulzacia bodky ako indikator aktivity. */
 /* .profile-tag--active i {
     animation: dot-pulse 2.4s ease-in-out infinite;
 } */
@@ -962,9 +1020,7 @@ separator {
 } */
 
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Use-profile button  (.use-profile-button, .use-profile-button--active)
-   ───────────────────────────────────────────────────────────────────────────── */
+/* Tlacidlo pouzit profil */
 
 .use-profile-button {
     display:          inline-flex;
@@ -978,7 +1034,7 @@ separator {
     cursor:           pointer;
     white-space:      nowrap;
 
-    /* Idle state — outlined */
+    /* Kludovy stav s obrysom. */
     color:            #3b82f6;
     background:       transparent;
     border:           1.5px solid rgba(59, 130, 246, 0.40);
@@ -996,7 +1052,7 @@ separator {
     transition: transform 0.18s ease;
 }
 
-/* Hover — fill comes in */
+/* Hover stav */
 .use-profile-button:hover:not(:disabled) {
     color:       #fff;
     background:  #3b82f6;
@@ -1009,25 +1065,25 @@ separator {
     transform: translateX(2px);
 }
 
-/* Active press */
+/* Stlaceny stav */
 .use-profile-button:active:not(:disabled) {
     transform:  translateY(0);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.25);
 }
 
-/* ── Active/selected state ── */
+/* Aktivny alebo vybrany stav */
 .use-profile-button--active,
 .use-profile-button--active:disabled {
     color:        #1db97b;
     background:   rgba(29, 185, 123, 0.08);
     border-color: rgba(29, 185, 123, 0.35);
     cursor:       default;
-    /* Override any hover effects when disabled */
+    /* Pri disabled vypni hover efekty. */
     transform:    none;
     box-shadow:   none;
 }
 
-/* Dark mode — idle */
+/* Tmava schema - kludovy stav */
 .dark-scheme .use-profile-button {
     color:        #60a5fa;
     border-color: rgba(96, 165, 250, 0.30);
@@ -1040,7 +1096,7 @@ separator {
     box-shadow:   0 2px 12px rgba(59, 130, 246, 0.40);
 }
 
-/* Dark mode — active */
+/* Tmava schema - aktivny stav */
 .dark-scheme .use-profile-button--active,
 .dark-scheme .use-profile-button--active:disabled {
     color:        #22d68e;
@@ -1049,9 +1105,7 @@ separator {
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Active profile card highlight
-   ───────────────────────────────────────────────────────────────────────────── */
+/* Zvraznenie aktivnej karty profilu */
 
 .profile-item--active {
     border-color: rgba(29, 185, 123, 0.30) !important;
@@ -1065,7 +1119,7 @@ separator {
                   0 2px 16px rgba(34, 214, 142, 0.06); */
 }
 
-/* Default profile card gets a subtle tinted left border to distinguish it */
+/* Predvoleny profil ma jemny lavy okraj. */
 .profile-item--default {
     border-left: 3px solid rgba(138, 148, 166, 0.35);
 }
@@ -1082,13 +1136,13 @@ separator {
     border-left-color: rgba(34, 214, 142, 0.40);
 }
 
-/* Aby bol sa interaktivny vyber frekvencneho pasma roztiahol po celej sirke */
+/* Interaktivny vyber pasma moze ist na celu sirku. */
 /* .profile-field-row:tx {
     display: flex;
     flex-direction: row;
 } */
 
-/* Sliders */
+/* Posuvniky */
 
 .slider-row {
     display: flex;
@@ -1123,4 +1177,40 @@ separator {
     width: 16px;
     text-align: center;
     flex-shrink: 0;
+}
+
+/* Sekcia info o kniznici */
+
+.lib-info-section {
+    background: var(--config-option-bg, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 8px;
+    margin: 12px 0;
+    overflow: clip;
+}
+
+.lib-info-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--config-border, rgba(255, 255, 255, 0.08));
+}
+
+.lib-info-row:last-child {
+    border-bottom: none;
+}
+
+.lib-info-label {
+    min-width: 80px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+.lib-info-value {
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--msger-header-colour);
 }

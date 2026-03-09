@@ -8,7 +8,7 @@ const loginButton = document.getElementById('login-button');
 const loginRememberMe = document.getElementById('remember-me');
 const loginRememberMeConfig = document.getElementById('remember-me-config');
 
-// TABS
+// Taby.
 
 
 const TAB_NAME_PREFIX = "tab-";
@@ -20,7 +20,7 @@ const TAB_BUTTONS = document.getElementsByClassName("tab-button")
 
 function closeTab(tab) {
     tab.classList.remove("opened");
-    tab.button.classList.remove("selected"); // Unselect the tab button
+    tab.button.classList.remove("selected"); // Odznac tlacidlo tabu.
 }
 
 function closeAllTabs() {
@@ -31,13 +31,13 @@ function closeAllTabs() {
 
 let currentTab = null;
 function openTab(tab) {
-    closeAllTabs(); // Make sure we are the only opened tab.
+    closeAllTabs(); // Nech je otvoreny len jeden tab.
 
     currentTab = tab;
     refreshLocalStorageData()
 
-    tab.classList.add("opened"); // Open the tab.
-    tab.button.classList.add("selected"); // Select the tab button.
+    tab.classList.add("opened"); // Otvor tab.
+    tab.button.classList.add("selected"); // Oznac tlacidlo tabu.
 }
 
 
@@ -64,7 +64,7 @@ for (const button of TAB_BUTTONS) {
 
     TABS.push(tab)
 
-    closeTab(tab); // Make sure all other tabs are closed as well.
+    closeTab(tab); // Uisti sa, ze je zavrety pri starte.
 }
 
 const savedTabId = localStorage.getItem("current-tab");
@@ -72,17 +72,17 @@ if (savedTabId != null) {
     const savedTab = document.getElementById(savedTabId);
     if (savedTab != null) {
         openTab(savedTab);
-    } // Else the tab was either deleted or renamed, so fallback to the default tab.
+    } // Inak pouzi predvoleny tab.
 }
 
 if (currentTab == null && TABS.length > 0) {
     openTab(TABS[0]);
 }
 
-// Make sure the tabs div is visible
+// Uisti sa, ze kontajner tabov je viditelny.
 document.getElementById("tabs").style.display = "flex";
 
-// LIMITS
+// Limity.
 
 for (const usernameInput of document.getElementsByClassName("username-input")) {
     usernameInput.maxLength = CONSTS.MAX_USERNAME_LENGTH;
@@ -93,14 +93,14 @@ for (const messageInput of document.getElementsByClassName("message-input")) {
 }
 
 
-// THEME TOGGLE BUTTON
+// Prepinanie farbnej schemy.
 
 const themeToggleButton = document.getElementById("theme-toggle-button");
 
 function onThemeChanged(darkScheme) {
-    //localStorage.setItem("theme", darkMode ? "dark-scheme" : "light-scheme");
+    // localStorage sem ukladame v refreshLocalStorageData().
     refreshLocalStorageData();
-    // themeToggleButton.innerHTML = darkScheme ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    // Ikona sa prepina cez CSS premennu --theme-button-icon.
 }
 
 // document.addEventListener('DOMContentLoaded', () => {
@@ -116,9 +116,9 @@ themeToggleButton.addEventListener("click", () => {
 
 // });
 
-// CHECKBOX LABELS
+// Labely checkboxov.
 
-// Make clicking checkbox labels trigger the checkbox itself.
+// Klik na label prepne aj checkbox.
 for (const label of document.getElementsByTagName("label")) {
     if (label.htmlFor != "") {
         const checkbox = document.getElementById(label.htmlFor)
@@ -128,7 +128,7 @@ for (const label of document.getElementsByTagName("label")) {
     }
 }
 
-// LOGIN MODAL
+// Prihlasovaci modal.
 
 function canUseLocalStorage() {
     return loginRememberMe.checked || loginRememberMeConfig.checked;
@@ -173,9 +173,9 @@ function onUserLoggedIn() {
 document.addEventListener('DOMContentLoaded', () => {
     const savedUsername = localStorage.getItem('username');
     if (!savedUsername) {
-        localStorage.clear(); // We do not know this user, so forget everything else.
-        loginModal.style.display = 'flex'; // Show the modal
-        usernameModalInput.focus(); // Focus inside
+        localStorage.clear(); // Neznamy pouzivatel, zmaz ulozene data.
+        loginModal.style.display = 'flex'; // Zobraz modal.
+        usernameModalInput.focus(); // Nastav focus dovnutra.
         loginButton.addEventListener('click', () => {
             const usernameInput = document.getElementById('username-input').value;
             if (usernameInput) {
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 usernameConfigInput.value = usernameInput;
                 loginRememberMeConfig.checked = loginRememberMe.checked;
-                loginModal.style.display = 'none'; // hide the modal
+                loginModal.style.display = 'none'; // Skry modal.
             }
 
             onUserLoggedIn();
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         usernameConfigInput.value = savedUsername;
         onUserLoggedIn();
-        loginRememberMeConfig.checked = true; // Remembered the username so this is most likely true;
+        loginRememberMeConfig.checked = true; // Ak je meno ulozene, zapamatanie ma byt true.
     }
 });
 

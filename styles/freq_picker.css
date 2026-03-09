@@ -1,61 +1,25 @@
-/* ─────────────────────────────────────────────────────────────────────────────
-   freq-range-picker.css
-   ───────────────────────────────────────────────────────────────────────────── */
+/* Styl pre vyber frekvencneho pasma. */
 
-/* ── Wrapper ── */
+/* Obal */
 .freq-picker-wrap {
-    margin: 12px 0 4px;
-    padding: 14px 16px 10px;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.025);
-    border: 1px solid rgba(0, 0, 0, 0.07);
-}
-.dark-scheme .freq-picker-wrap {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.07);
+    margin: 4px 0 8px;
 }
 
-/* ── Header ── */
-.freq-picker-header {
+/* Horny riadok: nazov a sirka pasma */
+.freq-picker-top {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
     flex-wrap: wrap;
-    gap: 6px;
-}
-
-.freq-picker-label {
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.freq-picker-label i { font-size: 10px; opacity: 0.7; }
-
-.freq-picker-header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.freq-picker-bin-info {
-    font-size: 11px;
-    color: #9ca3af;
-    display: flex;
-    align-items: center;
     gap: 4px;
-    cursor: help;
-    border: 1px dashed rgba(0,0,0,0.12);
-    border-radius: 5px;
-    padding: 2px 7px;
+    margin-bottom: 10px;
 }
-.freq-picker-bin-info i { font-size: 9px; opacity: 0.6; }
-.dark-scheme .freq-picker-bin-info { border-color: rgba(255,255,255,0.10); }
+.freq-picker-field-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--msger-header-colour, #374151);
+    opacity: 0.85;
+}
 
 .freq-picker-bw {
     font-size: 12px;
@@ -65,21 +29,21 @@
 .freq-picker-bw strong { color: #3b82f6; font-weight: 600; }
 .dark-scheme .freq-picker-bw strong { color: #60a5fa; }
 
-/* ── Track ── */
+/* Track */
 .freq-picker-track {
     position: relative;
     height: 6px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.08);
-    /* tall top margin for the handle label bubbles */
-    margin: 42px 0 20px;
+    /* Vyssi horny margin pre bubliny popisov. */
+    margin: 42px 0 8px;
     cursor: crosshair;
     user-select: none;
 }
 .dark-scheme .freq-picker-track { background: rgba(255, 255, 255, 0.09); }
 .freq-picker-track--readonly { cursor: default; }
 
-/* ── Bin grid lines ── */
+/* Mriezka binov */
 .freq-picker-bin-grid {
     position: absolute;
     inset: -6px 0;
@@ -97,7 +61,7 @@
 }
 .dark-scheme .freq-bin-line { background: rgba(96, 165, 250, 0.12); }
 
-/* ── Band ── */
+/* Vybrane pasmo */
 .freq-picker-band {
     position: absolute;
     top: 0;
@@ -113,7 +77,7 @@
     opacity: 0.4;
 }
 
-/* ── Handles ── */
+/* Uchyty */
 .freq-picker-handle {
     position: absolute;
     top: 50%;
@@ -148,16 +112,6 @@
     box-shadow: 0 2px 8px rgba(59,130,246,0.35), 0 0 0 5px rgba(59,130,246,0.10);
 }
 
-/* Misaligned handle — amber border */
-.freq-picker-handle--misaligned {
-    border-color: #f59e0b !important;
-    box-shadow: 0 1px 4px rgba(245,158,11,0.30) !important;
-}
-.freq-picker-handle--misaligned:hover,
-.freq-picker-handle--misaligned:focus-visible {
-    box-shadow: 0 1px 4px rgba(245,158,11,0.30), 0 0 0 5px rgba(245,158,11,0.12) !important;
-}
-
 .freq-picker-handle--readonly {
     cursor: default;
     border-color: #9ca3af;
@@ -165,7 +119,7 @@
     box-shadow: none;
 }
 
-/* Inner pip */
+/* Vnutorna bodka */
 .freq-picker-handle-pip {
     position: absolute;
     inset: 4px;
@@ -178,9 +132,8 @@
 .freq-picker-handle:active .freq-picker-handle-pip { opacity: 0.9; }
 .dark-scheme .freq-picker-handle-pip { background: #60a5fa; }
 .freq-picker-handle--readonly .freq-picker-handle-pip { background: #9ca3af; }
-.freq-picker-handle--misaligned .freq-picker-handle-pip { background: #f59e0b; }
 
-/* ── Handle label bubbles (above track) ── */
+/* Bubliny popisov nad trackom */
 .freq-picker-handle-label {
     position: absolute;
     bottom: calc(100% + 10px);
@@ -206,7 +159,7 @@
     box-shadow: 0 1px 6px rgba(0,0,0,0.25);
 }
 
-/* MIN / MAX coloured tag inside bubble */
+/* Farebny MIN/MAX tag v bubline */
 .freq-hlabel-tag {
     font-size: 9px;
     font-weight: 700;
@@ -234,18 +187,7 @@
 }
 .dark-scheme .freq-hlabel-val { color: #d1d5db; }
 
-/* Bin index — muted, turns amber when misaligned */
-.freq-hlabel-bin {
-    font-size: 10px;
-    color: #9ca3af;
-    font-variant-numeric: tabular-nums;
-}
-.freq-hlabel-bin--warn {
-    color: #f59e0b;
-    font-weight: 600;
-}
-
-/* ── Axis ── */
+/* Osa */
 .freq-picker-axis {
     position: relative;
     height: 24px;
@@ -278,40 +220,54 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* ── Inputs row ── */
+/* Riadok vstupov */
 .freq-picker-inputs {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: start;
-    gap: 10px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(0,0,0,0.06);
-}
-.dark-scheme .freq-picker-inputs { border-top-color: rgba(255,255,255,0.06); }
-
-.freq-picker-input-group {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
 }
-.freq-picker-input-group--right { align-items: flex-end; }
 
-.freq-picker-input-header { display: flex; align-items: center; gap: 5px; }
-.freq-picker-input-header--right { justify-content: flex-end; }
-
-.freq-picker-input-label {
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: #9ca3af;
+.freq-picker-input-grp {
     display: flex;
     align-items: center;
     gap: 5px;
+    flex: 1;
+    min-width: 120px;
 }
 
-/* Coloured MIN/MAX tags beside input labels */
+.freq-picker-input-grp input[type="number"] {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.7);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dark-scheme .freq-picker-input-grp input[type="number"] {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.10);
+}
+.freq-picker-input-grp input[type="number"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+
+.freq-picker-unit {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Farebne MIN/MAX tagy pri vstupoch */
 .freq-input-tag {
     font-size: 9px;
     font-weight: 700;
@@ -325,83 +281,25 @@
 .dark-scheme .freq-input-tag--min { color: #60a5fa; }
 .dark-scheme .freq-input-tag--max { color: #93c5fd; }
 
-.freq-picker-input-row {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.freq-picker-input-row input[type="number"] {
-    width: 90px;
-    padding: 5px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(0,0,0,0.12);
-    background: rgba(255,255,255,0.7);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    color: inherit;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-.dark-scheme .freq-picker-input-row input[type="number"] {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.10);
-}
-.freq-picker-input-row input[type="number"]:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-}
-
-.freq-picker-input-unit {
-    font-size: 11px;
-    color: #9ca3af;
-    font-weight: 500;
-}
-
-/* ── Alignment hint ── */
-.freq-align-hint {
-    display: flex;
-    align-items: flex-start;
-    gap: 5px;
-    font-size: 10.5px;
-    color: #b45309;
-    background: rgba(245,158,11,0.08);
-    border: 1px solid rgba(245,158,11,0.22);
-    border-radius: 5px;
-    padding: 4px 7px;
-    margin-top: 2px;
-    line-height: 1.4;
-}
-.freq-align-hint i { font-size: 10px; margin-top: 1px; flex-shrink: 0; }
-.freq-align-hint--right { text-align: right; }
-.dark-scheme .freq-align-hint { color: #fbbf24; background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.18); }
-
-/* ── Measure button ── */
-.freq-picker-measure-wrap {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 18px;
-}
+/* Tlacidlo merania */
 .freq-picker-measure-btn {
-    display: inline-flex;
-    flex-direction: column;
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 14px 8px;
-    border-radius: 10px;
-    border: 1.5px solid rgba(59,130,246,0.25);
-    background: rgba(59,130,246,0.04);
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(59,130,246,0.22);
+    background: rgba(59,130,246,0.05);
     cursor: pointer;
-    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s;
-    position: relative;
+    transition: background 0.15s, border-color 0.15s, transform 0.12s;
+    flex-shrink: 0;
 }
 .freq-picker-measure-btn:hover {
-    background: rgba(59,130,246,0.08);
+    background: rgba(59,130,246,0.12);
     border-color: rgba(59,130,246,0.45);
-    box-shadow: 0 2px 10px rgba(59,130,246,0.15);
     transform: translateY(-1px);
 }
-.freq-picker-measure-btn:active { transform: translateY(0); box-shadow: none; }
+.freq-picker-measure-btn:active { transform: translateY(0); }
 
 .freq-measure-icon-wrap {
     position: relative;
@@ -450,27 +348,342 @@
     100% { transform: scale(2.4); opacity: 0; }
 }
 
-.freq-measure-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #6b7280;
-    white-space: nowrap;
-    transition: color 0.18s;
+/* Responzivne pre male displeje */
+@media (max-width: 420px) {
+    .freq-picker-inputs {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+    .freq-picker-input-grp {
+        justify-content: space-between;
+    }
+    .freq-picker-measure-btn {
+        width: 100%;
+    }
 }
-.freq-picker-measure-btn:hover .freq-measure-label { color: #3b82f6; }
-.dark-scheme .freq-picker-measure-btn:hover .freq-measure-label { color: #60a5fa; }
-.freq-measure-btn--scanning .freq-measure-label { color: #1db97b !important; }
 
-/* ── Footer note ── */
-.freq-picker-note {
-    margin: 10px 0 0;
-    font-size: 10.5px;
-    color: #9ca3af;
-    line-height: 1.5;
-    display: flex;
-    gap: 5px;
-    align-items: flex-start;
+/* Canvas utlmu */
+.freq-picker-att-wrap {
+    margin: 2px 0 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: transparent;
 }
-.freq-picker-note i { font-size: 10px; margin-top: 2px; flex-shrink: 0; opacity: 0.7; }
+.dark-scheme .freq-picker-att-wrap {
+    border-color: rgba(255, 255, 255, 0.06);
+}
+.freq-picker-att-canvas {
+    display: block;
+    width: 100%;
+}
+
+/* Okno merania */
+
+.spect-measure-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(3px);
+}
+
+.spect-measure-modal {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    width: min(520px, 94vw);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+@media (min-width: 680px) {
+    .spect-measure-modal { width: min(900px, 92vw); }
+    .spect-measure-canvas { height: clamp(240px, 44vh, 420px); }
+}
+.dark-scheme .spect-measure-modal {
+    background: #1e2432;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* Hlavicka */
+.spect-measure-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dark-scheme .spect-measure-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
+
+.spect-measure-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.spect-measure-title i { color: #3b82f6; font-size: 14px; }
+.dark-scheme .spect-measure-title { color: #d1d5db; }
+
+.spect-measure-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+}
+.spect-measure-close:hover { color: #374151; background: rgba(0, 0, 0, 0.06); }
+.dark-scheme .spect-measure-close:hover { color: #d1d5db; background: rgba(255, 255, 255, 0.08); }
+
+/* Telo */
+.spect-measure-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.spect-measure-canvas {
+    display: block;
+    width: 100%;
+    height: 180px;
+    border-radius: 8px;
+    background: #f9fafb;
+}
+.dark-scheme .spect-measure-canvas { background: #1a1f2e; }
+
+.spect-measure-status-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.spect-measure-status-text {
+    font-size: 11px;
+    color: #6b7280;
+    min-height: 16px;
+    font-variant-numeric: tabular-nums;
+}
+.dark-scheme .spect-measure-status-text { color: #9ca3af; }
+
+.spect-measure-progress-bar {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+.dark-scheme .spect-measure-progress-bar { background: rgba(255, 255, 255, 0.10); }
+
+.spect-measure-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    transition: width 0.3s ease;
+}
+
+/* Paticka */
+.spect-measure-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 16px 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dark-scheme .spect-measure-footer { border-top-color: rgba(255, 255, 255, 0.06); }
+
+.spect-measure-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1.5px solid transparent;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.spect-measure-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.spect-measure-btn--stop {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #2563eb;
+}
+.spect-measure-btn--stop:not(:disabled):hover {
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(59, 130, 246, 0.60);
+}
+.dark-scheme .spect-measure-btn--stop { color: #60a5fa; background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.25); }
+
+.spect-measure-btn--done {
+    background: rgba(22, 163, 74, 0.10);
+    border-color: rgba(22, 163, 74, 0.40);
+    color: #16a34a;
+}
+.spect-measure-btn--done:not(:disabled):hover {
+    background: rgba(22, 163, 74, 0.18);
+    border-color: rgba(22, 163, 74, 0.65);
+}
+.dark-scheme .spect-measure-btn--done { color: #4ade80; background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.25); }
+
+.spect-measure-btn--cancel {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.10);
+    color: #6b7280;
+}
+.spect-measure-btn--cancel:hover {
+    background: rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.18);
+    color: #374151;
+}
+.dark-scheme .spect-measure-btn--cancel {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: #9ca3af;
+}
+.dark-scheme .spect-measure-btn--cancel:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #d1d5db;
+}
+
+.spect-measure-btn--pause {
+    background: rgba(107, 114, 128, 0.06);
+    border-color: rgba(107, 114, 128, 0.28);
+    color: #6b7280;
+}
+.spect-measure-btn--pause:not(:disabled):hover {
+    background: rgba(107, 114, 128, 0.12);
+    border-color: rgba(107, 114, 128, 0.50);
+    color: #374151;
+}
+.dark-scheme .spect-measure-btn--pause { color: #9ca3af; background: rgba(156, 163, 175, 0.06); border-color: rgba(156, 163, 175, 0.20); }
+.dark-scheme .spect-measure-btn--pause:not(:disabled):hover { color: #d1d5db; }
+
+.spect-measure-btn--resume {
+    background: rgba(22, 163, 74, 0.08);
+    border-color: rgba(22, 163, 74, 0.38);
+    color: #16a34a;
+}
+.spect-measure-btn--resume:not(:disabled):hover {
+    background: rgba(22, 163, 74, 0.15);
+    border-color: rgba(22, 163, 74, 0.60);
+}
+.dark-scheme .spect-measure-btn--resume { color: #4ade80; background: rgba(74, 222, 128, 0.07); border-color: rgba(74, 222, 128, 0.22); }
+
+.spect-measure-btn--merge {
+    background: rgba(124, 58, 237, 0.07);
+    border-color: rgba(124, 58, 237, 0.30);
+    color: #7c3aed;
+}
+.spect-measure-btn--merge:hover {
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.55);
+}
+.dark-scheme .spect-measure-btn--merge { color: #a78bfa; background: rgba(167, 139, 250, 0.08); border-color: rgba(167, 139, 250, 0.22); }
+.dark-scheme .spect-measure-btn--merge:hover { background: rgba(167, 139, 250, 0.15); }
+
+.spect-measure-btn--start {
+    background: rgba(22, 163, 74, 0.10);
+    border-color: rgba(22, 163, 74, 0.40);
+    color: #16a34a;
+}
+.spect-measure-btn--start:hover {
+    background: rgba(22, 163, 74, 0.18);
+    border-color: rgba(22, 163, 74, 0.65);
+}
+.dark-scheme .spect-measure-btn--start {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.08);
+    border-color: rgba(74, 222, 128, 0.25);
+}
+.dark-scheme .spect-measure-btn--start:hover { background: rgba(74, 222, 128, 0.15); }
+
+/* Konfiguracny panel merania */
+.spect-measure-config {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    margin-bottom: 2px;
+}
+.dark-scheme .spect-measure-config {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.07);
+}
+
+.spect-cfg-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.spect-cfg-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    min-width: 100px;
+    flex-shrink: 0;
+}
+.dark-scheme .spect-cfg-label { color: #9ca3af; }
+
+.spect-cfg-input {
+    width: 78px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    font-size: 11px;
+    background: #fff;
+    color: #374151;
+    font-family: 'JetBrains Mono', monospace;
+}
+.dark-scheme .spect-cfg-input {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #d1d5db;
+    color-scheme: dark;
+}
+.spect-cfg-input:disabled,
+.spect-cfg-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.spect-cfg-sep,
+.spect-cfg-unit {
+    font-size: 11px;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
+.spect-cfg-select {
+    padding: 3px 6px;
+    border-radius: 5px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    font-size: 11px;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+}
+.dark-scheme .spect-cfg-select {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #d1d5db;
+    color-scheme: dark;
+}

@@ -2,30 +2,32 @@
 <html lang="sk">
 
 <head>
-    <!-- Encoding -->
+    <!-- Kodovanie -->
     <meta charset="UTF-8">
-    <!-- Allow user scalability to support image zooming -->
+    <!-- Povoli zoom pre pouzivatela -->
     <meta name="viewport" content="width=device-width, initial-scale = 1.0" />
+    <!-- Oznami prehliadacom a pluginom, ze stranka sama riadi svetlu aj tmavu schemu. -->
+    <meta name="color-scheme" content="light dark">
 
-    <!-- Cache -->
+    <!-- Vyrovnavacia pamat -->
     <!-- <meta http-equiv="Cache-control" content="public, max-age=604800"> -->
 
-    <!-- Debugging Stuff -->
+    <!-- Ladenie -->
     <script>
         print = console.log;
     </script>
 
-    <!-- Page Title -->
+    <!-- Nazov stranky -->
     <title>Holub</title>
 
-    <!-- Page Icon -->
+    <!-- Ikona stranky -->
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
 
     <script>
         const MAKE_DARK_MODE_DEFAULT = true;
         const DARK_MODE = "dark-scheme";
 
-        // Load the saved theme here so it is shown before the page is loaded.
+        // Nacitaj temu pred vykreslenim stranky.
         const savedTheme = localStorage.getItem("theme");
         document.themeLoaded = true;
         if ((!savedTheme && MAKE_DARK_MODE_DEFAULT) || savedTheme == DARK_MODE) {
@@ -35,14 +37,14 @@
         }
     </script>
 
-    <!-- Styles -->
+    <!-- Styly -->
     <link rel="stylesheet" href="styles/fonts.css">
     <link rel="stylesheet" href="styles/schemes.css">
     <link rel="stylesheet" href="styles/index.css">
     <link rel="stylesheet" href="assets/css/fontawesome.css">
     <link rel="stylesheet" href="assets/css/solid.css">
 
-    <!-- Tab Styles -->
+    <!-- Styly tabov -->
     <link rel="stylesheet" href="styles/tabs/chat.css">
     <link rel="stylesheet" href="styles/tabs/config.css">
     <link rel="stylesheet" href="styles/tabs/graph.css">
@@ -50,7 +52,7 @@
     <link rel="stylesheet" href="styles/freq_picker.css">
     <link rel="stylesheet" href="styles/indicator.css">
 
-    <!-- Libraries -->
+    <!-- Kniznice -->
     <script src="libs/chart/chart.js"></script>
 </head>
 
@@ -80,10 +82,9 @@
             </div>
         </header>
 
-        <!-- TODO ADD CACHING -->
         <div id="tabs">
             <div id="tab-chat" class="tab loaded default">
-                <!-- Chat Display Area -->
+                <!-- Oblast sprav -->
                 <main id="message-area" class="message-area"></main>
 
                 <form id="input-area" class="input-area">
@@ -177,6 +178,24 @@
                     </div>
                 </div>
 
+                <separator></separator>
+
+                <h3>O knižnici</h3>
+                <div class="lib-info-section">
+                    <div class="lib-info-row">
+                        <span class="lib-info-label">Knižnica</span>
+                        <span class="lib-info-value">TinyTUS</span>
+                    </div>
+                    <div class="lib-info-row">
+                        <span class="lib-info-label">Verzia</span>
+                        <span class="lib-info-value" id="lib-version-display">–</span>
+                    </div>
+                    <div class="lib-info-row">
+                        <span class="lib-info-label">Popis</span>
+                        <span class="lib-info-value">Softvérový modem pre prenos dát cez akustický kanál</span>
+                    </div>
+                </div>
+
                 <!--- Trocha volneho miesta na koniec -->
                 <div style="height: 20px;"></div>
             </div>
@@ -231,7 +250,7 @@
         </div>
     </section>
 
-    <!-- Image Upload Modal -->
+    <!-- Modal pre nahratie obrazka -->
     <div id="image-modal" class="modal">
         <div class="modal-content">
             <img id="modal-image" alt="Náhľad obrázka">
@@ -246,7 +265,7 @@
         </div>
     </div>
 
-    <!-- Login Modal -->
+    <!-- Prihlasovacie okno -->
     <div id="login-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
@@ -278,7 +297,7 @@
         </div>
     </div>
 
-    <!-- Confirmation Modal (Profile Deletion) -->
+    <!-- Potvrdzovacie okno pre zmazanie profilu -->
     <div id="confirmation-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">

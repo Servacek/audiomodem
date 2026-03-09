@@ -22,7 +22,7 @@ let oscillatorNode = null;
 let gainNode = null;
 let animationFrameId = null;
 
-// Generate waveform using pure JavaScript
+// Generuj waveform v cistom JavaScripte.
 function generateWaveform(frequency, amplitude, phase, samples) {
     const waveform = new Float32Array(samples);
     const angularFrequency = 2 * Math.PI * frequency;
@@ -35,13 +35,13 @@ function generateWaveform(frequency, amplitude, phase, samples) {
     return waveform;
 }
 
-// Initialize or resume audio context
+// Inicializuj alebo obnov audio context.
 function ensureAudioContext() {
     if (!audioContext) {
         audioContext = new AudioContext();
     }
 
-    // Resume context if suspended (browser autoplay policy)
+    // Pri suspended stave obnov context.
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
@@ -49,14 +49,14 @@ function ensureAudioContext() {
     return audioContext;
 }
 
-// Stop current audio playback
+// Zastav aktualne prehravanie.
 function stopAudio() {
     if (oscillatorNode) {
         try {
             oscillatorNode.stop();
             oscillatorNode.disconnect();
         } catch (e) {
-            // Already stopped
+            // Uz zastavene.
         }
         oscillatorNode = null;
     }
@@ -67,21 +67,21 @@ function stopAudio() {
     }
 }
 
-// Start audio playback using Web Audio oscillator
+// Spusti prehravanie cez Web Audio oscillator.
 function startAudio() {
     stopAudio();
 
     const ctx = ensureAudioContext();
     const { frequency, amplitude, phase } = state;
 
-    // Create oscillator and gain nodes
+    // Vytvor oscillator a gain node.
     oscillatorNode = ctx.createOscillator();
     gainNode = ctx.createGain();
 
     oscillatorNode.type = 'sine';
     oscillatorNode.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-    // Set phase by using a delay (phase shift in time domain)
+    // Fazu nastav cez casove oneskorenie.
     const phaseDelay = phase / (2 * Math.PI * frequency);
 
     gainNode.gain.setValueAtTime(amplitude, ctx.currentTime);
@@ -91,31 +91,31 @@ function startAudio() {
     oscillatorNode.start(ctx.currentTime + phaseDelay);
 }
 
-// Update audio parameters smoothly without stopping
+// Plynulo aktualizuj audio parametre bez zastavenia.
 function updateAudioParams() {
     if (!oscillatorNode || !state.isPlaying) return;
 
     const ctx = audioContext;
     const { frequency, amplitude } = state;
     const now = ctx.currentTime;
-    const rampTime = 0.01; // 10ms ramp to avoid clicks
+    const rampTime = 0.01; // 10 ms rampa proti klikom.
 
-    // Smoothly ramp to new values
+    // Plynuly prechod na nove hodnoty.
     oscillatorNode.frequency.setTargetAtTime(frequency, now, rampTime);
     gainNode.gain.setTargetAtTime(amplitude, now, rampTime);
 }
 
-// Update waveform visualization
+// Aktualizuj vykreslenie waveformu.
 function updateWaveformDisplay() {
     const { frequency, amplitude, phase, animationPhase } = state;
     const period = 1 / frequency;
     const samples = SAMPLING_RATE;
 
-    // Use animated phase for display
+    // Pri vykresleni pouzi animovanu fazu.
     const displayPhase = phase + animationPhase;
     const waveform = generateWaveform(frequency, amplitude, displayPhase, samples);
 
-    // Show 2-3 periods for better visualization
+    // Zobraz 2-3 periody pre lepsiu citatelnost.
     const samplesToPlot = Math.min(
         Math.round(period * SAMPLING_RATE * 3) + 100,
         samples
@@ -128,9 +128,9 @@ function updateWaveformDisplay() {
     );
 }
 
-// Animation loop for smooth waveform movement
+// Animacna slucka plynuleho pohybu waveformu.
 function animate() {
-    // Increment phase proportional to frequency for realistic wave motion
+    // Posun fazu umerne frekvencii.
     state.animationPhase += 0.05 * (state.frequency / 440);
 
     updateWaveformDisplay();
@@ -138,14 +138,14 @@ function animate() {
     animationFrameId = requestAnimationFrame(animate);
 }
 
-// Start animation
+// Spusti animaciu.
 function startAnimation() {
     if (!animationFrameId) {
         animate();
     }
 }
 
-// Stop animation
+// Zastav animaciu.
 function stopAnimation() {
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -153,18 +153,18 @@ function stopAnimation() {
     }
 }
 
-// Update waveform parameters
+// Aktualizuj parametre waveformu.
 function updateWaveform() {
-    // Update display
+    // Aktualizuj vykreslenie.
     updateWaveformDisplay();
 
-    // Update audio if playing (smoothly without restarting)
+    // Pri prehravani plynulo uprav audio.
     if (state.isPlaying) {
         updateAudioParams();
     }
 }
 
-// Update slider values
+// Aktualizuj hodnoty zo sliderov.
 function updateFromSliders() {
     state.frequency = parseFloat(frequencySlider.value);
     state.amplitude = parseFloat(amplitudeSlider.value) / 100;
@@ -173,7 +173,7 @@ function updateFromSliders() {
     updateWaveform();
 }
 
-// Setup slider event listeners
+// Nastav listenery sliderov.
 function setupSlider(slider) {
     const display = document.getElementById(slider.id + "-display");
     if (!display) return;
@@ -199,7 +199,7 @@ function setupSlider(slider) {
     });
 }
 
-// Toggle play/pause state
+// Prepni stav play/pause.
 function togglePlayback() {
     state.isPlaying = !state.isPlaying;
 
@@ -214,27 +214,27 @@ function togglePlayback() {
     } else {
         stopAudio();
         stopAnimation();
-        // Keep the current animation phase to maintain position
+        // Zachovaj aktualnu fazu animacie.
         updateWaveformDisplay();
     }
 }
 
-// Initialize
+// Inicializacia.
 function init() {
-    // Setup all sliders
+    // Nastav vsetky slidery.
     const sliders = document.querySelectorAll(".oscillator-slider");
     sliders.forEach(setupSlider);
 
-    // Setup play button
+    // Nastav play tlacidlo.
     if (playButton) {
         playButton.addEventListener("click", togglePlayback);
     }
 
-    // Initial render
+    // Prve vykreslenie.
     updateFromSliders();
 }
 
-// Cleanup on page unload
+// Cleanup pri opusteni stranky.
 window.addEventListener("beforeunload", () => {
     stopAnimation();
     stopAudio();
@@ -243,7 +243,7 @@ window.addEventListener("beforeunload", () => {
     }
 });
 
-// Start when DOM is ready
+// Spusti po priprave DOM.
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
 } else {

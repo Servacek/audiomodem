@@ -1,13 +1,12 @@
 /**
- * Audio Visualization Plotter
- * Provides functions for rendering waveforms and frequency spectra
+ * Vykreslovanie waveformu a spektra.
  */
 
 /**
- * Canvas utilities for high-DPI rendering
+ * Pomocne funkcie pre high-DPI canvas.
  */
 class CanvasRenderer {
-    static MAX_CANVAS_SIZE = 16384; // Safe limit for most browsers
+    static MAX_CANVAS_SIZE = 16384; // Bezpecny limit pre vacsinu prehliadacov.
 
     constructor(canvas) {
         this.canvas = canvas;
@@ -18,29 +17,29 @@ class CanvasRenderer {
     setupHighDPI() {
         const dpr = window.devicePixelRatio || 1;
 
-        // Use clientWidth/clientHeight which are more reliable
+        // Pouzi clientWidth/clientHeight, su spolahlivejsie.
         const displayWidth = this.canvas.clientWidth || this.canvas.width || 600;
         const displayHeight = this.canvas.clientHeight || this.canvas.height || 400;
 
-        // Calculate scaled dimensions with safety limits
+        // Vypocitaj skalovane rozmery s limitom.
         let scaledWidth = Math.floor(displayWidth * dpr);
         let scaledHeight = Math.floor(displayHeight * dpr);
 
-        // Clamp to maximum safe canvas size
+        // Orez na maximalnu bezpecnu velkost canvasu.
         scaledWidth = Math.min(scaledWidth, CanvasRenderer.MAX_CANVAS_SIZE);
         scaledHeight = Math.min(scaledHeight, CanvasRenderer.MAX_CANVAS_SIZE);
 
-        // Only update if dimensions actually changed
+        // Aktualizuj len pri realnej zmene rozmeru.
         if (this.canvas.width !== scaledWidth || this.canvas.height !== scaledHeight) {
             this.canvas.width = scaledWidth;
             this.canvas.height = scaledHeight;
         }
 
-        // Calculate actual DPI ratio used (may be less than device DPR if clamped)
+        // Vypocitaj realny DPI pomer po oreze.
         const actualDprX = scaledWidth / displayWidth;
         const actualDprY = scaledHeight / displayHeight;
 
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformacie.
         this.ctx.scale(actualDprX, actualDprY);
         this.ctx.imageSmoothingEnabled = false;
 
@@ -54,10 +53,10 @@ class CanvasRenderer {
 }
 
 /**
- * Waveform Plotter
+ * Kreslenie waveformu.
  */
 export function plotWaveform(canvas, waveform, frequency = null) {
-    // Cache renderer, only recreate if canvas size changed
+    // Cache rendereru, vytvor znova len pri zmene velkosti.
     if (!canvas._renderer || canvas.clientWidth !== canvas._lastWidth || canvas.clientHeight !== canvas._lastHeight) {
         canvas._renderer = new CanvasRenderer(canvas);
         canvas._lastWidth = canvas.clientWidth;
@@ -71,7 +70,7 @@ export function plotWaveform(canvas, waveform, frequency = null) {
     const bufferLength = waveform.length;
     const stepX = displayWidth / bufferLength;
 
-    // Draw waveform
+    // Kresli waveform.
     ctx.beginPath();
     ctx.lineWidth = 2;
 
@@ -86,7 +85,7 @@ export function plotWaveform(canvas, waveform, frequency = null) {
         }
     }
 
-    // Color based on frequency if provided
+    // Farba podla frekvencie, ak je zadana.
     const color = frequency
         ? `hsl(${Math.min(frequency / 100, 360)}, 100%, 50%)`
         : 'rgb(35, 132, 242)';
@@ -96,10 +95,10 @@ export function plotWaveform(canvas, waveform, frequency = null) {
 }
 
 /**
- * Spectrum Bar Chart Plotter
+ * Stlpcovy graf spektra.
  */
 export function drawFFT(canvas, frequencies, magnitudes) {
-    // Cache renderer, only recreate if canvas size changed
+    // Cache rendereru, vytvor znova len pri zmene velkosti.
     if (!canvas._renderer || canvas.clientWidth !== canvas._lastWidth || canvas.clientHeight !== canvas._lastHeight) {
         canvas._renderer = new CanvasRenderer(canvas);
         canvas._lastWidth = canvas.clientWidth;
@@ -116,8 +115,8 @@ export function drawFFT(canvas, frequencies, magnitudes) {
         const normalizedHeight = magnitudes[i] / maxMagnitude;
         const barHeight = normalizedHeight * displayHeight;
 
-        // Color gradient based on magnitude
-        const hue = 240 - (normalizedHeight * 180); // Blue to red
+        // Farebny gradient podla amplitudy.
+        const hue = 240 - (normalizedHeight * 180); // Modra po cervenu.
         ctx.fillStyle = `hsl(${hue}, 80%, 50%)`;
 
         const x = i * barWidth;
@@ -128,7 +127,7 @@ export function drawFFT(canvas, frequencies, magnitudes) {
 }
 
 /**
- * Waterfall Spectrogram Plotter
+ * Waterfall spektrogram.
  */
 export function plotFFTWaterfall(canvas, frequencies, magnitudes, options = {}) {
     const {
@@ -137,19 +136,19 @@ export function plotFFTWaterfall(canvas, frequencies, magnitudes, options = {}) 
         colormap = 'viridis'
     } = options;
 
-    // Initialize renderer (only resizes if needed)
+    // Inicializuj renderer, resize len ked treba.
     if (!canvas._renderer || canvas.clientWidth !== canvas._lastWidth || canvas.clientHeight !== canvas._lastHeight) {
         canvas._renderer = new CanvasRenderer(canvas);
         canvas._lastWidth = canvas.clientWidth;
         canvas._lastHeight = canvas.clientHeight;
 
-        // Reset waterfall data on resize
+        // Pri resize resetni waterfall data.
         canvas.waterfallData = [];
     }
 
     const { ctx, displayWidth, displayHeight } = canvas._renderer;
 
-    // Initialize waterfall history
+    // Inicializuj historiu waterfallu.
     if (!canvas.waterfallData) {
         canvas.waterfallData = [];
     }
@@ -157,22 +156,22 @@ export function plotFFTWaterfall(canvas, frequencies, magnitudes, options = {}) 
     const maxRows = Math.floor(displayHeight);
     const binWidth = displayWidth / frequencies.length;
 
-    // Scale magnitudes
+    // Skaluj amplitudy.
     const scaledMagnitudes = scaleMagnitudes(magnitudes, magnitudeScaling, noiseFloor);
 
-    // Add new data row
+    // Pridaj novy riadok dat.
     canvas.waterfallData.push(scaledMagnitudes);
     if (canvas.waterfallData.length > maxRows) {
         canvas.waterfallData.shift();
     }
 
-    // Render waterfall
+    // Vykresli waterfall.
     canvas._renderer.clear();
     renderWaterfall(ctx, canvas.waterfallData, { binWidth, displayHeight }, colormap);
 }
 
 /**
- * Scale magnitudes for visualization
+ * Skalovanie amplitud pre vykreslenie.
  */
 function scaleMagnitudes(magnitudes, scaling, noiseFloor) {
     return magnitudes.map(mag => {
@@ -183,7 +182,7 @@ function scaleMagnitudes(magnitudes, scaling, noiseFloor) {
             const logFloor = Math.log10(noiseFloor);
             scaled = (logValue - logFloor) / -logFloor;
         } else {
-            // Linear scaling
+            // Linearne skalovanie.
             const maxMag = Math.max(...magnitudes, 1);
             scaled = mag / maxMag;
         }
@@ -193,7 +192,7 @@ function scaleMagnitudes(magnitudes, scaling, noiseFloor) {
 }
 
 /**
- * Render waterfall display
+ * Vykreslenie waterfallu.
  */
 function renderWaterfall(ctx, waterfallData, config, colormap) {
     const { binWidth, displayHeight } = config;
@@ -201,7 +200,7 @@ function renderWaterfall(ctx, waterfallData, config, colormap) {
 
     if (numRows === 0) return;
 
-    // Calculate row height to fill the display area
+    // Vypocitaj vysku riadku pre celu plochu.
     const rowHeight = displayHeight / numRows;
 
     waterfallData.forEach((row, rowIndex) => {
@@ -217,7 +216,7 @@ function renderWaterfall(ctx, waterfallData, config, colormap) {
 }
 
 /**
- * Color mapping functions
+ * Funkcie mapovania farieb.
  */
 function getColor(value, colormap) {
     switch (colormap) {
@@ -233,7 +232,7 @@ function getColor(value, colormap) {
 }
 
 function viridisColormap(value) {
-    // Simplified viridis-like colormap
+    // Zjednodusena viridis mapa.
     const r = Math.round(255 * Math.pow(value, 3));
     const g = Math.round(255 * value);
     const b = Math.round(255 * Math.sqrt(1 - value));
@@ -241,7 +240,7 @@ function viridisColormap(value) {
 }
 
 function hotColormap(value) {
-    // Black -> Red -> Yellow -> White
+    // Cierna -> cervena -> zlta -> biela.
     const r = Math.round(255 * Math.min(value * 3, 1));
     const g = Math.round(255 * Math.max(0, Math.min((value - 0.33) * 3, 1)));
     const b = Math.round(255 * Math.max(0, (value - 0.66) * 3));
@@ -249,7 +248,7 @@ function hotColormap(value) {
 }
 
 function coolColormap(value) {
-    // Cyan -> Blue -> Magenta
+    // Cyan -> modra -> magenta.
     const r = Math.round(255 * value);
     const g = Math.round(255 * (1 - value));
     const b = 255;
@@ -257,8 +256,8 @@ function coolColormap(value) {
 }
 
 /**
- * Legacy Chart.js function (kept for compatibility)
- * Note: Requires Chart.js library
+ * Legacy funkcia cez Chart.js pre kompatibilitu.
+ * Poznamka: vyzaduje Chart.js.
  */
 export function plotFFT(canvas, frequencies, magnitudes) {
     console.warn('plotFFT with Chart.js is deprecated. Use drawFFT or plotFFTWaterfall instead.');

@@ -1,8 +1,6 @@
 
 
-/********************************/
-/********    CHAT TAB    ********/
-/********************************/
+/* Tab chatu */
 
 #tab-chat {
     margin-top: 0px;
@@ -12,7 +10,7 @@
 #message-area {
     display: flex;
     flex-direction: column;
-    /* GROW / SHRINK / BASIS */
+    /* grow / shrink / basis */
     flex: 1 1 auto;
     overflow-y: auto;
     /* padding: 10px; */
@@ -129,9 +127,7 @@
     margin: 0 0 0 10px;
 }
 
-/********************************/
-/******** INPUT BAR ********/
-/********************************/
+/* Vstupny riadok */
 
 #input-area button {
     color: var(--msger-header-colour);
@@ -153,7 +149,7 @@
     background: var(--inputbar-area);
     background-attachment: unset;
     border-radius: 10px;
-    /* Make sure the input-bar is over everything (like the header */
+    /* Drz input bar nad obsahom rovnako ako hlavicku. */
     position: sticky;
     top: 0;
     /* margin-bottom: 20px; */
@@ -230,7 +226,7 @@
 }
 
 #right-input-toolbar #send-message-button-with-icon {
-    display: none; /* Hide for non mobiles */
+    display: none; /* Mimo mobilu je skryte. */
     flex: 1 1 auto;
     padding: 0px;
     background-color: transparent;
@@ -271,9 +267,7 @@
     border-radius: 10%;
 }
 
-/********************************/
-/******** SYSTEM MESSAGES ********/
-/********************************/
+/* Systemove spravy */
 
 .system-message {
     font-size: 0.85em;
@@ -308,9 +302,19 @@
     cursor: pointer;
 }
 
-/********************************/
-/******** NOTIFICATION DOT ********/
-/********************************/
+.system-message .usb-device-name-ref {
+    color: var(--msger-send-button-bg);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.system-message .usb-device-name-ref:focus {
+    outline: 2px solid var(--msger-send-button-bg);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Notifikacna bodka */
 
 /* Ikonka notifikacie o novej sprave v chate. */
 #chat-button.new-message {
@@ -343,9 +347,7 @@
     }
 }
 
-/********************************/
-/******** MOBILE ********/
-/********************************/
+/* Mobil */
 
 @media (max-width: 600px) {
     #input-area #send-message-button {

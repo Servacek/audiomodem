@@ -1,45 +1,28 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  Spectrogram — GFSK modem visualiser
-//
-//  FFT_SIZE = 1024 to match the modem's samples_per_symbol.
-//  This aligns the display FFT grid exactly with the modem's tone grid
-//  (each modem bin = exactly 1 display bin = ~3.85 px at 48 kHz).
-//  Using 2048 put every tone on a half-integer bin → split energy → blur.
-//
-//  Noise gating:
-//    Gate 1 (local shape):  bin / min(±RADIUS neighbours) > THRESHOLD
-//    Gate 2 (absolute):     bin > frozenFloor * MARGIN
-//    Floor is frozen during active signal (when band energy is high) so
-//    strong tones don't inflate the reference and expose false positives.
-// ─────────────────────────────────────────────────────────────────────────────
+// Spektrogram pre GFSK vizualizaciu.
+// FFT_SIZE 1024 musi sediet s modem samples_per_symbol.
+// Brana 1 kontroluje lokalny kontrast, brana 2 absolutny prah.
 
-const FFT_SIZE         = 1024;   // ← must match modem samples_per_symbol
+const FFT_SIZE         = 1024;   // Musi sediet s modem samples_per_symbol.
 const SAMPLE_RATE      = 48000;
 const MIN_DISPLAY_FREQ = 1800;
 const MAX_DISPLAY_FREQ = 8000;
-const HOP_SIZE         = 512;    // 94 rows/sec → ~2.7s visible, comfortable speed
+const HOP_SIZE         = 512;    // Asi 94 riadkov/s.
 const CANVAS_W         = 512;
 const CANVAS_H         = 256;
 
-// ── Gate 1 — local MIN-ratio ──────────────────────────────────────────────────
-// This gate handles BOTH marker and data tones correctly.
-// Marker tones are weak (divided by bits_in_marker in the modem), but they
-// still stand out above their quiet inter-tone neighbours → ratio is large.
+// Brana 1: lokalny pomer k minimu susedov.
+// Funguje pre marker aj datove tony.
 const CONTRAST_RADIUS    = 2;
 const CONTRAST_THRESHOLD = 3.5;
 const CONTRAST_CEILING   = 28.0;
 
-// ── Gate 2 — squelch only ────────────────────────────────────────────────────
-// Gate 2 is intentionally LOW — it only suppresses complete silence/dead band.
-// It must NOT be high enough to kill the weak marker tones.
-// Marker tones = 1/bits_in_marker of a data tone's amplitude.
-// With bits_in_marker up to 16, margin must be << data_tone / floor.
-// Setting to 2.5× just prevents firing on DC/dead silence.
+// Brana 2: nizky squelch, potlaci len ticho.
+// Nesmie potlacit slabe marker tony.
 const FLOOR_ADAPT_RATE = 0.02;
-const FLOOR_MARGIN     = 2.5;    // very low — squelch only, not signal gating
-const ACTIVITY_RATIO   = 3.5;   // freeze floor when band is active
+const FLOOR_MARGIN     = 2.5;    // Nizky margin len pre squelch.
+const ACTIVITY_RATIO   = 3.5;   // Pri aktivite zmraz floor.
 
-// ─── DOM / Canvas ─────────────────────────────────────────────────────────────
+// DOM a canvas.
 const container = document.getElementById("spectrogram-container");
 const graphTab  = document.getElementById("tab-graph");
 
@@ -57,20 +40,20 @@ graphTab.classList.add("loaded");
 ctx.fillStyle = "#f8f6f0";
 ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// Stav.
 let adaptiveFloor = 1e-5;
 
 const ringBuffer = new Float32Array(FFT_SIZE);
 let ringFilled = 0;
 let hopCount   = 0;
 
-// ─── Frequency bin mapping ────────────────────────────────────────────────────
-const binHz   = SAMPLE_RATE / FFT_SIZE;   // 46.875 Hz/bin — matches modem grid
+// Mapovanie frekvencnych binov.
+const binHz   = SAMPLE_RATE / FFT_SIZE;   // 46.875 Hz/bin, sedi s modem mriezkou.
 const minBin  = Math.floor(MIN_DISPLAY_FREQ / binHz);
 const maxBin  = Math.min(Math.ceil(MAX_DISPLAY_FREQ  / binHz), FFT_SIZE / 2);
 const numBins = maxBin - minBin;
 
-// ─── Blackman-Harris 4-term window ───────────────────────────────────────────
+// Blackman-Harris 4-term okno.
 const bhWindow = new Float32Array(FFT_SIZE);
 for (let i = 0; i < FFT_SIZE; i++) {
     const a = (2 * Math.PI * i) / (FFT_SIZE - 1);
@@ -80,7 +63,7 @@ for (let i = 0; i < FFT_SIZE; i++) {
                  - 0.01168 * Math.cos(3 * a);
 }
 
-// ─── FFT tables ───────────────────────────────────────────────────────────────
+// FFT tabulky.
 const bitReversalTable = new Uint32Array(FFT_SIZE);
 {
     const bits = Math.log2(FFT_SIZE) | 0;
@@ -124,7 +107,7 @@ function fft(re, im) {
     }
 }
 
-// ─── Colormap: warm off-white → amber → orange → crimson → near-black ────────
+// Farebna mapa od svetlej po tmavu.
 const BG_R = 248, BG_G = 246, BG_B = 240;
 const colourLUT = new Uint8Array(256 * 3);
 for (let i = 0; i < 256; i++) {
@@ -156,7 +139,7 @@ for (let i = 0; i < 256; i++) {
     colourLUT[i * 3 + 2] = b;
 }
 
-// ─── Per-frame processing ─────────────────────────────────────────────────────
+// Spracovanie jedneho frame.
 const rowImageData = ctx.createImageData(CANVAS_W, 1);
 const rowPixels    = rowImageData.data;
 const bgMin        = new Float32Array(numBins);
@@ -166,14 +149,14 @@ const LOG_CEIL    = Math.log(CONTRAST_CEILING);
 const INV_LOG_RNG = 1.0 / (LOG_CEIL - LOG_THRESH);
 
 function processFrame(samples) {
-    // 1. Window + FFT
+    // 1. Okno + FFT.
     for (let i = 0; i < FFT_SIZE; i++) {
         fftRe[i] = samples[i] * bhWindow[i];
         fftIm[i] = 0;
     }
     fft(fftRe, fftIm);
 
-    // 2. Magnitude
+    // 2. Magnituda.
     const mags = new Float32Array(numBins);
     const invN = 1.0 / FFT_SIZE;
     for (let i = 0; i < numBins; i++) {
@@ -182,22 +165,20 @@ function processFrame(samples) {
         mags[i]  = Math.sqrt(re * re + im * im) * invN;
     }
 
-    // 3a. Gate 2 — frozen adaptive floor
-    //     Compute median to detect whether the band is currently active.
-    //     If active (median >> floor), freeze the floor so strong tones
-    //     don't inflate it and let through noise between the tones.
+    // 3a. Brana 2 so zmrazenym adaptive floor.
+    // Pri aktivite floor zmraz, aby silne tony nezdvihli referenciu.
     const sorted  = mags.slice().sort();
     const median  = sorted[numBins >> 1];
     const isActive = (median > adaptiveFloor * ACTIVITY_RATIO);
     if (!isActive) {
-        // Quiet band: let floor track the real noise level
+        // V tichu nech floor sleduje realny sum.
         const frameP05 = sorted[(numBins * 0.05) | 0];
         adaptiveFloor += FLOOR_ADAPT_RATE * (frameP05 - adaptiveFloor);
     }
-    // During active transmission: adaptiveFloor stays frozen at pre-tx level
+    // Pri aktivnom prenose adaptiveFloor ostava zmrazeny.
     const floorGate = adaptiveFloor * FLOOR_MARGIN;
 
-    // 3b. Gate 1 — local MIN contrast
+    // 3b. Brana 1 pre lokalny kontrast.
     const R = CONTRAST_RADIUS;
     for (let i = 0; i < numBins; i++) {
         let minVal = Infinity;
@@ -209,10 +190,10 @@ function processFrame(samples) {
         bgMin[i] = (minVal === Infinity ? 1e-12 : minVal) + 1e-12;
     }
 
-    // 4. Scroll
+    // 4. Scroll.
     ctx.drawImage(canvas, 0, -1);
 
-    // 5. Paint
+    // 5. Kreslenie.
     const xScale = CANVAS_W / numBins;
     for (let i = 0; i < numBins; i++) {
         const mag   = mags[i];
@@ -243,7 +224,7 @@ function processFrame(samples) {
     ctx.putImageData(rowImageData, 0, CANVAS_H - 1);
 }
 
-// ─── Audio event handler ──────────────────────────────────────────────────────
+// Obsluha audio eventu.
 let audioprocessHandler = null;
 
 audioprocessHandler = function (e) {

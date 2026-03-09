@@ -5,21 +5,21 @@
 */
 
 
-// KNOWN ERRORS:
+// Zname chyby:
 // LinkError: _assert_fail is not a Function
-//      - probably caused by -s LINKABLE=1
+//  - mozne sposobene flagom -s LINKABLE=1
 // wasmExports.<function> is not a function
-//      - Missing EMSCRIPTEN_KEEPALIVE macros above C functions.
+//  - chybaju EMSCRIPTEN_KEEPALIVE makra nad C funkciami.
 
 // Predvolena trasa
 let LIBRARY_PATH = "./libs/tinytus/tinytus.wasm";
 
 import { ModemProfile } from "./modem_profile.js";
 
-// MEMORY:
-// - Max message length is 512 characters, each one of them can have 4 bytes
-//   that means we need to allocate at least 2048 bytes of memory for the input.
-// Looks like constants in the memory are stored from 1024.
+// Pamat:
+// - Max dlzka spravy je 512 znakov, max 4 bajty na znak.
+// - Vstup potrebuje aspon 2048 bajtov.
+// - Konstanty sa javia ulozene od offsetu 1024.
 
 let EXPORTS = null;
 let _LOADED = false;
@@ -58,7 +58,7 @@ export function requiresLoadedWASM(block) {
 }
 
 ////////////////////////////////////
-// Privatne funkcie
+// Sukromne funkcie.
 
 async function _init(path) {
     const response = await fetch(path);
@@ -170,17 +170,16 @@ function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
 }
 
 ////////////////////////////////////
-// Audio state
+// Stav audia.
 
 let currentStream = null;
 let currentContext = null;
 let currentRecorder = null;
 let currentDemodState = null;
 
-// Cleans up all audio resources. Returns a Promise that resolves when the
-// AudioContext is fully closed so callers can await proper teardown.
+// Uvolni audio zdroje a pocka na zavretie AudioContext.
 async function _stopListeningAsync() {
-    // Stop mic tracks first so the browser indicator light turns off promptly
+    // Najprv zastav mikrofonne tracky.
     if (currentStream) {
         try { currentStream.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
         currentStream = null;
@@ -210,7 +209,7 @@ async function _stopListeningAsync() {
 }
 
 ////////////////////////////////////
-// Exporty
+// Exporty.
 
 export let TinyTUS = {
     MAPPINGS: {
@@ -222,6 +221,14 @@ export let TinyTUS = {
     EXPORTS: {},
     afterLoad: requiresLoadedWASM,
     loadLibrary: _load,
+
+    // Precita C retazec z WASM pamate zacinajuci na ptr.
+    getStringFromPointer(ptr) {
+        if (!ptr) return '';
+        let end = ptr;
+        while (TinyTUS.MEMORY[end] !== 0) end++;
+        return new TextDecoder().decode(TinyTUS.MEMORY.subarray(ptr, end));
+    },
 
     getValueFromPointer(type, ptr) {
         if (!TYPE_TO_ARRAY.hasOwnProperty(type))
@@ -277,7 +284,7 @@ export let TinyTUS = {
     },
 
     /**
-     * Modulate a message into a waveform.
+        * Moduluj spravu na waveform.
      * @param {string} message
      * @param {ModemProfile|number|null} modem_profile
      * @returns {Float32Array}
@@ -300,34 +307,27 @@ export let TinyTUS = {
         );
     },
 
-    // Public sync wrapper kept for callers that don't need to await cleanup.
+    // Sync wrapper pre volania bez await.
     stopListening() {
         _stopListeningAsync().catch(e => console.warn("stopListening error:", e));
     },
 
-    // -------------------------------------------------------------------------
-    // Microphone initialisation
-    // -------------------------------------------------------------------------
+    // Inicializacia mikrofonu.
 
-    /** True while an initialisation attempt is in flight. */
+    /** True, ked prebieha inicializacia. */
     _initializationInProgress: false,
 
     /**
-     * Start microphone capture and hook it into the GFSK demodulator.
+    * Spusti zachyt mikrofonu a pripoj na GFSK demodulator.
      *
-     * Returns null on success, or an Error instance on failure.
-     * Never throws — all errors are returned so callers can react uniformly.
+    * Pri uspechu vrati null, inak Error.
+    * Funkcia nehadze, chyby vracia volajucemu.
      *
-     * Design notes vs. the previous implementation:
-     *  - The queue/retry mechanism has been removed.  It masked failures and
-     *    could loop forever.  Callers must debounce themselves if needed.
-     *  - getUserMedia is called only once.  Retrying a denied permission in a
-     *    tight loop can cause browsers to permanently block the origin.
-     *  - AudioContext autoplay policy is handled explicitly: if the context
-     *    cannot be resumed without a user gesture the function returns a
-     *    recoverable error instead of silently dying after a 1500 ms watchdog.
-     *  - stopListening is awaited so previous resources are truly released
-     *    before new ones are acquired.
+    * Poznamky k navrhu:
+    *  - Queue/retry je odstranene, volajuci riesi debounce.
+    *  - getUserMedia sa vola raz.
+    *  - Pri autoplay obmedzeni caka na gesto pouzivatela.
+    *  - stopListening sa awaituje pred novym startom.
      */
     tryStartListeningForIncomingMessages: async (modemProfile, onAudioProcess = null) => {
         console.group("[TinyTUS] tryStartListeningForIncomingMessages()");
@@ -336,7 +336,7 @@ export let TinyTUS = {
         console.log("  navigator.mediaDevices:", navigator.mediaDevices);
 
         if (TinyTUS._initializationInProgress) {
-            console.warn("  ⛔ Already in progress — returning null.");
+            console.warn("Already in progress - returning null.");
             console.groupEnd();
             return null;
         }
@@ -344,27 +344,27 @@ export let TinyTUS = {
 
         try {
             if (!navigator.mediaDevices?.getUserMedia) {
-                console.error("  ⛔ navigator.mediaDevices.getUserMedia not available.");
+                console.error("  navigator.mediaDevices.getUserMedia not available.");
                 console.groupEnd();
                 return new Error("Neboli detekované žiadne mediálne zariadenia...");
             }
 
-            console.log("  → Stopping any previous session...");
+            console.log("  -> Stopping any previous session...");
             await _stopListeningAsync();
-            console.log("  ✅ Previous session stopped.");
+            console.log("  Previous session stopped.");
 
             const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
-            console.log("  → Creating GFSK demodulator. modemProfilePtr:", modemProfilePtr);
+            console.log("  -> Creating GFSK demodulator. modemProfilePtr:", modemProfilePtr);
             currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
             console.log("  currentDemodState:", currentDemodState);
             if (!currentDemodState) {
-                console.error("  ⛔ gfsk_demod_create returned null/0.");
+                console.error("  gfsk_demod_create returned null/0.");
                 console.groupEnd();
                 return new Error("Failed to create GFSK demodulator state.");
             }
-            console.log("  ✅ GFSK demodulator created.");
+            console.log("  GFSK demodulator created.");
 
-            console.log("  → Calling getUserMedia...");
+            console.log("  -> Calling getUserMedia...");
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -377,9 +377,9 @@ export let TinyTUS = {
                     },
                     video: false,
                 });
-                console.log("  ✅ getUserMedia succeeded. Stream:", currentStream);
+                console.log("  getUserMedia succeeded. Stream:", currentStream);
             } catch (e) {
-                console.error("  ⛔ getUserMedia failed:", e.name, e.message);
+                console.error("  getUserMedia failed:", e.name, e.message);
                 try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (_) { }
                 currentDemodState = null;
                 console.groupEnd();
@@ -397,26 +397,26 @@ export let TinyTUS = {
                 return new Error(`Track not ready: ${audioTracks[0].readyState}`);
             }
 
-            console.log("  → Creating AudioContext. sampleRate:", modemProfile.sampleRate);
+            console.log("  -> Creating AudioContext. sampleRate:", modemProfile.sampleRate);
             currentContext = new AudioContext({ sampleRate: modemProfile.sampleRate, latencyHint: "interactive" });
             console.log("  AudioContext state after creation:", currentContext.state);
 
             if (currentContext.state === "suspended") {
-                console.warn("  AudioContext suspended — attempting resume...");
+                console.warn("  AudioContext suspended - attempting resume...");
                 try { await currentContext.resume(); } catch (_) { }
                 console.log("  AudioContext state after resume attempt:", currentContext.state);
             }
 
             if (currentContext.state === "running") {
-                console.log("  ✅ AudioContext running — connecting audio graph immediately.");
+                console.log("  AudioContext running - connecting audio graph immediately.");
                 _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
-                console.log("  ✅ Fully initialised.");
+                console.log("  Fully initialised.");
                 console.groupEnd();
                 return null;
             }
 
-            // Suspended — defer to gesture
-            console.warn("  ⚠️ AudioContext still not running (state:", currentContext.state, ") — closing and deferring to gesture.");
+            // Suspended stav odloz na gesto pouzivatela.
+            console.warn("  AudioContext still not running (state:", currentContext.state, ") - closing and deferring to gesture.");
             await currentContext.close();
             currentContext = null;
 
@@ -428,17 +428,17 @@ export let TinyTUS = {
 
             const handler = async () => {
                 removeListeners();
-                console.group("[TinyTUS] Gesture detected — starting AudioContext");
+                console.group("[TinyTUS] Gesture detected - starting AudioContext");
                 console.log("  currentStream alive:", !!currentStream);
                 console.log("  currentDemodState:", currentDemodState);
 
                 if (!currentStream || !currentDemodState) {
-                    console.warn("  ⛔ Stream or demod gone before gesture fired.");
+                    console.warn("  Stream or demod gone before gesture fired.");
                     console.groupEnd();
                     return;
                 }
                 try {
-                    console.log("  → Creating fresh AudioContext inside gesture handler...");
+                    console.log("  -> Creating fresh AudioContext inside gesture handler...");
                     currentContext = new AudioContext({
                         sampleRate: modemProfile.sampleRate,
                         latencyHint: "interactive",
@@ -447,7 +447,7 @@ export let TinyTUS = {
                     console.log("  AudioContext state:", currentContext.state);
 
                     if (currentContext.state === "suspended") {
-                        console.log("  → Calling resume()...");
+                        console.log("  -> Calling resume()...");
                         await currentContext.resume();
                         console.log("  AudioContext state after resume:", currentContext.state);
                     }
@@ -456,11 +456,11 @@ export let TinyTUS = {
                         throw new Error(`AudioContext still not running: ${currentContext.state}`);
                     }
 
-                    console.log("  ✅ Connecting audio graph.");
+                    console.log("  Connecting audio graph.");
                     _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
                     console.groupEnd();
                 } catch (e) {
-                    console.error("  ⛔ Failed to start AudioContext on gesture:", e);
+                    console.error("  Failed to start AudioContext on gesture:", e);
                     await _stopListeningAsync();
                     window.dispatchEvent(new CustomEvent("mic-blocked"));
                     console.groupEnd();
@@ -468,12 +468,12 @@ export let TinyTUS = {
             };
 
             GESTURE_EVENTS.forEach(ev => document.addEventListener(ev, handler, { once: true, capture: true }));
-            console.log("  ⏳ Waiting for user gesture...");
+            console.log("  Waiting for user gesture...");
             console.groupEnd();
             return null;
 
         } catch (e) {
-            console.error("  ⛔ Unexpected error:", e);
+            console.error("  Unexpected error:", e);
             await _stopListeningAsync();
             console.groupEnd();
             return e;
@@ -492,8 +492,8 @@ export let TinyTUS = {
 };
 
 window.addEventListener("beforeunload", () => {
-    // Synchronously stop all tracks so Chrome releases the hardware
-    // before the new page starts. _stopListeningAsync is too slow here.
+    // Synchronne zastav tracky pred reloadom.
+    // _stopListeningAsync je tu prilis pomale.
     if (currentStream) {
         try { currentStream.getTracks().forEach(t => t.stop()); } catch (_) { }
     }
@@ -507,12 +507,12 @@ window.addEventListener("beforeunload", () => {
 });
 
 /**
- * Wire up the ScriptProcessorNode between the mic stream and the WASM demod.
- * Called once the AudioContext is confirmed running.
+ * Prepoj mikrak so ScriptProcessorNode a WASM demodom.
+ * Volaj po potvrdeni stavu AudioContext ako running.
  */
 async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     if (!currentContext || !currentStream || !currentDemodState) {
-        console.error("[TinyTUS] _connectAudioGraph called with missing state — aborting.");
+        console.error("[TinyTUS] _connectAudioGraph called with missing state - aborting.");
         return;
     }
 
@@ -526,14 +526,14 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
     currentRecorder = new AudioWorkletNode(currentContext, "tinytus-processor");
 
-    // Accumulation buffer — collects 128-sample chunks until we have bufferSize
+    // Akumulacny buffer sklada 128-sample chunky do bufferSize.
     let accumulator = new Float32Array(bufferSize);
     let accumulatorFill = 0;
 
     currentRecorder.port.onmessage = (event) => {
         if (!currentDemodState) return;
 
-        const chunk = event.data; // always 128 samples
+        const chunk = event.data; // Vzdy 128 samplov.
         let chunkOffset = 0;
 
         while (chunkOffset < chunk.length) {
@@ -544,7 +544,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
             chunkOffset += toCopy;
 
             if (accumulatorFill === bufferSize) {
-                // Full buffer ready — send to WASM
+                // Plny buffer posli do WASM.
                 fillInputBufferWithFloat32(accumulator);
                 TinyTUS.EXPORTS.handle_input_samples(
                     currentDemodState,
@@ -553,12 +553,12 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
                 );
 
                 if (onAudioProcess) {
-                    const snapshot = accumulator.slice(); // copy for caller
+                    const snapshot = accumulator.slice(); // Kopia pre volajuceho.
                     onAudioProcess({ inputBuffer: { getChannelData: () => snapshot } });
                 }
 
                 accumulatorFill = 0;
-                // reuse same buffer — no allocation on hot path
+                // Znovu pouzi rovnaky buffer bez alokacie.
             }
         }
     };

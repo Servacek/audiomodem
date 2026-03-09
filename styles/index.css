@@ -47,9 +47,7 @@ body {
     transition: all 0.23s;
 }
 
-/********************************/
-/********   SCROLLBARS   ********/
-/********************************/
+/* Scrollbary */
 
 body::-webkit-scrollbar {
     width: 6px;
@@ -75,9 +73,7 @@ body::-webkit-scrollbar-thumb {
     scrollbar-color: var(--msger-scrollbar-thumb) var(--msger-scrollbar-track);
 }
 
-/********************************/
-/********   BUTTONS      ********/
-/********************************/
+/* Tlacidla */
 
 :disabled {
     background-color: grey;
@@ -87,13 +83,11 @@ body::-webkit-scrollbar-thumb {
     pointer-events: none;
 }
 
-/********************************/
-/********     HEADER     ********/
-/********************************/
+/* Hlavicka */
 
 .header {
     display: flex;
-    flex: 0 0 auto; /* Header size won't shrink or grow */
+    flex: 0 0 auto; /* Velkost hlavicky sa nemeni. */
     justify-content: space-between;
     padding: 14px;
     padding-left: 16px;
@@ -105,13 +99,13 @@ body::-webkit-scrollbar-thumb {
     color: var(--msger-header-colour);
     box-shadow: 0px 2px 0px 0px rgba(0, 0, 0, 0.4);
 
-    /* Prevent text selection */
+    /* Zakaz vyber textu. */
     -webkit-user-select: none; /* Safari */
     -moz-user-select: none; /* Firefox */
     -ms-user-select: none; /* IE10+/Edge */
     user-select: none; /* Standard */
 
-    /* Make sure the header is over everything */
+    /* Drz hlavicku nad obsahom. */
     position: sticky;
     top: 0;
 }
@@ -145,7 +139,7 @@ body::-webkit-scrollbar-thumb {
 }
 
 .unselectable {
-    /* Prevent text selection */
+    /* Zakaz vyber textu. */
     -webkit-user-select: none; /* Safari */
     -moz-user-select: none; /* Firefox */
     -ms-user-select: none; /* IE10+/Edge */
@@ -177,15 +171,13 @@ body::-webkit-scrollbar-thumb {
     margin-left: .5em;
 }
 
-/********************************/
-/********      TABS      ********/
-/********************************/
+/* Taby */
 
 #tabs {
     display: flex;
-    flex: 1 1 auto; /* Fills remaining space */
-    flex-direction: column; /* Stack tabs vertically */
-    overflow: hidden; /* Prevent the .tab widget from overflowing */
+    flex: 1 1 auto; /* Vypln zvysny priestor. */
+    flex-direction: column; /* Taby pod seba. */
+    overflow: hidden; /* Zamedz pretekaniu tabu. */
 }
 
 .tab-button.selected {
@@ -194,10 +186,10 @@ body::-webkit-scrollbar-thumb {
 
 .tab {
     flex: 1 1 auto;
-    display: flex; /* Optional: Makes content alignment easier */
+    display: flex; /* Jednoduchsie zarovnanie obsahu. */
     flex-direction: column;
-    overflow-y: scroll; /* Use 'scroll' to ensure scrollbars appear on mobile */
-    -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+    overflow-y: scroll; /* Scrollbar aj na mobile. */
+    -webkit-overflow-scrolling: touch; /* Plynuly scroll na iOS. */
     margin: 20px;
     margin-bottom: 0px;
 }
@@ -241,9 +233,7 @@ body::-webkit-scrollbar-thumb {
     display: none;
 }
 
-/********************************/
-/********      FOOTER    ********/
-/********************************/
+/* Paticka */
 
 footer {
     font-size: 6pt;
@@ -251,13 +241,11 @@ footer {
     opacity: 0.4;
 }
 
-/********************************/
-/********      MODAL     ********/
-/********************************/
+/* Okno */
 
-/* Modal Styles */
+/* Styly modalu */
 .modal {
-    display: none; /* Hidden by default */
+    display: none; /* Predvolene skryte. */
     position: fixed;
     z-index: 1000;
     left: 0;
@@ -265,7 +253,7 @@ footer {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.7); /* Black background with transparency */
+    background-color: rgba(0, 0, 0, 0.7); /* Cierne pozadie s priehladnostou. */
     justify-content: center;
     align-items: center;
 }
@@ -284,7 +272,7 @@ footer {
 
 .modal .modal-form {
     /* margin: 0 auto; */
-    margin-top: 40px; /* Spacing between the header and the form */
+    margin-top: 40px; /* Odsadenie medzi hlavickou a formularom. */
     width: 100%;
     /* padding-bottom: 20px; */
 }
@@ -375,9 +363,7 @@ footer {
     margin: 20px 0;
 } */
 
-/********************************/
-/********   CHECKBOXES   ********/
-/********************************/
+/* Checkboxy */
 
 input[type="checkbox"] {
     appearance: none;
@@ -423,9 +409,7 @@ input[type="checkbox"]:focus-visible {
     outline-offset: 2px;
 }
 
-/********************************/
-/******** INPUT BARS ********/
-/********************************/
+/* Inputy */
 
 input[type="text"],
 input[type="number"] {
@@ -443,9 +427,7 @@ input[type="number"]:focus {
     border-color: var(--msger-send-button-bg);
 }
 
-/********************************/
-/******** SELECT MENUS ********/
-/********************************/
+/* Select menu */
 
 /* select {
     appearance: none;
@@ -497,9 +479,7 @@ select option {
     background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23aaa" d="M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z"/></svg>');
 } */
 
-/********************************/
-/******** MOBILE DEVICES ********/
-/********************************/
+/* Mobilne zariadenia */
 
 @media (max-width: 600px) {
 
@@ -515,7 +495,7 @@ select option {
     }
 
     body, #app {
-        /* Hide the BG image since it makes too much noise on small screens */
+        /* Na malych displejoch skry obrazok pozadia. */
         background-image: none !important;
     }
 

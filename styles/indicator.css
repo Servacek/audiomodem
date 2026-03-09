@@ -1,24 +1,24 @@
-/* ─── Microphone status dot (header title) ──────────────────────────────── */
+/* Stavova bodka mikrofonu v hlavicke. */
 
 .header {
-    /* existing styles stay, just ensure this: */
+    /* Zachovaj existujuce styly, pridaj toto. */
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
 }
 
-/* Left slot — theme button */
+/* Lava cast hlavicky: tlacidlo temy. */
 .header #theme-toggle-button {
     justify-self: start;
 }
 
-/* Center slot — title + dot */
+/* Stred hlavicky: nazov a bodka. */
 #header-title {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     justify-self: center;
-    /* Remove the absolute positioning entirely */
+    /* Zrus absolutne pozicovanie. */
     position: static;
     transform: none;
     left: auto;
@@ -32,7 +32,7 @@
     pointer-events: auto;
 }
 
-/* Right slot — tab buttons */
+/* Prava cast hlavicky: tab tlacidla. */
 .header #tab-buttons {
     justify-self: end;
 }
@@ -57,48 +57,48 @@
     margin-right: 10px;
     border-radius: 50%;
     flex-shrink: 0;
-    /* Smooth colour transitions */
+    /* Hladky prechod farieb. */
     transition: background-color 0.4s ease, box-shadow 0.4s ease;
-    /* Keeps the dot vertically centred with the text cap-height */
+    /* Udrz bodku vertikalne vystredenu. */
     position: relative;
     top: 0px;
 }
 
-/* ── idle: mic not yet acquired (page just loaded) ── */
+/* idle: mikrak este neziskany */
 .mic-status-dot.mic-status--idle {
     background-color: #666;
     box-shadow: none;
 }
 
-/* ── waiting: mic acquired but AudioContext needs a gesture ── */
+/* waiting: mikrak je, AudioContext caka na gesto */
 .mic-status-dot.mic-status--waiting {
     background-color: #f0a500;
     box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.7);
     animation: mic-pulse-amber 2s ease-out infinite;
 }
 
-/* ── listening: mic running, silence (no signal above threshold) ── */
+/* listening: mikrak bezi, ale je ticho */
 .mic-status-dot.mic-status--listening {
     background-color: #888;
     box-shadow: 0 0 4px 1px rgba(160, 160, 160, 0.4);
     animation: none;
 }
 
-/* ── active: mic running AND receiving audio above threshold ── */
+/* active: mikrak prijima signal nad prahom */
 .mic-status-dot.mic-status--active {
     background-color: #3ecf6e;
     box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);
     animation: mic-pulse-green 1.4s ease-out infinite;
 }
 
-/* ── blocked: permission denied or hard error ── */
+/* blocked: zamietnuty pristup alebo tvrda chyba */
 .mic-status-dot.mic-status--blocked {
     background-color: #e05252;
     box-shadow: 0 0 5px 1px rgba(224, 82, 82, 0.5);
     animation: none;
 }
 
-/* ── Pulse keyframes ── */
+/* Keyframy pulzu. */
 @keyframes mic-pulse-green {
     0% {
         box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);

@@ -1,14 +1,12 @@
 
 
-// import {modulateStringToWaveform, FSK, encodeStringToBits} from './modulator.js';
-// import {decodeBitsToString, getPeakFrequency} from './demodulator.js';
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import * as CONST from '../constants.js';
 import { max, formatDate } from '../utils.js';
 import { setMicStatus } from '../indicator.js';
 
-// TODO: Disable the send button when no content is available.
-// Provide the send button also on mobile in some minimazed form.
+// TODO: Vypni odoslanie pri prazdnom obsahu.
+// TODO: Pridaj kompaktnu verziu tlacidla aj na mobil.
 
 ////////////////////
 
@@ -19,20 +17,19 @@ const sendMessageButton = document.getElementById("send-message-button");
 
 ////////////////////
 
-var messagesToSend = [];
-var currentlySendingMessage = null;
+let messagesToSend = [];
+let currentlySendingMessage = null;
 
 ////////////////////
 
 function sendNextMessage() {
     if (currentlySendingMessage) {
-        return // We are already sending something
+        return // Uz sa odosiela ina sprava.
     }
 
     const nextMessage = messagesToSend.shift();
     if (nextMessage && nextMessage.waveform) {
-        // Check if the data are normalized, if not normalize it
-        // since some browsers require them normalized.
+        // Uisti sa, ze waveform je normalizovany.
         const messageWaveformMax = max(nextMessage.waveform);
         if (messageWaveformMax > 1) {
             nextMessage.waveform = nextMessage.waveform.map(x => x / messageWaveformMax);
@@ -40,16 +37,16 @@ function sendNextMessage() {
 
         const nextMessageWaveform = nextMessage.waveform;
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const buffer = audioContext.createBuffer(1, nextMessageWaveform.length, nextMessage.modemProfile.sample_rate);
-        const channelData = buffer.getChannelData(0); // Get the first (and only) channel
-        channelData.set(nextMessageWaveform); // Copy the sine wave data into the buffer
+        const buffer = audioContext.createBuffer(1, nextMessageWaveform.length, nextMessage.sampleRate);
+        const channelData = buffer.getChannelData(0); // Prvy a jediny kanal.
+        channelData.set(nextMessageWaveform); // Skopiruj data do buffera.
 
-        // 4. Create a source and play the buffer
+        // Vytvor source a prehraj buffer.
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContext.destination);
 
-        // Start playback
+        // Spusti prehravanie.
         source.startTime = audioContext.currentTime;
         source.start();
         currentlySendingMessage = nextMessage;
@@ -60,7 +57,7 @@ function sendNextMessage() {
         }, 50);
 
         source.onended = () => {
-            clearInterval(intervalId); // Vypnime progress aktualizovanie progress baru.
+            clearInterval(intervalId); // Zastav aktualizaciu progress baru.
 
             currentlySendingMessage.dispatchEvent(new Event("sent"));
             currentlySendingMessage = null;
@@ -86,26 +83,26 @@ async function sendMessage(message) {
     window.dispatchEvent(new CustomEvent("message-send-started", {
         "detail": { message: message }
     }));
-    // Ak mame pripojene USB - pockajme chvilku kym sa zopne.
+    // Pri pripojenom USB kratko pockaj na zopnutie.
     setTimeout(() => sendNextMessage(), window.port != null ? 500 : 0);
 }
 
-// TODO: This is temporary until we decide on the design.
+// TODO: Docasne riesenie do finalneho dizajnu.
 const sendMessageButtonWithIcon = document.getElementById("send-message-button-with-icon");
 
 inputBar.oninput = function () {
-    //this.style.height = 'auto'; // Reset height to calculate scrollHeight
-    //this.style.height = `${Math.min(this.scrollHeight, 200)}px`; // Adjust 200 to match max-height
+    //this.style.height = 'auto'; // Reset vysky pre vypocet scrollHeight.
+    //this.style.height = `${Math.min(this.scrollHeight, 200)}px`; // 200 musi sediet s max-height.
 
     sendMessageButton.disabled = !this.value.trim();
     sendMessageButtonWithIcon.disabled = sendMessageButton.disabled;
 }
 
-// Handle submit button being pressed
+// Obsluha kliknutia na odoslanie.
 sendMessageButton.addEventListener("click", () => inputArea.submit());
 sendMessageButtonWithIcon.addEventListener("click", () => sendMessageButton.click());
 
-// Handle enter key, when SHIFT is pressed do not send the message.
+// Enter odosle spravu, Shift+Enter vlozi novy riadok.
 inputArea.addEventListener("keydown", event => {
     if (sendMessageButtonWithIcon.offsetParent == null && event.keyCode === 13 && !event.shiftKey) {
         event.preventDefault();
@@ -115,15 +112,15 @@ inputArea.addEventListener("keydown", event => {
 
 inputArea.submit = () => {
     const msgText = inputBar.value.trim();
-    if (!msgText) return; // Ignore pressing blank enters
+    if (!msgText) return; // Ignoruj prazdnu spravu.
 
-    /// @TODO: Add option to change the username.
-    // Display the message first.
+    /// @TODO: Pridaj moznost menit username.
+    // Najprv zobraz spravu.
     const newMessage = createSelfMessage(msgText);
     clearInputBar();
     displayMessageAtBottom(newMessage);
 
-    // This is for the future when we will want to debug the waves.
+    // Rezerva pre buduci debug waveformu.
     // if (CONST.DEBUG_MODE) {
     //     plotWaveform(newMessage.waveform);
     // }
@@ -155,7 +152,7 @@ function createUserMessage(author, alignment, content) {
     const bubble = document.createElement("div");
     bubble.classList.add("msg-bubble");
     bubble.addEventListener("dblclick", (e) => {
-        // Double clicking the text bubble will copy the message.
+        // Dvojklik na bublinu skopiruje spravu.
         navigator.clipboard.writeText(msg.content);
     });
 
@@ -182,46 +179,6 @@ function createUserMessage(author, alignment, content) {
     text.classList.add("msg-text");
     text.textContent = content;
 
-    // TODO: Maybe rather a dialog for right click?
-    // const downloadButton = document.createElement("button");
-    // downloadButton.classList.add("message-button");
-    // downloadButton.classList.add("download-waveform-button");
-    // downloadButton.innerHTML = `<i class="fa-solid fa-file-waveform"></i>`;
-    // downloadButton.addEventListener("click", () => {
-    //     // TODO: Implement this properly.
-    //     const blob = new Blob([new Int16Array(msg.waveform).buffer], {type: "audio/wav"});
-    //     const url = URL.createObjectURL(blob);
-    //     const a = document.createElement("a");
-    //     a.href = url;
-    //     a.download = `AudioModem-${msg.date.toISOString()}.wav`;
-    //     a.click();
-    // });
-    // bubble.appendChild(downloadButton);
-
-    // const deleteButton = document.createElement("button");
-    // deleteButton.classList.add("message-button");
-    // deleteButton.classList.add("delete-button");
-    // deleteButton.innerHTML = `<i class="fa-solid fa-trash"></i>`;
-    // deleteButton.addEventListener("click", (e) => {
-    //     // Double clicking the text bubble will copy the message.
-    //     const confirm = window.confirm("Are you sure you want to delete this message?");
-    //     if (confirm) {
-    //         displayMessageAtBottom(null);
-    //         sendMessage(null);
-    //     }
-    // });
-    // bubble.appendChild(deleteButton);
-
-    // const copyButton = document.createElement("button");
-    // copyButton.classList.add("message-button");
-    // copyButton.classList.add("copy-button");
-    // copyButton.innerHTML = `<i class="fa-solid fa-clipboard"></i>`;
-    // copyButton.addEventListener("click", (e) => {
-    //     // Double clicking the text bubble will copy the message.
-    //     navigator.clipboard.writeText(msg.content);
-    // });
-    // bubble.appendChild(copyButton);
-
     msg.bubble = bubble;
     msg.content = content;
 
@@ -232,24 +189,12 @@ function createUserMessage(author, alignment, content) {
     return msg;
 }
 
-// The name should be safe to use in innerHTML
+// Meno musi byt bezpecne pre innerHTML.
 function getUsername() {
     const usernameConfigInput = document.getElementById("username-config-input");
     const username = usernameConfigInput.value || localStorage.getItem("username");
-    return username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return (username || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
-window.addEventListener("microphone-waiting-for-gesture", () => {
-    displayMessageAtBottom(systemMessage(
-        "Kliknite kdekoľvek na stránku pre aktiváciu mikrofónu.", "info"
-    ));
-});
-
-// window.addEventListener("microphone-started", () => {
-//     displayMessageAtBottom(systemMessage(
-//         "Mikrofón bol aktivovaný.", "success"
-//     ));
-// });
 
 function createSelfMessage(text, image = null) {
     const username = getUsername();
@@ -266,10 +211,12 @@ function createSelfMessage(text, image = null) {
     message.progressBar = progressBar;
     message.bubble.appendChild(progressBar)
 
-    // TODO: Add option to choose which profile to use.
     message.modemProfile = TinyTUS.currentlyUsedModemProfile;
-    print("Modulating message with profile:", message.modemProfile);
+    console.log("Modulating message with profile:", message.modemProfile);
     message.waveform = TinyTUS.modulateMessage(text, message.modemProfile);
+    // Uloz sample_rate v case modulacie, aby sa prehravanie nespoliehalo
+    // na aktualnu hodnotu profilu (moze sa zmenit pred prehranim).
+    message.sampleRate = message.modemProfile.sample_rate;
 
     return message;
 }
@@ -298,11 +245,9 @@ function displayMessageAtBottom(msg) {
     const currentDate = new Date().toISOString().split('T')[0];
     const lastMessageDate = lastMessage ? new Date(lastMessage.date) : null;
     const currentDateObject = new Date(currentDate);
-    const dayDiffers = lastMessageDate ? (
-        lastMessageDate.getDate() !== currentDateObject.getDate() &&
-        lastMessageDate.getMonth() !== currentDateObject.getMonth() &&
-        lastMessageDate.getFullYear() !== currentDateObject.getFullYear()
-    ) : null;
+    const dayDiffers = lastMessageDate
+        ? lastMessageDate.toDateString() !== currentDateObject.toDateString()
+        : null;
 
     if (!lastMessage || dayDiffers) {
         const separator = document.createElement('div');
@@ -317,19 +262,19 @@ function displayMessageAtBottom(msg) {
     scrollToBottom();
 
     if (messageArea.offsetParent === null && msg?.system !== true) {
-        // Nemame otvoreny cet a prisla nam sprava.
+        // Cet je zatvoreny a prisla nova sprava.
         document.getElementById('chat-button').classList.add('new-message');
     }
 }
 
 
 function scrollToBottom() {
-    // Probably fine, but it could scroll a bit more...
+    // Posun na koniec chatu.
     messageArea.scrollTop = messageArea.scrollHeight;
 }
 
 
-//// MODALS
+// Modaly.
 
 
 const attachmentInput = document.getElementById('attachment-input');
@@ -344,14 +289,14 @@ function closeImageUploadModal() {
     inputBar.focus();
 }
 
-// Handle Send Button Click
+// Obsluha odoslania obrazka.
 sendButton.addEventListener('click', () => {
     const labelText = imageLabel.value || "";
 
-    // Log data or process the image and label
+    // Tu sa mozu spracovat data obrazka a popisu.
     console.log('Image sent with label:', labelText);
 
-    // Optionally append the image to the chat area
+    // Pridaj obrazok do chatu.
     const imgElement = document.createElement('img');
     imgElement.src = modalImage.src;
     imgElement.alt = labelText;
@@ -373,11 +318,11 @@ sendButton.addEventListener('click', () => {
     displayMessageAtBottom(message);
     sendMessage(message);
 
-    // Close the modal
+    // Zavri modal.
     closeImageUploadModal();
 
     setTimeout(() => {
-        // Clear the input since we have used it for the modal
+        // Vycisti vstup po pouziti v modale.
         clearInputBar();
     }, 0);
 });
@@ -397,21 +342,35 @@ function systemMessage(text, type, icon = null) {
     msg.appendChild(iconElement)
 
     const content = document.createElement("span");
-    // Using innerHTML here since
+    // Tu je innerHTML pouzite zamerne.
     content.innerHTML = text;
     msg.appendChild(content);
 
     return msg;
 }
 
-// Close the modal when clicking outside the content
+function openSettingsTab() {
+    const configButton = document.getElementById("config-button");
+    if (configButton) {
+        configButton.click();
+    }
+}
+
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+// Zavri modal pri kliknuti mimo obsahu.
 imageModal.addEventListener('click', (event) => {
-    if (event.target === imageModal) { // This has to be here!!!
+    if (event.target === imageModal) { // Zavri len pri kliku na overlay.
         closeImageUploadModal();
     }
 })
 
-// Handle file selection
+// Obsluha vyberu suboru.
 attachmentInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -419,16 +378,16 @@ attachmentInput.addEventListener('change', (event) => {
         reader.onload = (e) => {
             const imageUrl = e.target.result;
 
-            // Set the modal image source
+            // Nastav zdroj obrazka v modale.
             modalImage.src = imageUrl;
 
             imageLabel.value = inputBar.value;
 
-            // Show the modal
+            // Zobraz modal.
             imageModal.style.display = 'flex';
             imageLabel.style.display = "flex";
-            sendButton.style.display = "absolute";
-            // Focus the label input
+            sendButton.style.display = "flex";
+            // Nastav focus na vstup popisu.
             imageLabel.focus();
         };
         reader.readAsDataURL(file);
@@ -437,7 +396,7 @@ attachmentInput.addEventListener('change', (event) => {
     }
 });
 
-// Handle pressing enter at the modal
+// Enter v modale odosle.
 imageModal.addEventListener("keydown", (event) => {
     if (event.key === 'Enter') {
         event.preventDefault();
@@ -445,7 +404,7 @@ imageModal.addEventListener("keydown", (event) => {
     }
 });
 
-//////// SETUP
+// Inicializacia
 
 if (!navigator.mediaDevices) {
     alert("Neboli detekované žiadne mediálne zariadenia potrebné pre príjimanie a odosielanie údajov alebo pre funkčnosť oscilátora. Možno pomôže opätovne načítať stránku.");
@@ -454,38 +413,46 @@ if (!navigator.mediaDevices) {
 
 let wasmLoaded = false;
 let hasUserInteracted = false;
+let micPermissionDenied = false;
 
-// ─── Verbose init ─────────────────────────────────────────────────────────────
+// Detailny init log.
 
 let _initCallCount = 0;
 
 const initStateUpdate = async (reason = "unknown") => {
     const callId = ++_initCallCount;
-    console.group(`[INIT #${callId}] initStateUpdate() — reason: "${reason}"`);
+    console.group(`[INIT #${callId}] initStateUpdate() - reason: "${reason}"`);
     console.log("  wasmLoaded:", wasmLoaded);
     console.log("  hasUserInteracted:", hasUserInteracted);
     console.log("  _initializationInProgress:", TinyTUS._initializationInProgress);
     console.log("  currentlyUsedModemProfile:", TinyTUS.currentlyUsedModemProfile);
 
     if (!wasmLoaded) {
-        console.warn("  ⛔ Bailing — WASM not loaded yet.");
+        console.warn("  Bailing - WASM not loaded yet.");
         console.groupEnd();
         return;
     }
 
     if (!TinyTUS.currentlyUsedModemProfile) {
-        console.warn("  ⛔ Bailing — currentlyUsedModemProfile is null/undefined.");
+        console.warn("  Bailing - currentlyUsedModemProfile is null/undefined.");
         console.groupEnd();
         return;
     }
 
     if (TinyTUS._initializationInProgress) {
-        console.warn("  ⛔ Bailing — initialization already in progress.");
+        console.warn("  Bailing - initialization already in progress.");
         console.groupEnd();
         return;
     }
 
-    console.log("  ✅ All checks passed — calling tryStartListeningForIncomingMessages...");
+    // Pri zamietnutom mikraku nevolaj stale dokola init.
+    if (micPermissionDenied && reason !== "retry-microphone") {
+        console.warn("  Bailing - microphone permission is denied; waiting for explicit retry.");
+        console.groupEnd();
+        return;
+    }
+
+    console.log("  All checks passed - calling tryStartListeningForIncomingMessages...");
     console.groupEnd();
 
     const error = await TinyTUS.tryStartListeningForIncomingMessages(
@@ -498,11 +465,12 @@ const initStateUpdate = async (reason = "unknown") => {
     );
 
     if (error != null) {
-        console.error(`[INIT #${callId}] ❌ tryStartListening returned error:`, error.name, error.message, error);
+        console.error(`[INIT #${callId}] tryStartListening returned error:`, error.name, error.message, error);
         setMicStatus("blocked");
 
         let errorMsg = "Nepodarilo sa spustiť prijímanie správ: ";
         if (error.name === 'NotAllowedError') {
+            micPermissionDenied = true;
             errorMsg += "Prístup k mikrofónu bol zamietnutý. Povoľte prístup v nastaveniach prehliadača.";
         } else if (error.name === 'NotFoundError') {
             errorMsg += "Nebol nájdený žiadny mikrofón. Skontrolujte pripojenie mikrofónu.";
@@ -517,11 +485,12 @@ const initStateUpdate = async (reason = "unknown") => {
             "error"
         ));
     } else {
-        console.log(`[INIT #${callId}] ✅ tryStartListening returned null (success or waiting-for-gesture).`);
+        micPermissionDenied = false;
+        console.log(`[INIT #${callId}] tryStartListening returned null (success or waiting-for-gesture).`);
     }
 };
 
-// ─── User interaction unlock ──────────────────────────────────────────────────
+// Odomknutie po interakcii pouzivatela.
 
 function enableUserInteraction() {
     if (hasUserInteracted) return;
@@ -529,34 +498,30 @@ function enableUserInteraction() {
     console.log("[MIC] First user interaction detected.");
 
     if (wasmLoaded) {
-        console.log("[MIC] WASM already loaded — triggering initStateUpdate from user interaction.");
+        console.log("[MIC] WASM already loaded - triggering initStateUpdate from user interaction.");
         initStateUpdate("first-user-interaction");
     } else {
-        console.log("[MIC] WASM not yet loaded — initStateUpdate will fire from wasm-library-loaded.");
+        console.log("[MIC] WASM not yet loaded - initStateUpdate will fire from wasm-library-loaded.");
     }
 }
 
 document.addEventListener('click', enableUserInteraction, { once: true });
 document.addEventListener('keydown', enableUserInteraction, { once: true });
 
-// ─── Window event listeners ───────────────────────────────────────────────────
+// Listenery okien.
 
-window.addEventListener("wasm-library-loaded", async () => {
+const handleWasmLibraryLoaded = async () => {
     console.log("[EVENT] wasm-library-loaded fired. Setting wasmLoaded = true.");
     wasmLoaded = true;
     await initStateUpdate("wasm-library-loaded");
-});
+};
+
+window.addEventListener("wasm-library-loaded", handleWasmLibraryLoaded);
 
 if (TinyTUS.isLibraryLoaded()) {
-    // WASM already loaded before this listener was registered
+    // WASM bol nacitany skor, nez sa registroval listener.
     wasmLoaded = true;
     initStateUpdate("wasm-already-loaded-on-register");
-} else {
-    window.addEventListener("wasm-library-loaded", async () => {
-        console.log("[EVENT] wasm-library-loaded fired.");
-        wasmLoaded = true;
-        await initStateUpdate("wasm-library-loaded");
-    });
 }
 
 window.addEventListener("active-modem-profile-changed", async (e) => {
@@ -572,20 +537,21 @@ window.addEventListener("modem-profile-updated", async (e) => {
 window.addEventListener("retry-microphone", async () => {
     console.log("[EVENT] retry-microphone fired.");
     displayMessageAtBottom(systemMessage("Pokúšam sa znova spustiť mikrofón...", "info"));
-    // Reset the flag so the retry can actually proceed
+    // Reset flagu, aby retry realne prebehol.
+    micPermissionDenied = false;
     TinyTUS._initializationInProgress = false;
     await initStateUpdate("retry-microphone");
 });
 
 window.addEventListener("microphone-waiting-for-gesture", () => {
-    console.log("[MIC] microphone-waiting-for-gesture — AudioContext needs a user gesture.");
+    console.log("[MIC] microphone-waiting-for-gesture - AudioContext needs a user gesture.");
     displayMessageAtBottom(systemMessage(
         "Kliknite kdekoľvek na stránku pre aktiváciu mikrofónu.", "info"
     ));
 });
 
 window.addEventListener("microphone-started", () => {
-    console.log("[MIC] microphone-started — audio graph connected and running.");
+    console.log("[MIC] microphone-started - audio graph connected and running.");
 });
 
 window.addEventListener("mic-blocked", () => {
@@ -603,7 +569,7 @@ window.addEventListener("message-received", (event) => {
 });
 
 window.addEventListener("wasm-library-failed", () => {
-    console.error("[EVENT] wasm-library-failed — WASM could not be loaded.");
+    console.error("[EVENT] wasm-library-failed - WASM could not be loaded.");
     wasmLoaded = false;
     setMicStatus("blocked");
     displayMessageAtBottom(systemMessage("Načítavanie externých knižníc zlyhalo. Pokúste sa reštartovať stránku, alebo ak chyba pretrváva, kontaktujte správcu.", "error"));
@@ -611,7 +577,26 @@ window.addEventListener("wasm-library-failed", () => {
 
 window.addEventListener("usb-device-connected", (event) => {
     console.log("[USB] Device connected:", event.detail.device.productName);
-    displayMessageAtBottom(systemMessage(`USB zariadenie pripojené: <span style="color: var(--msger-send-button-bg);">${event.detail.device.productName}</span>`, "info"));
+    const safeName = escapeHtml(event.detail.device.productName || "USB Zariadenie");
+    const message = systemMessage(
+        `USB zariadenie pripojené: <span class="usb-device-name-ref">${safeName}</span>`,
+        "info"
+    );
+
+    const deviceNameRef = message.querySelector(".usb-device-name-ref");
+    if (deviceNameRef) {
+        deviceNameRef.setAttribute("role", "button");
+        deviceNameRef.setAttribute("tabindex", "0");
+        deviceNameRef.addEventListener("click", openSettingsTab);
+        deviceNameRef.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openSettingsTab();
+            }
+        });
+    }
+
+    displayMessageAtBottom(message);
 });
 
 window.addEventListener("usb-device-connection-failed", (event) => {
@@ -628,7 +613,7 @@ document.getElementById('chat-button').addEventListener('click', () => {
     document.getElementById('chat-button').classList.remove('new-message');
 });
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+// Login.
 
 function onUserLoggedIn() {
     console.log("[AUTH] onUserLoggedIn fired. username:", getUsername());
