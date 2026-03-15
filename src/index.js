@@ -250,9 +250,24 @@ if (navigator.usb) {
 }
 
 TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
+    TinyTUS._frameReceivedDuringDemodPass = true;
     const bytes = TinyTUS.getDynamicBufferFromPointer("u8", frame_ptr, frame_len);
-    console.log("Received frame of length", frame_len, "data:", bytes);
-    window.dispatchEvent(new CustomEvent("message-received", { detail: { bytes } }));
+    const profile = TinyTUS._activeDemodProfileForCallback || null;
+    console.log("Received frame of length", frame_len, "data:", bytes, "profile:", profile);
+    window.dispatchEvent(new CustomEvent("message-received", { detail: { bytes, profile } }));
+};
+
+TinyTUS.MAPPINGS.on_bytes_received = (bytes_ptr, bytes_len) => {
+    const profile = TinyTUS._activeDemodProfileForCallback || null;
+    let bytes = [];
+
+    if (bytes_ptr && bytes_len > 0) {
+        bytes = TinyTUS.getDynamicBufferFromPointer("u8", bytes_ptr, bytes_len);
+    }
+
+    window.dispatchEvent(new CustomEvent("message-marker-detected", {
+        detail: { profile, bytesLen: bytes_len, bytes }
+    }));
 };
 
 TinyTUS.loadLibrary();

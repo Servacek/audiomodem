@@ -63,7 +63,7 @@
                 <i id="theme-toggle-button-icon" class="fas"></i>
             </button>
             <div id="header-title">
-                <i id="mic-status-dot" class="mic-status-dot fas fa-microphone mic-status--idle" title="Mikrofón: čaká..."></i>
+                <i id="mic-status-dot" class="mic-status-dot mic-status--idle" title="Mikrofón: čaká..."></i>
                 AudioModem
             </div>
             <div id="tab-buttons">
@@ -110,10 +110,10 @@
                 </header>
 
                 <h3>Všeobecné</h3>
-                <label class="config-option">
+                <label id="username-config-option" class="config-option">
                     <span>Používateľské meno</span>
                     <input id="username-config-input" type="text" value="Anonymný" maxlength="16">
-                    <div style="white-space: nowrap;">
+                    <div class="remember-me-inline-wrap">
                         <label for="remember-me-config">
                             <input id="remember-me-config" type="checkbox"> Zapamätať si ma
                         </label>
@@ -127,10 +127,16 @@
                     Modemové profily definujú parametre modulácie a demodulácie zvukového signálu.
                 </p>
                 <div class="profiles-header">
-                    <button id="add-profile-button">
-                        <i class="fas fa-plus"></i>
-                        Pridať profil
-                    </button>
+                    <div class="profiles-header-actions">
+                        <button id="add-profile-button" type="button">
+                            <i class="fas fa-plus"></i>
+                            Pridať profil
+                        </button>
+                        <button id="import-profile-trigger-button" type="button">
+                            <i class="fas fa-file-import"></i>
+                            Importovať profil
+                        </button>
+                    </div>
                 </div>
 
                 <div id="profiles-container">
@@ -312,6 +318,38 @@
                 <div class="field modal-footer">
                     <button id="confirmation-cancel-button" class="modal-button cancel">Zrušiť</button>
                     <button id="confirmation-confirm-button" class="modal-button confirm">Odstrániť</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-profile-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-title">Vytvoriť profil z kódu</div>
+            </div>
+            <div class="modal-form">
+                <div class="field">
+                    <div class="field-title">KOD PROFILU</div>
+                    <div class="field-input">
+                        <input id="import-profile-modal-input" type="text" placeholder="Vlozte kod alebo naskenujte QR" autocomplete="off">
+                    </div>
+                    <div id="import-profile-validation-text"></div>
+                </div>
+                <div class="field">
+                    <button id="import-profile-scan-button" type="button">
+                        <i class="fas fa-qrcode"></i>
+                        Skenovať QR kód
+                    </button>
+                    <div id="import-profile-scan-unavailable-note" style="display: none;"></div>
+                </div>
+                <div class="field" id="import-profile-scanner-field" style="display: none;">
+                    <video id="import-profile-video" autoplay playsinline muted></video>
+                    <div id="import-profile-scan-status">Namierte kameru na QR kód.</div>
+                </div>
+                <div class="field modal-footer">
+                    <button id="import-profile-cancel-button" class="modal-button cancel" type="button">Zrušiť</button>
+                    <button id="import-profile-confirm-button" class="modal-button confirm" type="button" disabled>Vytvoriť</button>
                 </div>
             </div>
         </div>

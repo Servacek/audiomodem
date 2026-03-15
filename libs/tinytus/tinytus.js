@@ -175,7 +175,8 @@ function _modemProfileOrPtrToPtr(modem_profile_or_ptr) {
 let currentStream = null;
 let currentContext = null;
 let currentRecorder = null;
-let currentDemodState = null;
+let currentDemodStates = [];
+let currentDemodProfiles = [];
 
 // Uvolni audio zdroje a pocka na zavretie AudioContext.
 async function _stopListeningAsync() {
@@ -202,10 +203,15 @@ async function _stopListeningAsync() {
         currentContext = null;
     }
 
-    if (currentDemodState !== null && currentDemodState !== 0) {
-        try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (e) { /* ignore */ }
-        currentDemodState = null;
+    for (const demodState of currentDemodStates) {
+        if (demodState !== null && demodState !== 0) {
+            try { TinyTUS.EXPORTS.gfsk_demod_destroy(demodState); } catch (e) { /* ignore */ }
+        }
     }
+
+    currentDemodStates = [];
+    currentDemodProfiles = [];
+    TinyTUS._activeDemodProfileForCallback = null;
 }
 
 ////////////////////////////////////
@@ -349,20 +355,45 @@ export let TinyTUS = {
                 return new Error("Neboli detekované žiadne mediálne zariadenia...");
             }
 
+            const requestedProfiles = Array.isArray(modemProfile) ? modemProfile : [modemProfile];
+            const demodProfiles = requestedProfiles.filter(profile => !!profile);
+            if (demodProfiles.length === 0) {
+                console.error("  No modem profiles provided for demodulation.");
+                console.groupEnd();
+                return new Error("No modem profile provided for demodulation.");
+            }
+
+            const primaryProfile = demodProfiles[0];
+            const captureSampleRate = primaryProfile.sampleRate || primaryProfile.sample_rate;
+            const captureBufferSize = primaryProfile.samples_per_symbol || 1024;
+
             console.log("  -> Stopping any previous session...");
             await _stopListeningAsync();
             console.log("  Previous session stopped.");
 
-            const modemProfilePtr = _modemProfileOrPtrToPtr(modemProfile);
-            console.log("  -> Creating GFSK demodulator. modemProfilePtr:", modemProfilePtr);
-            currentDemodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
-            console.log("  currentDemodState:", currentDemodState);
-            if (!currentDemodState) {
-                console.error("  gfsk_demod_create returned null/0.");
-                console.groupEnd();
-                return new Error("Failed to create GFSK demodulator state.");
+            const createdStates = [];
+            const createdProfiles = [];
+            for (const profile of demodProfiles) {
+                const modemProfilePtr = _modemProfileOrPtrToPtr(profile);
+                const demodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
+                if (!demodState) {
+                    console.warn("  Skipping profile, gfsk_demod_create returned null/0. ptr:", modemProfilePtr);
+                    continue;
+                }
+
+                createdStates.push(demodState);
+                createdProfiles.push(profile);
             }
-            console.log("  GFSK demodulator created.");
+
+            if (createdStates.length === 0) {
+                console.error("  Failed to create GFSK demodulator states for all profiles.");
+                console.groupEnd();
+                return new Error("Failed to create GFSK demodulator states.");
+            }
+
+            currentDemodStates = createdStates;
+            currentDemodProfiles = createdProfiles;
+            console.log("  GFSK demodulator states created:", currentDemodStates.length);
 
             console.log("  -> Calling getUserMedia...");
             try {
@@ -372,7 +403,7 @@ export let TinyTUS = {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: 1,
-                        sampleRate: modemProfile.sampleRate,
+                        sampleRate: captureSampleRate,
                         latency: 0,
                     },
                     video: false,
@@ -380,8 +411,7 @@ export let TinyTUS = {
                 console.log("  getUserMedia succeeded. Stream:", currentStream);
             } catch (e) {
                 console.error("  getUserMedia failed:", e.name, e.message);
-                try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (_) { }
-                currentDemodState = null;
+                await _stopListeningAsync();
                 console.groupEnd();
                 return e;
             }
@@ -397,8 +427,8 @@ export let TinyTUS = {
                 return new Error(`Track not ready: ${audioTracks[0].readyState}`);
             }
 
-            console.log("  -> Creating AudioContext. sampleRate:", modemProfile.sampleRate);
-            currentContext = new AudioContext({ sampleRate: modemProfile.sampleRate, latencyHint: "interactive" });
+            console.log("  -> Creating AudioContext. sampleRate:", captureSampleRate);
+            currentContext = new AudioContext({ sampleRate: captureSampleRate, latencyHint: "interactive" });
             console.log("  AudioContext state after creation:", currentContext.state);
 
             if (currentContext.state === "suspended") {
@@ -409,7 +439,7 @@ export let TinyTUS = {
 
             if (currentContext.state === "running") {
                 console.log("  AudioContext running - connecting audio graph immediately.");
-                _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
+                _connectAudioGraph(onAudioProcess, captureBufferSize);
                 console.log("  Fully initialised.");
                 console.groupEnd();
                 return null;
@@ -430,9 +460,9 @@ export let TinyTUS = {
                 removeListeners();
                 console.group("[TinyTUS] Gesture detected - starting AudioContext");
                 console.log("  currentStream alive:", !!currentStream);
-                console.log("  currentDemodState:", currentDemodState);
+                console.log("  currentDemodStates count:", currentDemodStates.length);
 
-                if (!currentStream || !currentDemodState) {
+                if (!currentStream || currentDemodStates.length === 0) {
                     console.warn("  Stream or demod gone before gesture fired.");
                     console.groupEnd();
                     return;
@@ -440,7 +470,7 @@ export let TinyTUS = {
                 try {
                     console.log("  -> Creating fresh AudioContext inside gesture handler...");
                     currentContext = new AudioContext({
-                        sampleRate: modemProfile.sampleRate,
+                        sampleRate: captureSampleRate,
                         latencyHint: "interactive",
                     });
                     await new Promise(r => setTimeout(r, 0));
@@ -457,7 +487,7 @@ export let TinyTUS = {
                     }
 
                     console.log("  Connecting audio graph.");
-                    _connectAudioGraph(onAudioProcess, modemProfile.samples_per_symbol);
+                    _connectAudioGraph(onAudioProcess, captureBufferSize);
                     console.groupEnd();
                 } catch (e) {
                     console.error("  Failed to start AudioContext on gesture:", e);
@@ -489,6 +519,7 @@ export let TinyTUS = {
     MODEM_PROFILES: {},
     MODEM_PROFILES_REVERSED: {},
     currentlyUsedModemProfile: null,
+    _activeDemodProfileForCallback: null,
 };
 
 window.addEventListener("beforeunload", () => {
@@ -500,10 +531,13 @@ window.addEventListener("beforeunload", () => {
     if (currentContext) {
         try { currentContext.close(); } catch (_) { }
     }
-    if (currentDemodState) {
-        try { TinyTUS.EXPORTS.gfsk_demod_destroy(currentDemodState); } catch (_) { }
-        currentDemodState = null;
+    for (const demodState of currentDemodStates) {
+        if (!demodState) continue;
+        try { TinyTUS.EXPORTS.gfsk_demod_destroy(demodState); } catch (_) { }
     }
+    currentDemodStates = [];
+    currentDemodProfiles = [];
+    TinyTUS._activeDemodProfileForCallback = null;
 });
 
 /**
@@ -511,7 +545,7 @@ window.addEventListener("beforeunload", () => {
  * Volaj po potvrdeni stavu AudioContext ako running.
  */
 async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
-    if (!currentContext || !currentStream || !currentDemodState) {
+    if (!currentContext || !currentStream || currentDemodStates.length === 0) {
         console.error("[TinyTUS] _connectAudioGraph called with missing state - aborting.");
         return;
     }
@@ -530,8 +564,62 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     let accumulator = new Float32Array(bufferSize);
     let accumulatorFill = 0;
 
+    // Serialise WASM processing — only one flush runs at a time so that
+    // _activeDemodProfileForCallback is never clobbered by a concurrent call.
+    let _processingLocked = false;
+
+    const _flushAccumulator = (snapshot) => {
+        if (_processingLocked) {
+            console.warn("[TinyTUS] handle_input_samples skipped — previous call still running.");
+            return;
+        }
+        _processingLocked = true;
+
+        queueMicrotask(() => {
+            try {
+                fillInputBufferWithFloat32(snapshot);
+
+                for (let i = 0; i < currentDemodStates.length; i++) {
+                    TinyTUS._activeDemodProfileForCallback = currentDemodProfiles[i] || null;
+
+                    const status = TinyTUS.EXPORTS.handle_input_samples(
+                        currentDemodStates[i],
+                        TinyTUS.INPUT_BUFFER_PTR,
+                        bufferSize,
+                    );
+
+                    switch (status) {
+                        case 0:
+                            // Uspesne dekodovanie — callbacky (on_frame_received atd.)
+                            // uz boli volane z C kodu pocas tohto volania.
+                            break;
+                        case -1:
+                            console.error(
+                                "[TinyTUS] handle_input_samples: neplatne parametre alebo interna chyba " +
+                                `(stav ${currentDemodStates[i]}, ptr ${TinyTUS.INPUT_BUFFER_PTR}, len ${bufferSize}).`
+                            );
+                            break;
+                        case -2:
+                            // Bezna situacia — signal je prijimany, ale data este netvoria
+                            // platny ramec. Logujeme len na debug urovni.
+                            console.debug(
+                                "[TinyTUS] handle_input_samples: demodulacia zlyhala — " +
+                                "data netvoria platny ramec (status -2)."
+                            );
+                            break;
+                        default:
+                            console.warn(`[TinyTUS] handle_input_samples: neznamy navratovy kod ${status}.`);
+                    }
+                }
+            } finally {
+                TinyTUS._activeDemodProfileForCallback = null;
+                _processingLocked = false;
+            }
+        });
+    };
+
     currentRecorder.port.onmessage = (event) => {
-        if (!currentDemodState) return;
+        if (currentDemodStates.length === 0) return;
 
         const chunk = event.data; // Vzdy 128 samplov.
         let chunkOffset = 0;
@@ -544,21 +632,16 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
             chunkOffset += toCopy;
 
             if (accumulatorFill === bufferSize) {
-                // Plny buffer posli do WASM.
-                fillInputBufferWithFloat32(accumulator);
-                TinyTUS.EXPORTS.handle_input_samples(
-                    currentDemodState,
-                    TinyTUS.INPUT_BUFFER_PTR,
-                    bufferSize,
-                );
+                // Skopiruj plny buffer pred odovzdanim — accumulator sa okamzite
+                // znovu pouzije pre dalsie chunky, kym WASM este spracovava snapshot.
+                const snapshot = accumulator.slice();
+                accumulatorFill = 0;
+
+                _flushAccumulator(snapshot);
 
                 if (onAudioProcess) {
-                    const snapshot = accumulator.slice(); // Kopia pre volajuceho.
                     onAudioProcess({ inputBuffer: { getChannelData: () => snapshot } });
                 }
-
-                accumulatorFill = 0;
-                // Znovu pouzi rovnaky buffer bez alokacie.
             }
         }
     };

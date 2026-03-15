@@ -44,85 +44,90 @@
     }
 
     #header-title .mic-status-dot {
-        font-size: 0;
         margin-right: 0;
         pointer-events: auto;
     }
 }
 
 .mic-status-dot {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
     margin-right: 10px;
-    border-radius: 50%;
     flex-shrink: 0;
-    /* Hladky prechod farieb. */
-    transition: background-color 0.4s ease, box-shadow 0.4s ease;
-    /* Udrz bodku vertikalne vystredenu. */
     position: relative;
-    top: 0px;
+    top: 0;
+}
+
+.mic-status-dot::before {
+    content: "\f130";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-style: normal;
+    font-size: 16px;
+    line-height: 1;
+    transition: color 0.4s ease, text-shadow 0.4s ease;
 }
 
 /* idle: mikrak este neziskany */
-.mic-status-dot.mic-status--idle {
-    background-color: #666;
-    box-shadow: none;
+.mic-status-dot.mic-status--idle::before {
+    color: #666;
+    text-shadow: none;
 }
 
 /* waiting: mikrak je, AudioContext caka na gesto */
-.mic-status-dot.mic-status--waiting {
-    background-color: #f0a500;
-    box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.7);
+.mic-status-dot.mic-status--waiting::before {
+    color: #f0a500;
     animation: mic-pulse-amber 2s ease-out infinite;
 }
 
 /* listening: mikrak bezi, ale je ticho */
-.mic-status-dot.mic-status--listening {
-    background-color: #888;
-    box-shadow: 0 0 4px 1px rgba(160, 160, 160, 0.4);
+.mic-status-dot.mic-status--listening::before {
+    color: #999;
+    text-shadow: 0 0 5px rgba(160, 160, 160, 0.5);
     animation: none;
 }
 
 /* active: mikrak prijima signal nad prahom */
-.mic-status-dot.mic-status--active {
-    background-color: #3ecf6e;
-    box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);
+.mic-status-dot.mic-status--active::before {
+    color: #3ecf6e;
     animation: mic-pulse-green 1.4s ease-out infinite;
 }
 
 /* blocked: zamietnuty pristup alebo tvrda chyba */
-.mic-status-dot.mic-status--blocked {
-    background-color: #e05252;
-    box-shadow: 0 0 5px 1px rgba(224, 82, 82, 0.5);
+.mic-status-dot.mic-status--blocked::before {
+    color: #e05252;
+    text-shadow: 0 0 7px rgba(224, 82, 82, 0.6);
     animation: none;
 }
 
 /* Keyframy pulzu. */
 @keyframes mic-pulse-green {
     0% {
-        box-shadow: 0 0 0 0 rgba(62, 207, 110, 0.7);
+        text-shadow: 0 0 2px rgba(62, 207, 110, 0.9);
     }
 
     70% {
-        box-shadow: 0 0 0 8px rgba(62, 207, 110, 0);
+        text-shadow: 0 0 14px rgba(62, 207, 110, 0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(62, 207, 110, 0);
+        text-shadow: 0 0 2px rgba(62, 207, 110, 0);
     }
 }
 
 @keyframes mic-pulse-amber {
     0% {
-        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.7);
+        text-shadow: 0 0 2px rgba(240, 165, 0, 0.9);
     }
 
     70% {
-        box-shadow: 0 0 0 8px rgba(240, 165, 0, 0);
+        text-shadow: 0 0 14px rgba(240, 165, 0, 0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0);
+        text-shadow: 0 0 2px rgba(240, 165, 0, 0);
     }
 }

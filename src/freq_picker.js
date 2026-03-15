@@ -89,21 +89,25 @@ export function renderFreqPicker(mp, idSuffix, readonly) {
                 <input ${inputAttrs('min_tx_freq', minF)}>
                 <span class="freq-picker-unit">Hz</span>
             </div>
-            ${readonly ? '' : `
-            <button type="button" class="freq-picker-measure-btn"
-                    id="freq-measure-${idSuffix}"
-                    title="Odmerat frekvenčnú odozvu kanálu">
-                <span class="freq-measure-icon-wrap">
-                    <i class="fas fa-satellite-dish freq-measure-icon-dish"></i>
-                    <span class="freq-measure-ripple"></span>
-                </span>
-            </button>`}
             <div class="freq-picker-input-grp">
                 <span class="freq-input-tag freq-input-tag--max">MAX</span>
                 <input ${inputAttrs('max_tx_freq', maxF)}>
                 <span class="freq-picker-unit">Hz</span>
             </div>
         </div>
+        ${readonly ? '' : `
+        <div class="freq-picker-actions">
+            <button type="button" class="freq-picker-measure-btn"
+                    id="freq-measure-${idSuffix}"
+                    title="Odmerať frekvencnú odozvu kanála">
+                <i class="fas fa-satellite-dish freq-measure-icon-dish" aria-hidden="true"></i>
+                <span class="freq-picker-btn-text">Odmerať útlm kanála</span>
+            </button>
+            <button type="button" class="freq-picker-best-btn" id="freq-best-range-${idSuffix}" disabled>
+                <i class="fas fa-wand-magic-sparkles freq-best-icon" aria-hidden="true"></i>
+                Najsť najlepšie TX spektrum
+            </button>
+        </div>`}
     </div>`;
 }
 
@@ -111,6 +115,51 @@ export function renderFreqPicker(mp, idSuffix, readonly) {
 
 export function initFreqPickers() {
     document.querySelectorAll('.freq-picker-wrap').forEach(initSinglePicker);
+}
+
+let microphoneAccessGranted = false;
+let microphonePermissionWatchStarted = false;
+const microphoneAccessSubscribers = new Set();
+const measureButtonSubscriptions = new Map();
+
+function setMicrophoneAccessGranted(granted) {
+    if (microphoneAccessGranted === granted) return;
+    microphoneAccessGranted = granted;
+    microphoneAccessSubscribers.forEach(cb => cb(granted));
+}
+
+function subscribeToMicrophoneAccess(cb) {
+    microphoneAccessSubscribers.add(cb);
+    cb(microphoneAccessGranted);
+    return () => microphoneAccessSubscribers.delete(cb);
+}
+
+async function refreshMicrophoneAccessState() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        setMicrophoneAccessGranted(false);
+        return;
+    }
+    if (!navigator.permissions?.query) return;
+    try {
+        const status = await navigator.permissions.query({ name: 'microphone' });
+        setMicrophoneAccessGranted(status.state === 'granted');
+        if (!status.onchange) {
+            status.onchange = () => setMicrophoneAccessGranted(status.state === 'granted');
+        }
+    } catch {
+        // Nie vsade je Permissions API pre mikrofon podporovane.
+    }
+}
+
+function ensureMicrophonePermissionWatch() {
+    if (microphonePermissionWatchStarted) return;
+    microphonePermissionWatchStarted = true;
+
+    refreshMicrophoneAccessState();
+    window.addEventListener('microphone-started', () => setMicrophoneAccessGranted(true));
+    window.addEventListener('microphone-waiting-for-gesture', () => setMicrophoneAccessGranted(true));
+    window.addEventListener('mic-blocked', () => refreshMicrophoneAccessState());
+    window.addEventListener('retry-microphone', () => refreshMicrophoneAccessState());
 }
 
 function initSinglePicker(wrap) {
@@ -126,9 +175,22 @@ function initSinglePicker(wrap) {
     const axisEl     = document.getElementById(`freq-axis-${idSuffix}`);
     const inputMin   = document.getElementById(`freq-input-min_tx_freq-${idSuffix}`);
     const inputMax   = document.getElementById(`freq-input-max_tx_freq-${idSuffix}`);
-    const measureBtn = document.getElementById(`freq-measure-${idSuffix}`);
+    let measureBtn = document.getElementById(`freq-measure-${idSuffix}`);
+    let bestBtn    = document.getElementById(`freq-best-range-${idSuffix}`);
 
     if (!track || !band) return;
+
+    ensureMicrophonePermissionWatch();
+
+    // Resetni listenery po reinicializacii pickeru.
+    ['freq-measure', 'freq-best-range'].forEach(prefix => {
+        const el = document.getElementById(`${prefix}-${idSuffix}`);
+        if (!el) return;
+        const clone = el.cloneNode(true);
+        el.parentNode.replaceChild(clone, el);
+    });
+    measureBtn = document.getElementById(`freq-measure-${idSuffix}`);
+    bestBtn    = document.getElementById(`freq-best-range-${idSuffix}`);
 
     const defaultMin = parseInt(wrap.dataset.minFreq, 10);
     const defaultMax = parseInt(wrap.dataset.maxFreq, 10);
@@ -168,6 +230,7 @@ function initSinglePicker(wrap) {
         // Zrus predchadzajuci frame, ak este bezi.
         if (attRafId) cancelAnimationFrame(attRafId);
         const data = loadAttenuationData(idSuffix);
+        if (bestBtn) bestBtn.disabled = !Array.isArray(data) || data.length < 2;
         attRafId = requestAnimationFrame(() => {
             attRafId = null;
             drawAttenuationOverlay(attCanvas, data, nyquist, valMin, valMax);
@@ -185,8 +248,17 @@ function initSinglePicker(wrap) {
     // Presuvanie.
 
     let dragging = null;
+    let activeHandle = 'max';
 
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function syncHandleStacking(which = activeHandle) {
+        activeHandle = which;
+        const minHandle = document.getElementById(`freq-handle-min-${idSuffix}`);
+        const maxHandle = document.getElementById(`freq-handle-max-${idSuffix}`);
+        minHandle?.classList.toggle('freq-picker-handle--front', which === 'min');
+        maxHandle?.classList.toggle('freq-picker-handle--front', which === 'max');
+    }
 
     function snapToGrid(hz) {
         // Zaokruhli na najblizsi FFT bin.
@@ -209,10 +281,12 @@ function initSinglePicker(wrap) {
 
     const hMin = document.getElementById(`freq-handle-min-${idSuffix}`);
     const hMax = document.getElementById(`freq-handle-max-${idSuffix}`);
+    syncHandleStacking(activeHandle);
 
     function onPointerDown(e) {
         if (e.button !== 0) return;
         dragging = e.currentTarget.dataset.handle;
+        syncHandleStacking(dragging);
         e.currentTarget.setPointerCapture(e.pointerId);
         e.preventDefault();
     }
@@ -241,6 +315,7 @@ function initSinglePicker(wrap) {
         const handle = e.currentTarget.dataset.handle;
         if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
         e.preventDefault();
+        syncHandleStacking(handle);
 
         // Sipky idu po 1 bine, Shift po 10.
         const step = (e.shiftKey ? 10 : 1) * binHz;
@@ -262,6 +337,7 @@ function initSinglePicker(wrap) {
         h.addEventListener('pointermove', onPointerMove);
         h.addEventListener('pointerup',   onPointerUp);
         h.addEventListener('keydown',     onKeyDown);
+        h.addEventListener('focus',       () => syncHandleStacking(h.dataset.handle));
     });
 
     // Synchronizacia vstupov a ovladacov.
@@ -304,8 +380,32 @@ function initSinglePicker(wrap) {
     // Tlacidlo merania.
 
     if (measureBtn) {
+        measureButtonSubscriptions.get(String(idSuffix))?.();
+        const updateMeasureButtonState = granted => {
+            measureBtn.disabled = !granted;
+            measureBtn.title = granted
+                ? 'Odmerať frekvencnú odozvu kanála'
+                : 'Tlacidlo sa spristupni po povoleni mikrofonu';
+        };
+        measureButtonSubscriptions.set(String(idSuffix), subscribeToMicrophoneAccess(updateMeasureButtonState));
         measureBtn.addEventListener('click', () => {
+            if (measureBtn.disabled) return;
             openMeasurementModal(String(idSuffix), binHz, nyquist);
+        });
+    }
+
+    if (bestBtn) {
+        bestBtn.addEventListener('click', () => {
+            const data = loadAttenuationData(idSuffix);
+            const bestRange = findBestTxRange(data);
+            if (!bestRange) return;
+            valMin = clamp(snapToGrid(bestRange.minFreq), 0, nyquist - binHz);
+            valMax = clamp(snapToGrid(bestRange.maxFreq), valMin + binHz, nyquist);
+            if (inputMin) inputMin.value = valMin;
+            if (inputMax) inputMax.value = valMax;
+            paint();
+            if (inputMin) inputMin.dispatchEvent(new Event('change', { bubbles: true }));
+            if (inputMax) inputMax.dispatchEvent(new Event('change', { bubbles: true }));
         });
     }
 
@@ -434,6 +534,102 @@ export function clearAttenuationData(idSuffix) {
     try { localStorage.removeItem(`${ATT_KEY}_${idSuffix}`); } catch { /* ignore */ }
 }
 
+function getThresholdRuns(data, thresholdDb) {
+    if (!Array.isArray(data) || data.length === 0) {
+        return { sorted: [], aboveRuns: [], belowRuns: [] };
+    }
+    const sorted = [...data]
+        .filter(p => Number.isFinite(p?.freq) && Number.isFinite(p?.db))
+        .sort((a, b) => a.freq - b.freq);
+    const aboveRuns = [];
+    const belowRuns = [];
+    let current = null;
+    let currentAbove = null;
+
+    for (const point of sorted) {
+        const isAbove = point.db >= thresholdDb;
+        if (!current || currentAbove !== isAbove) {
+            if (current) (currentAbove ? aboveRuns : belowRuns).push(current);
+            current = [point];
+            currentAbove = isAbove;
+        } else {
+            current.push(point);
+        }
+    }
+    if (current) (currentAbove ? aboveRuns : belowRuns).push(current);
+    return { sorted, aboveRuns, belowRuns };
+}
+
+function findBestTxRange(data, thresholdDb = -10) {
+    const { aboveRuns } = getThresholdRuns(data, thresholdDb);
+    const candidates = aboveRuns.filter(run => run.length >= 2);
+    if (!candidates.length) return null;
+
+    let best = null;
+    for (const run of candidates) {
+        const minFreq = run[0].freq;
+        const maxFreq = run[run.length - 1].freq;
+        const width = Math.max(0, maxFreq - minFreq);
+        const avgDb = run.reduce((sum, p) => sum + p.db, 0) / run.length;
+        if (!best
+            || width > best.width
+            || (width === best.width && avgDb > best.avgDb)
+            || (width === best.width && avgDb === best.avgDb && minFreq < best.minFreq)) {
+            best = { minFreq, maxFreq, width, avgDb };
+        }
+    }
+    return best;
+}
+
+function fillCurveToBottom(ctx, points, xOf, yOf, yBottom, fillStyle) {
+    if (!Array.isArray(points) || points.length < 2) return;
+    ctx.fillStyle = fillStyle;
+    ctx.beginPath();
+    points.forEach((p, i) => i === 0
+        ? ctx.moveTo(xOf(p.freq), yOf(p.db))
+        : ctx.lineTo(xOf(p.freq), yOf(p.db)));
+    ctx.lineTo(xOf(points[points.length - 1].freq), yBottom);
+    ctx.lineTo(xOf(points[0].freq), yBottom);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function fillRunsToBottom(ctx, runs, xOf, yOf, yBottom, fillStyle) {
+    ctx.fillStyle = fillStyle;
+    runs.forEach(run => {
+        if (!run || run.length === 0) return;
+        if (run.length === 1) {
+            // Jednobodove useky sirky 1px, aby nevznikali prazdne medzery.
+            const x = xOf(run[0].freq);
+            const y = yOf(run[0].db);
+            ctx.fillRect(x - 0.5, y, 1, yBottom - y);
+            return;
+        }
+        ctx.beginPath();
+        run.forEach((p, i) => i === 0
+            ? ctx.moveTo(xOf(p.freq), yOf(p.db))
+            : ctx.lineTo(xOf(p.freq), yOf(p.db)));
+        ctx.lineTo(xOf(run[run.length - 1].freq), yBottom);
+        ctx.lineTo(xOf(run[0].freq), yBottom);
+        ctx.closePath();
+        ctx.fill();
+    });
+}
+
+function getFreqGraphPalette(dark) {
+    const host = document.getElementById('tab-config') || document.documentElement;
+    const cs = getComputedStyle(host);
+    const css = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+    return {
+        goodLine: css('--freq-graph-good-line', dark ? '#467f79' : '#6f9e9a'),
+        goodFill: css('--freq-graph-good-fill', dark ? 'rgba(70,127,121,0.22)' : 'rgba(111,158,154,0.16)'),
+        badLine: css('--freq-graph-bad-line', dark ? '#a06c6c' : '#c48787'),
+        badFill: css('--freq-graph-bad-fill', dark ? 'rgba(160,108,108,0.24)' : 'rgba(196,135,135,0.16)'),
+        thresholdLine: css('--freq-graph-threshold-line', dark ? 'rgba(160,108,108,0.70)' : 'rgba(196,135,135,0.62)'),
+        selectLine: css('--freq-graph-select-line', dark ? 'rgba(70,127,121,0.65)' : 'rgba(111,158,154,0.60)'),
+    };
+}
+
 // Kreslenie utlmovej krivky v pickeri.
 
 function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
@@ -449,6 +645,7 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
     ctx.clearRect(0, 0, w, h);
 
     const dark = document.documentElement.classList.contains('dark-scheme');
+        const palette = getFreqGraphPalette(dark);
     // pad.l je 0, x-os sedi s trackom.
     const pad  = { t: 2, r: 0, b: 2, l: 0 };
     const gw   = w - pad.l - pad.r;
@@ -477,31 +674,24 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
     // Krivka utlmu, ak su data.
     if (data && data.length >= 2) {
         const THRESH_DB = -10;
+        const { sorted, aboveRuns } = getThresholdRuns(data, THRESH_DB);
         const yThresh   = yOf(THRESH_DB);
         const yBottom   = pad.t + gh;
 
-        // Cervena zona pod -10 dB.
-        if (yThresh < yBottom) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(pad.l, yThresh, gw, yBottom - yThresh);
-            ctx.clip();
-            ctx.beginPath();
-            data.forEach((d, i) => i === 0
-                ? ctx.moveTo(xOf(d.freq), yOf(d.db))
-                : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-            ctx.lineTo(xOf(data.at(-1).freq), yBottom);
-            ctx.lineTo(xOf(data[0].freq),     yBottom);
-            ctx.closePath();
-            ctx.fillStyle = dark ? 'rgba(248,113,113,0.18)' : 'rgba(239,68,68,0.13)';
-            ctx.fill();
-            ctx.restore();
-        }
+        // Zakladna cervena vypln celej krivky odstrani nevyfarbene medzery.
+        fillCurveToBottom(
+            ctx,
+            sorted,
+            xOf,
+            yOf,
+            yBottom,
+            palette.badFill
+        );
 
         // Prerusovana ciara prahu -10 dB.
         if (yThresh >= pad.t && yThresh <= yBottom) {
             ctx.save();
-            ctx.strokeStyle = dark ? 'rgba(248,113,113,0.55)' : 'rgba(239,68,68,0.50)';
+            ctx.strokeStyle = palette.thresholdLine;
             ctx.lineWidth   = 1;
             ctx.setLineDash([3, 3]);
             ctx.beginPath(); ctx.moveTo(pad.l, yThresh); ctx.lineTo(pad.l + gw, yThresh); ctx.stroke();
@@ -509,21 +699,14 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
             ctx.restore();
         }
 
-        // Modra plocha nad prahom.
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(pad.l, pad.t, gw, Math.max(0, yThresh - pad.t));
-        ctx.clip();
-        ctx.beginPath();
-        data.forEach((d, i) => i === 0
-            ? ctx.moveTo(xOf(d.freq), yOf(d.db))
-            : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-        ctx.lineTo(xOf(data.at(-1).freq), yBottom);
-        ctx.lineTo(xOf(data[0].freq),     yBottom);
-        ctx.closePath();
-        ctx.fillStyle = dark ? 'rgba(96,165,250,0.12)' : 'rgba(59,130,246,0.10)';
-        ctx.fill();
-        ctx.restore();
+        fillRunsToBottom(
+            ctx,
+            aboveRuns,
+            xOf,
+            yOf,
+            yBottom,
+            palette.goodFill
+        );
 
         // Krivka: modra nad prahom, cervena pod nim.
         ctx.lineWidth = 1.5;
@@ -533,10 +716,10 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
         ctx.rect(pad.l, pad.t, gw, Math.max(0, yThresh - pad.t));
         ctx.clip();
         ctx.beginPath();
-        data.forEach((d, i) => i === 0
+        sorted.forEach((d, i) => i === 0
             ? ctx.moveTo(xOf(d.freq), yOf(d.db))
             : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-        ctx.strokeStyle = dark ? '#60a5fa' : '#3b82f6';
+        ctx.strokeStyle = palette.goodLine;
         ctx.stroke();
         ctx.restore();
 
@@ -545,10 +728,10 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
         ctx.rect(pad.l, yThresh, gw, yBottom - yThresh);
         ctx.clip();
         ctx.beginPath();
-        data.forEach((d, i) => i === 0
+        sorted.forEach((d, i) => i === 0
             ? ctx.moveTo(xOf(d.freq), yOf(d.db))
             : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-        ctx.strokeStyle = dark ? '#f87171' : '#ef4444';
+        ctx.strokeStyle = palette.badLine;
         ctx.stroke();
         ctx.restore();
     }
@@ -563,6 +746,7 @@ function drawAttenuationOverlay(canvas, data, nyquist, selMin, selMax) {
         if (x2 < pad.l + gw)   ctx.fillRect(x2,   pad.t, pad.l + gw - x2,   gh);
         // Zvisle ciary hranic vyberu.
         ctx.strokeStyle = dark ? 'rgba(96,165,250,0.55)' : 'rgba(59,130,246,0.50)';
+        ctx.strokeStyle = palette.selectLine;
         ctx.lineWidth   = 1.5;
         ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.moveTo(x1, pad.t); ctx.lineTo(x1, pad.t + gh); ctx.stroke();
@@ -735,31 +919,23 @@ function drawMeasurementGraph(canvas, data, measureNyquist, measureMin = 0) {
     if (data.length < 2) return;
 
     const THRESH_DB = -10; // Hranica pouzitelnosti spektra.
+    const { sorted, aboveRuns } = getThresholdRuns(data, THRESH_DB);
     const yThresh   = yOf(THRESH_DB);
     const yBottom   = pad.t + gh;
 
-    // Cervena zona pod -10 dB.
-    if (yThresh < yBottom) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(pad.l, yThresh, gw, yBottom - yThresh);
-        ctx.clip();
-        ctx.beginPath();
-        data.forEach((d, i) => i === 0
-            ? ctx.moveTo(xOf(d.freq), yOf(d.db))
-            : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-        ctx.lineTo(xOf(data.at(-1).freq), yBottom);
-        ctx.lineTo(xOf(data[0].freq),     yBottom);
-        ctx.closePath();
-        ctx.fillStyle = dark ? 'rgba(248,113,113,0.18)' : 'rgba(239,68,68,0.13)';
-        ctx.fill();
-        ctx.restore();
-    }
+    fillCurveToBottom(
+        ctx,
+        sorted,
+        xOf,
+        yOf,
+        yBottom,
+        palette.badFill
+    );
 
     // Prerusovana ciara prahu -10 dB.
     if (yThresh >= pad.t && yThresh <= yBottom) {
         ctx.save();
-        ctx.strokeStyle = dark ? 'rgba(248,113,113,0.55)' : 'rgba(239,68,68,0.50)';
+        ctx.strokeStyle = palette.thresholdLine;
         ctx.lineWidth   = 1;
         ctx.setLineDash([4, 3]);
         ctx.beginPath(); ctx.moveTo(pad.l, yThresh); ctx.lineTo(pad.l + gw, yThresh); ctx.stroke();
@@ -767,25 +943,19 @@ function drawMeasurementGraph(canvas, data, measureNyquist, measureMin = 0) {
         ctx.font      = '8px JetBrains Mono, monospace';
         ctx.textAlign = 'left';
         ctx.fillStyle = dark ? 'rgba(248,113,113,0.70)' : 'rgba(239,68,68,0.65)';
+        ctx.fillStyle = palette.thresholdLine;
         ctx.fillText('-10 dB', pad.l + 3, yThresh - 3);
         ctx.restore();
     }
 
-    // Modra plocha nad prahom.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(pad.l, pad.t, gw, Math.max(0, yThresh - pad.t));
-    ctx.clip();
-    ctx.beginPath();
-    data.forEach((d, i) => i === 0
-        ? ctx.moveTo(xOf(d.freq), yOf(d.db))
-        : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-    ctx.lineTo(xOf(data.at(-1).freq), yBottom);
-    ctx.lineTo(xOf(data[0].freq),     yBottom);
-    ctx.closePath();
-    ctx.fillStyle = dark ? 'rgba(96,165,250,0.12)' : 'rgba(59,130,246,0.10)';
-    ctx.fill();
-    ctx.restore();
+    fillRunsToBottom(
+        ctx,
+        aboveRuns,
+        xOf,
+        yOf,
+        yBottom,
+        palette.goodFill
+    );
 
     // Krivka: modra nad prahom, cervena pod nim.
     ctx.lineWidth = 2;
@@ -796,10 +966,10 @@ function drawMeasurementGraph(canvas, data, measureNyquist, measureMin = 0) {
     ctx.rect(pad.l, pad.t, gw, Math.max(0, yThresh - pad.t));
     ctx.clip();
     ctx.beginPath();
-    data.forEach((d, i) => i === 0
+    sorted.forEach((d, i) => i === 0
         ? ctx.moveTo(xOf(d.freq), yOf(d.db))
         : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-    ctx.strokeStyle = dark ? '#60a5fa' : '#3b82f6';
+    ctx.strokeStyle = palette.goodLine;
     ctx.stroke();
     ctx.restore();
 
@@ -808,20 +978,20 @@ function drawMeasurementGraph(canvas, data, measureNyquist, measureMin = 0) {
     ctx.rect(pad.l, yThresh, gw, yBottom - yThresh);
     ctx.clip();
     ctx.beginPath();
-    data.forEach((d, i) => i === 0
+    sorted.forEach((d, i) => i === 0
         ? ctx.moveTo(xOf(d.freq), yOf(d.db))
         : ctx.lineTo(xOf(d.freq), yOf(d.db)));
-    ctx.strokeStyle = dark ? '#f87171' : '#ef4444';
+    ctx.strokeStyle = palette.badLine;
     ctx.stroke();
     ctx.restore();
 
     // Body, farba podla prahu.
-    data.forEach(d => {
+    sorted.forEach(d => {
         ctx.beginPath();
         ctx.arc(xOf(d.freq), yOf(d.db), 3, 0, 2 * Math.PI);
         ctx.fillStyle = d.db < THRESH_DB
-            ? (dark ? '#f87171' : '#ef4444')
-            : (dark ? '#60a5fa' : '#3b82f6');
+            ? palette.badLine
+            : palette.goodLine;
         ctx.fill();
     });
 }

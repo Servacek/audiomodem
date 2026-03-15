@@ -1,6 +1,7 @@
 
 
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
+import { getAllModemProfilesForDemodulation, getModemProfileMeta } from './config.js';
 import * as CONST from '../constants.js';
 import { max, formatDate } from '../utils.js';
 import { setMicStatus } from '../indicator.js';
@@ -145,7 +146,7 @@ function createMessageBase() {
     return msg;
 }
 
-function createUserMessage(author, alignment, content) {
+function createUserMessage(author, alignment, content, profileMeta = null) {
     const msg = createMessageBase();
     msg.classList.add("user-msg", `${alignment}-user-msg`);
 
@@ -168,6 +169,34 @@ function createUserMessage(author, alignment, content) {
     msg.username = name;
     name.classList.add("msg-info-name");
     name.textContent = author;
+
+    if (profileMeta?.idLabel != null) {
+        const profileId = document.createElement("span");
+        profileId.classList.add("msg-info-profile-id");
+        profileId.textContent = `#${profileMeta.idLabel}`;
+
+        if (profileMeta.name) {
+            profileId.title = profileMeta.name;
+        }
+
+        if (profileMeta.profile) {
+            profileId.setAttribute("role", "button");
+            profileId.setAttribute("tabindex", "0");
+            profileId.addEventListener("click", () => {
+                window.dispatchEvent(new CustomEvent("chat-focus-profile", {
+                    detail: { profile: profileMeta.profile }
+                }));
+            });
+            profileId.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    profileId.click();
+                }
+            });
+        }
+
+        name.appendChild(profileId);
+    }
 
     const time = document.createElement("div");
     time.classList.add("msg-info-time");
@@ -196,7 +225,7 @@ function getUsername() {
     return (username || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function createSelfMessage(text, image = null) {
+function createSelfMessage(text, image = null, profile = null) {
     const username = getUsername();
     const message = createUserMessage(username, CONST.ALIGMENT_RIGHT, text);
 
@@ -211,7 +240,7 @@ function createSelfMessage(text, image = null) {
     message.progressBar = progressBar;
     message.bubble.appendChild(progressBar)
 
-    message.modemProfile = TinyTUS.currentlyUsedModemProfile;
+    message.modemProfile = profile || TinyTUS.currentlyUsedModemProfile;
     console.log("Modulating message with profile:", message.modemProfile);
     message.waveform = TinyTUS.modulateMessage(text, message.modemProfile);
     // Uloz sample_rate v case modulacie, aby sa prehravanie nespoliehalo
@@ -455,8 +484,13 @@ const initStateUpdate = async (reason = "unknown") => {
     console.log("  All checks passed - calling tryStartListeningForIncomingMessages...");
     console.groupEnd();
 
+    const demodulationProfiles = getAllModemProfilesForDemodulation();
+    if (!demodulationProfiles.length && TinyTUS.currentlyUsedModemProfile) {
+        demodulationProfiles.push(TinyTUS.currentlyUsedModemProfile);
+    }
+
     const error = await TinyTUS.tryStartListeningForIncomingMessages(
-        TinyTUS.currentlyUsedModemProfile,
+        demodulationProfiles,
         (event) => {
             window.dispatchEvent(new CustomEvent("audioprocess", {
                 "detail": { inputBuffer: event.inputBuffer }
@@ -562,10 +596,25 @@ window.addEventListener("mic-blocked", () => {
 window.addEventListener("message-received", (event) => {
     console.log("[MSG] message-received, byte length:", event.detail.bytes.length);
     const bytes = event.detail.bytes;
+    const profileMeta = {
+        ...getModemProfileMeta(event.detail.profile),
+        profile: event.detail.profile,
+    };
     const textDecoder = new TextDecoder("utf-8");
     const decodedText = textDecoder.decode(new Uint8Array(bytes));
-    const newMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText);
+    const newMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText, profileMeta);
     displayMessageAtBottom(newMessage);
+});
+
+window.addEventListener("chat-share-profile", (event) => {
+    const profileCode = event.detail?.profileCode;
+    if (!profileCode) return;
+
+    // Na zdielanie profilu pouzijeme predvoleny profil,
+    // ktory by mal podporovat vacsinu prostredi.
+    const message = createSelfMessage(profileCode, null, TinyTUS.DEFAULT_MODEM_PROFILE);
+    displayMessageAtBottom(message);
+    sendMessage(message);
 });
 
 window.addEventListener("wasm-library-failed", () => {

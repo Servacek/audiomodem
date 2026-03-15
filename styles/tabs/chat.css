@@ -103,6 +103,41 @@
     font-size: 0.85em;
     margin-right: 10px;
     font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.msg-info-profile-id {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(120, 126, 136, 0.22);
+    color: rgba(130, 136, 146, 0.95);
+    border: 1px solid rgba(120, 126, 136, 0.4);
+    font-size: 0.8em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.msg-info-profile-id:hover {
+    background: rgba(120, 126, 136, 0.32);
+    border-color: rgba(120, 126, 136, 0.58);
+}
+
+.msg-info-profile-id:focus-visible {
+    outline: 2px solid rgba(120, 126, 136, 0.6);
+    outline-offset: 1px;
+}
+
+:root.dark-scheme .msg-info-profile-id {
+    background: rgba(130, 136, 146, 0.18);
+    color: rgba(182, 188, 198, 0.96);
+    border-color: rgba(130, 136, 146, 0.35);
 }
 
 .msg-info-time {

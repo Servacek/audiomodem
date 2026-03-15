@@ -1,5 +1,46 @@
 /* Styl pre vyber frekvencneho pasma. */
 
+#tab-config .freq-picker-wrap {
+    --freq-accent-bg: var(--config-btn-secondary-bg, #6f9e9a);
+    --freq-accent-hover-bg: var(--config-btn-secondary-hover-bg, #80aaa6);
+    --freq-accent-fg: var(--config-btn-secondary-fg, #0f2826);
+    --freq-accent-border: var(--config-btn-secondary-border, #628f8b);
+    --freq-accent-hover-border: var(--config-btn-secondary-hover-border, #719c98);
+    --freq-control-bg: var(--config-input-bg, #fff);
+    --freq-control-border: var(--config-border, #ddd);
+    --freq-muted-text: #8a94a6;
+    --freq-tag-bg: rgba(111, 158, 154, 0.14);
+    --freq-tag-fg: var(--freq-accent-bg);
+    --freq-track-bg: rgba(111, 158, 154, 0.18);
+    --freq-accent-line-soft: rgba(111, 158, 154, 0.30);
+    --freq-accent-shadow: rgba(111, 158, 154, 0.35);
+    --freq-accent-shadow-strong: rgba(111, 158, 154, 0.45);
+    --freq-accent-ring: rgba(111, 158, 154, 0.18);
+    --freq-accent-ring-strong: rgba(111, 158, 154, 0.14);
+    --freq-hlabel-border: rgba(111, 158, 154, 0.30);
+    --freq-label-surface: rgba(255, 255, 255, 0.98);
+    --freq-label-surface-dark: rgba(18, 22, 34, 0.98);
+    --freq-label-text: #243447;
+    --freq-tag-min-bg: #5d8fd6;
+    --freq-tag-max-bg: #3f6fb3;
+    --freq-tag-text: #ffffff;
+}
+
+:root.dark-scheme #tab-config .freq-picker-wrap {
+    --freq-muted-text: #9ca3af;
+    --freq-tag-bg: rgba(70, 127, 121, 0.24);
+    --freq-track-bg: rgba(70, 127, 121, 0.22);
+    --freq-accent-line-soft: rgba(70, 127, 121, 0.34);
+    --freq-accent-shadow: rgba(70, 127, 121, 0.40);
+    --freq-accent-shadow-strong: rgba(70, 127, 121, 0.50);
+    --freq-accent-ring: rgba(70, 127, 121, 0.24);
+    --freq-accent-ring-strong: rgba(70, 127, 121, 0.18);
+    --freq-hlabel-border: rgba(70, 127, 121, 0.38);
+    --freq-label-text: #e5edf8;
+    --freq-tag-min-bg: #7fa8e3;
+    --freq-tag-max-bg: #5d8fd6;
+}
+
 /* Obal */
 .freq-picker-wrap {
     margin: 4px 0 8px;
@@ -23,24 +64,22 @@
 
 .freq-picker-bw {
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--freq-muted-text);
     font-variant-numeric: tabular-nums;
 }
-.freq-picker-bw strong { color: #3b82f6; font-weight: 600; }
-.dark-scheme .freq-picker-bw strong { color: #60a5fa; }
+.freq-picker-bw strong { color: var(--freq-accent-bg); font-weight: 600; }
 
 /* Track */
 .freq-picker-track {
     position: relative;
     height: 6px;
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--freq-track-bg);
     /* Vyssi horny margin pre bubliny popisov. */
     margin: 42px 0 8px;
     cursor: crosshair;
     user-select: none;
 }
-.dark-scheme .freq-picker-track { background: rgba(255, 255, 255, 0.09); }
 .freq-picker-track--readonly { cursor: default; }
 
 /* Mriezka binov */
@@ -56,10 +95,9 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: rgba(59, 130, 246, 0.12);
+    background: var(--freq-accent-line-soft);
     transform: translateX(-50%);
 }
-.dark-scheme .freq-bin-line { background: rgba(96, 165, 250, 0.12); }
 
 /* Vybrane pasmo */
 .freq-picker-band {
@@ -67,13 +105,13 @@
     top: 0;
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    background: linear-gradient(90deg, var(--freq-accent-bg), var(--freq-accent-hover-bg));
     opacity: 0.75;
     pointer-events: none;
     transition: left 0.04s, width 0.04s;
 }
 .freq-picker-track--readonly .freq-picker-band {
-    background: linear-gradient(90deg, #6b7280, #9ca3af);
+    background: linear-gradient(90deg, #86919f, #9ba3ad);
     opacity: 0.4;
 }
 
@@ -87,29 +125,32 @@
     cursor: ew-resize;
     z-index: 2;
     background: #fff;
-    border: 2px solid #3b82f6;
+    border: 2px solid var(--freq-accent-bg);
     border-radius: 50%;
-    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 1px 4px var(--freq-accent-shadow);
     transition: box-shadow 0.15s, border-color 0.15s, transform 0.10s;
     touch-action: none;
 }
+.freq-picker-handle--front {
+    z-index: 4;
+}
 .dark-scheme .freq-picker-handle {
     background: #1e2432;
-    border-color: #60a5fa;
-    box-shadow: 0 1px 6px rgba(96, 165, 250, 0.30);
+    border-color: var(--freq-accent-hover-bg);
+    box-shadow: 0 1px 6px var(--freq-accent-shadow);
 }
 
 .freq-picker-handle:hover,
 .freq-picker-handle:focus-visible {
-    box-shadow: 0 1px 4px rgba(59,130,246,0.25), 0 0 0 5px rgba(59,130,246,0.12);
-    border-color: #2563eb;
+    box-shadow: 0 1px 4px var(--freq-accent-shadow), 0 0 0 5px var(--freq-accent-ring);
+    border-color: var(--freq-accent-hover-bg);
     transform: translate(-50%, -50%) scale(1.18);
     outline: none;
 }
 .freq-picker-handle:active {
     transform: translate(-50%, -50%) scale(1.22);
     cursor: grabbing;
-    box-shadow: 0 2px 8px rgba(59,130,246,0.35), 0 0 0 5px rgba(59,130,246,0.10);
+    box-shadow: 0 2px 8px var(--freq-accent-shadow-strong), 0 0 0 5px var(--freq-accent-ring-strong);
 }
 
 .freq-picker-handle--readonly {
@@ -124,13 +165,12 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    background: #3b82f6;
+    background: var(--freq-accent-bg);
     opacity: 0.45;
     transition: opacity 0.15s;
 }
 .freq-picker-handle:hover .freq-picker-handle-pip,
 .freq-picker-handle:active .freq-picker-handle-pip { opacity: 0.9; }
-.dark-scheme .freq-picker-handle-pip { background: #60a5fa; }
 .freq-picker-handle--readonly .freq-picker-handle-pip { background: #9ca3af; }
 
 /* Bubliny popisov nad trackom */
@@ -147,16 +187,17 @@
     align-items: center;
     gap: 4px;
 
-    background: rgba(255,255,255,0.95);
-    border: 1px solid rgba(59,130,246,0.18);
+    background: var(--freq-label-surface);
+    border: 1px solid var(--freq-hlabel-border);
     border-radius: 6px;
-    padding: 3px 7px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    padding: 4px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    z-index: 1;
 }
 .dark-scheme .freq-picker-handle-label {
-    background: rgba(18, 22, 34, 0.95);
-    border-color: rgba(96,165,250,0.18);
-    box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+    background: var(--freq-label-surface-dark);
+    border-color: var(--freq-hlabel-border);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.30);
 }
 
 /* Farebny MIN/MAX tag v bubline */
@@ -169,23 +210,20 @@
     text-transform: uppercase;
 }
 .freq-hlabel-tag--min {
-    background: rgba(59,130,246,0.12);
-    color: #3b82f6;
+    background: var(--freq-tag-min-bg);
+    color: var(--freq-tag-text);
 }
 .freq-hlabel-tag--max {
-    background: rgba(96,165,250,0.15);
-    color: #1d4ed8;
+    background: var(--freq-tag-max-bg);
+    color: var(--freq-tag-text);
 }
-.dark-scheme .freq-hlabel-tag--min { color: #60a5fa; background: rgba(96,165,250,0.15); }
-.dark-scheme .freq-hlabel-tag--max { color: #93c5fd; background: rgba(147,197,253,0.12); }
 
 .freq-hlabel-val {
     font-size: 11px;
     font-weight: 600;
-    color: #374151;
+    color: var(--freq-label-text);
     font-variant-numeric: tabular-nums;
 }
-.dark-scheme .freq-hlabel-val { color: #d1d5db; }
 
 /* Osa */
 .freq-picker-axis {
@@ -215,7 +253,7 @@
 
 .freq-axis-label {
     font-size: 9.5px;
-    color: #9ca3af;
+    color: var(--freq-muted-text);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
@@ -243,26 +281,22 @@
     min-width: 0;
     padding: 5px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(0,0,0,0.12);
-    background: rgba(255,255,255,0.7);
+    border: 1px solid var(--freq-control-border);
+    background: var(--freq-control-bg);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: inherit;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
-.dark-scheme .freq-picker-input-grp input[type="number"] {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.10);
-}
 .freq-picker-input-grp input[type="number"]:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    border-color: var(--freq-accent-bg);
+    box-shadow: 0 0 0 3px var(--freq-accent-ring);
 }
 
 .freq-picker-unit {
     font-size: 11px;
-    color: #9ca3af;
+    color: var(--freq-muted-text);
     font-weight: 500;
     white-space: nowrap;
 }
@@ -272,80 +306,86 @@
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    padding: 1px 5px;
+    padding: 2px 6px;
     border-radius: 3px;
     text-transform: uppercase;
 }
-.freq-input-tag--min { background: rgba(59,130,246,0.10); color: #3b82f6; }
-.freq-input-tag--max { background: rgba(96,165,250,0.12); color: #1d4ed8; }
-.dark-scheme .freq-input-tag--min { color: #60a5fa; }
-.dark-scheme .freq-input-tag--max { color: #93c5fd; }
+.freq-input-tag--min {
+    background: var(--freq-tag-min-bg);
+    color: var(--freq-tag-text);
+}
+.freq-input-tag--max {
+    background: var(--freq-tag-max-bg);
+    color: var(--freq-tag-text);
+}
 
 /* Tlacidlo merania */
-.freq-picker-measure-btn {
+.freq-picker-actions .freq-picker-measure-btn,
+.freq-picker-actions .freq-picker-best-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 10px;
+    min-width: 220px;
+    height: 36px;
+    padding: 0 12px;
     border-radius: 8px;
-    border: 1.5px solid rgba(59,130,246,0.22);
-    background: rgba(59,130,246,0.05);
+    border: 1px solid var(--freq-accent-border);
+    background: var(--freq-accent-bg);
+    color: var(--freq-accent-fg);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.02em;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.12s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
     flex-shrink: 0;
+    gap: 6px;
 }
-.freq-picker-measure-btn:hover {
-    background: rgba(59,130,246,0.12);
-    border-color: rgba(59,130,246,0.45);
-    transform: translateY(-1px);
+.freq-picker-actions .freq-picker-measure-btn:hover:not(:disabled),
+.freq-picker-actions .freq-picker-best-btn:hover:not(:disabled) {
+    background: var(--freq-accent-hover-bg);
+    border-color: var(--freq-accent-hover-border);
 }
-.freq-picker-measure-btn:active { transform: translateY(0); }
 
-.freq-measure-icon-wrap {
-    position: relative;
-    width: 28px;
-    height: 28px;
+.freq-picker-actions .freq-picker-measure-btn:disabled,
+.freq-picker-actions .freq-picker-best-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.freq-measure-icon-dish {
+    font-size: 13px;
+    color: inherit;
+}
+
+.freq-best-icon {
+    font-size: 12px;
+    color: inherit;
+}
+
+.freq-picker-actions {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
 }
-.freq-measure-icon-dish {
-    font-size: 18px;
-    color: #3b82f6;
-    transition: transform 0.2s;
-    position: relative;
-    z-index: 1;
-}
-.dark-scheme .freq-measure-icon-dish { color: #60a5fa; }
-.freq-picker-measure-btn:hover .freq-measure-icon-dish { transform: rotate(-8deg) scale(1.08); }
 
-.freq-measure-ripple {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    pointer-events: none;
+.freq-picker-btn-text {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    color: inherit;
 }
 .freq-measure-btn--scanning {
-    border-color: rgba(29,185,123,0.45) !important;
-    background: rgba(29,185,123,0.06) !important;
+    border-color: var(--freq-accent-hover-border) !important;
+    background: var(--freq-accent-hover-bg) !important;
     pointer-events: none;
 }
 .freq-measure-btn--scanning .freq-measure-icon-dish {
-    color: #1db97b;
-    animation: dish-scan 0.6s ease-in-out infinite alternate;
-}
-.freq-measure-btn--scanning .freq-measure-ripple {
-    animation: ripple-out 1.2s ease-out infinite;
-    border-color: rgba(29,185,123,0.6);
-}
-@keyframes dish-scan {
-    from { transform: rotate(-12deg); }
-    to   { transform: rotate( 12deg); }
-}
-@keyframes ripple-out {
-    0%   { transform: scale(0.6); opacity: 0.8; }
-    100% { transform: scale(2.4); opacity: 0; }
+    color: #ffffff;
 }
 
 /* Responzivne pre male displeje */
@@ -358,7 +398,13 @@
     .freq-picker-input-grp {
         justify-content: space-between;
     }
-    .freq-picker-measure-btn {
+    .freq-picker-actions {
+        justify-content: stretch;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .freq-picker-measure-btn,
+    .freq-picker-best-btn {
         width: 100%;
     }
 }
@@ -377,6 +423,11 @@
 .freq-picker-att-canvas {
     display: block;
     width: 100%;
+}
+
+.freq-picker-best-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* Okno merania */

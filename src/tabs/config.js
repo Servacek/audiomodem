@@ -42,6 +42,24 @@ const confirmButton = $('confirmation-confirm-button');
 const cancelButton = $('confirmation-cancel-button');
 const configTabContent = $('tab-config');
 const usbProfileSelector = $('usb-profile-selector');
+const importProfileTriggerButton = $('import-profile-trigger-button');
+const importProfileModal = $('import-profile-modal');
+const importProfileModalInput = $('import-profile-modal-input');
+const importProfileValidationText = $('import-profile-validation-text');
+const importProfileScanButton = $('import-profile-scan-button');
+const importProfileScanUnavailableNote = $('import-profile-scan-unavailable-note');
+const importProfileScannerField = $('import-profile-scanner-field');
+const importProfileVideo = $('import-profile-video');
+const importProfileScanStatus = $('import-profile-scan-status');
+const importProfileCancelButton = $('import-profile-cancel-button');
+const importProfileConfirmButton = $('import-profile-confirm-button');
+
+let importProfileScanStream = null;
+let importProfileScanTimer = null;
+let importProfileBarcodeDetector = null;
+let importProfileScanUnavailableReason = '';
+let profileCopyTooltip = null;
+let profileCopyTooltipTimer = null;
 
 /* Nastavenia USB zariadenia */
 
@@ -97,6 +115,73 @@ export function getUsbAutoProfile() {
     return profile ? profile.modemProfile : null;
 }
 
+export function getAllModemProfilesForDemodulation() {
+    const allProfiles = [
+        TinyTUS.currentlyUsedModemProfile,
+        ...profiles.map(profile => profile.modemProfile),
+        TinyTUS.DEFAULT_MODEM_PROFILE,
+    ];
+
+    return allProfiles.filter((profile, index, arr) => profile && arr.indexOf(profile) === index);
+}
+
+export function getModemProfileIdLabel(modemProfile) {
+    if (!modemProfile) return '?';
+    if (modemProfile === TinyTUS.DEFAULT_MODEM_PROFILE) return '#';
+
+    const profile = profiles.find(p => p.modemProfile === modemProfile);
+    if (profile) return String(profile.id);
+
+    return '?';
+}
+
+export function getModemProfileMeta(modemProfile) {
+    if (!modemProfile) {
+        return { idLabel: '?', name: 'Neznamy profil', id: null };
+    }
+
+    if (modemProfile === TinyTUS.DEFAULT_MODEM_PROFILE) {
+        return { idLabel: 'default', name: 'Predvoleny profil', id: 'default' };
+    }
+
+    const profile = profiles.find(p => p.modemProfile === modemProfile);
+    if (!profile) {
+        return { idLabel: '?', name: 'Neznamy profil', id: null };
+    }
+
+    return {
+        idLabel: String(profile.id),
+        name: profile.name || `Profil ${profile.id}`,
+        id: profile.id,
+    };
+}
+
+function focusProfileForReview(modemProfile) {
+    const profileMeta = getModemProfileMeta(modemProfile);
+    if (profileMeta.id == null) return;
+
+    document.getElementById('config-button')?.click();
+
+    const focusAndReveal = () => {
+        const targetId = profileMeta.id;
+        const content = $(`profile-content-${targetId}`);
+        if (!content) return false;
+
+        if (!content.classList.contains('expanded')) {
+            toggleProfile(targetId);
+        }
+
+        const profileItem = content.closest('.profile-item');
+        profileItem?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+    };
+
+    if (!focusAndReveal()) {
+        setTimeout(focusAndReveal, 80);
+        setTimeout(focusAndReveal, 220);
+    }
+}
+
 /* Persistencia */
 
 function loadProfiles() {
@@ -142,6 +227,8 @@ function restoreConfigState() {
             content.classList.add('expanded');
             toggle.classList.add('expanded');
             setTimeout(() => drawWaveVisualization(id), 50);
+            const mp = id === 'default' ? TinyTUS.DEFAULT_MODEM_PROFILE : getProfileById(id)?.modemProfile;
+            if (mp) setTimeout(() => updateProfileSpectrogram(id, mp), 60);
         });
 
         if (state.scrollPosition && configTabContent)
@@ -193,13 +280,14 @@ function findFreeProfileID() {
     return id;
 }
 
-function addProfile(event = null) {
-    if (profiles.length >= MAX_PROFILES) {
-        alert(`Maximálny počet profilov je ${MAX_PROFILES}. Odstráňte niektorý z existujúcich profilov.`);
+function addProfileFromModemProfile(modemProfile, event = null) {
+    if (!ensureCanAddProfile()) {
+        modemProfile?.destroy?.();
         return;
     }
+
     const id = findFreeProfileID();
-    const newProfile = { id, name: `Profil ${id}`, modemProfile: new ModemProfile() };
+    const newProfile = { id, name: `Profil ${id}`, modemProfile };
     profiles.unshift(newProfile);
     saveProfiles();
     renderProfiles();
@@ -209,12 +297,362 @@ function addProfile(event = null) {
         const nameInput = $(`profile-name-input-${id}`);
         content?.classList.add('expanded');
         $(`profile-toggle-${id}`)?.classList.add('expanded');
+        updateProfileSpectrogram(id, modemProfile);
         if (nameInput && !event?.shiftKey) {
             nameInput.focus();
             nameInput.select();
             drawWaveVisualization(id);
         }
     }, 100);
+}
+
+function addProfile(event = null) {
+    addProfileFromModemProfile(new ModemProfile(), event);
+}
+
+function getProfileById(profileId) {
+    return profiles.find(profile => profile.id === profileId) || null;
+}
+
+function syncProfileCodeInput(profileId, profileCode) {
+    const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
+    if (codeInput) codeInput.value = profileCode;
+}
+
+function getProfileCodeById(profileId) {
+    const profile = getProfileById(profileId);
+    return profile ? getModemProfileTLVCode(profile.modemProfile) : '';
+}
+
+function ensureProfileCopyTooltip() {
+    if (profileCopyTooltip && document.body.contains(profileCopyTooltip)) return profileCopyTooltip;
+
+    profileCopyTooltip = document.createElement('div');
+    profileCopyTooltip.className = 'profile-copy-tooltip';
+    profileCopyTooltip.innerHTML = '<i class="fas fa-circle-check"></i><span>Skopirovane!</span>';
+    document.body.appendChild(profileCopyTooltip);
+    return profileCopyTooltip;
+}
+
+function showProfileCopyTooltip(anchorEl) {
+    if (!anchorEl) return;
+
+    const tooltip = ensureProfileCopyTooltip();
+    const rect = anchorEl.getBoundingClientRect();
+    const top = Math.max(10, rect.top - 12);
+    const left = Math.max(12, Math.min(window.innerWidth - 12, rect.left + (rect.width / 2)));
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.classList.remove('is-visible');
+
+    requestAnimationFrame(() => tooltip.classList.add('is-visible'));
+
+    if (profileCopyTooltipTimer) clearTimeout(profileCopyTooltipTimer);
+    profileCopyTooltipTimer = setTimeout(() => {
+        tooltip.classList.remove('is-visible');
+    }, 1300);
+}
+
+async function copyTextToClipboard(text, fallbackInput) {
+    if (!text) return false;
+
+    if (navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            // Fallback je nizsie.
+        }
+    }
+
+    if (!fallbackInput) return false;
+
+    try {
+        fallbackInput.focus({ preventScroll: true });
+        fallbackInput.select();
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    }
+}
+
+async function copyProfileCode(profileId, anchorEl) {
+    const profileCode = getProfileCodeById(profileId);
+    if (!profileCode) return;
+
+    syncProfileCodeInput(profileId, profileCode);
+    const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
+    const copied = await copyTextToClipboard(profileCode, codeInput);
+    if (!copied) return;
+
+    if (codeInput) {
+        codeInput.focus({ preventScroll: true });
+        codeInput.select();
+    }
+
+    showProfileCopyTooltip(anchorEl || codeInput);
+}
+
+function ensureCanAddProfile() {
+    if (profiles.length < MAX_PROFILES) return true;
+    alert(`Maximálny počet profilov je ${MAX_PROFILES}. Odstráňte niektorý z existujúcich profilov.`);
+    return false;
+}
+
+function codeToBytes(code) {
+    const normalized = (code || '').replace(/[\s:-]/g, '');
+    if (!normalized) return null;
+
+    if (/^[0-9A-Fa-f]+$/.test(normalized) && normalized.length % 2 === 0) {
+        const out = new Uint8Array(normalized.length / 2);
+        for (let i = 0; i < out.length; i++) {
+            out[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+    }
+
+    if (!/^[A-Za-z0-9_-]+$/.test(normalized)) return null;
+
+    try {
+        const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((normalized.length + 3) % 4);
+        const binary = atob(base64);
+        return Uint8Array.from(binary, ch => ch.charCodeAt(0));
+    } catch {
+        return null;
+    }
+}
+
+function applyProfileCodeToModemProfile(modemProfile, code) {
+    const bytes = codeToBytes(code);
+    if (!TinyTUS.EXPORTS?.mp_decode_tlv || !bytes || !TinyTUS.EXPORTS?.malloc || !TinyTUS.EXPORTS?.free) return false;
+
+    const bufferPtr = TinyTUS.EXPORTS.malloc(bytes.length);
+    if (!bufferPtr) return false;
+
+    try {
+        new Uint8Array(TinyTUS.EXPORTS.memory.buffer, bufferPtr, bytes.length).set(bytes);
+        const result = TinyTUS.EXPORTS.mp_decode_tlv(modemProfile.ptr, bufferPtr, bytes.length);
+        return result === 0;
+    } catch {
+        return false;
+    } finally {
+        TinyTUS.EXPORTS.free(bufferPtr);
+    }
+}
+
+function importProfileFromCode() {
+    const code = importProfileModalInput?.value?.trim() || '';
+    if (!code) return;
+
+    const validation = validateImportProfileCode(code);
+    if (!validation.valid) {
+        updateImportProfileValidationUI(validation);
+        updateImportProfileModalState();
+        return;
+    }
+
+    const modemProfile = new ModemProfile();
+    const ok = applyProfileCodeToModemProfile(modemProfile, code);
+    if (!ok) {
+        modemProfile.destroy();
+        updateImportProfileValidationUI({
+            valid: false,
+            message: 'Kod profilu je neplatny.',
+        });
+        updateImportProfileModalState();
+        return;
+    }
+
+    addProfileFromModemProfile(modemProfile);
+    closeImportProfileModal();
+}
+
+function validateImportProfileCode(code) {
+    const trimmedCode = (code || '').trim();
+    if (!trimmedCode) return { valid: false, message: '' };
+
+    const bytes = codeToBytes(trimmedCode);
+    if (!bytes) return { valid: false, message: 'Kod nema spravny format.' };
+    if (!TinyTUS.EXPORTS?.mp_decode_tlv) {
+        return { valid: false, message: 'Knižnica este nie je nacitana.' };
+    }
+
+    const tempProfile = new ModemProfile();
+    try {
+        const valid = applyProfileCodeToModemProfile(tempProfile, trimmedCode);
+        return valid
+            ? { valid: true, message: 'Kod je platny.' }
+            : { valid: false, message: 'Kod profilu je neplatny.' };
+    } finally {
+        tempProfile.destroy();
+    }
+}
+
+function updateImportProfileValidationUI(validation) {
+    if (!importProfileValidationText) return;
+
+    if (!validation.message) {
+        importProfileValidationText.style.visibility = 'hidden';
+        importProfileValidationText.classList.remove('is-valid', 'is-invalid');
+        importProfileValidationText.innerHTML = '';
+        return;
+    }
+
+    importProfileValidationText.style.visibility = 'visible';
+    importProfileValidationText.classList.toggle('is-valid', validation.valid);
+    importProfileValidationText.classList.toggle('is-invalid', !validation.valid);
+    importProfileValidationText.innerHTML = validation.valid
+        ? `<i class="fas fa-circle-check"></i> ${validation.message}`
+        : `<i class="fas fa-triangle-exclamation"></i> ${validation.message}`;
+}
+
+function updateImportProfileModalState() {
+    if (!importProfileConfirmButton || !importProfileModalInput) return;
+    const validation = validateImportProfileCode(importProfileModalInput.value);
+    updateImportProfileValidationUI(validation);
+    importProfileConfirmButton.disabled = !validation.valid;
+}
+
+function resetImportProfileModal() {
+    if (importProfileModalInput) importProfileModalInput.value = '';
+    if (importProfileScanStatus) importProfileScanStatus.textContent = 'Namierte kameru na QR kod.';
+    if (importProfileScannerField) importProfileScannerField.style.display = 'none';
+    updateImportProfileValidationUI({ valid: false, message: '' });
+    updateImportProfileModalState();
+    updateImportProfileScanAvailabilityUI();
+}
+
+function updateImportProfileScanAvailabilityUI() {
+    if (importProfileScanButton) importProfileScanButton.disabled = !!importProfileScanUnavailableReason;
+    if (!importProfileScanUnavailableNote) return;
+
+    importProfileScanUnavailableNote.textContent = importProfileScanUnavailableReason;
+    importProfileScanUnavailableNote.style.display = importProfileScanUnavailableReason ? 'block' : 'none';
+}
+
+async function initImportProfileScanAvailability() {
+    importProfileScanUnavailableReason = '';
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+        importProfileScanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze prehliadac nepodporuje pristup ku kamere.';
+        return updateImportProfileScanAvailabilityUI();
+    }
+
+    if (!("BarcodeDetector" in window)) {
+        importProfileScanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze prehliadac nepodporuje detekciu QR kodov.';
+        return updateImportProfileScanAvailabilityUI();
+    }
+
+    try {
+        const formats = BarcodeDetector.getSupportedFormats
+            ? await BarcodeDetector.getSupportedFormats()
+            : ['qr_code'];
+        if (!formats.includes('qr_code')) {
+            importProfileScanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze v tomto prehliadaci nie je podporovany format qr_code.';
+        }
+    } catch {
+        importProfileScanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze sa nepodarilo zistit podporu QR kodov.';
+    }
+
+    updateImportProfileScanAvailabilityUI();
+}
+
+async function stopImportProfileScanner() {
+    if (importProfileScanTimer) {
+        clearTimeout(importProfileScanTimer);
+        importProfileScanTimer = null;
+    }
+
+    if (importProfileVideo) {
+        importProfileVideo.pause();
+        importProfileVideo.srcObject = null;
+    }
+
+    if (importProfileScanStream) {
+        importProfileScanStream.getTracks().forEach(track => track.stop());
+        importProfileScanStream = null;
+    }
+
+    if (importProfileScannerField) importProfileScannerField.style.display = 'none';
+}
+
+async function scanImportProfileQrFrame() {
+    if (!importProfileBarcodeDetector || !importProfileVideo || importProfileVideo.readyState < 2) {
+        importProfileScanTimer = setTimeout(scanImportProfileQrFrame, 250);
+        return;
+    }
+
+    try {
+        const barcodes = await importProfileBarcodeDetector.detect(importProfileVideo);
+        const code = barcodes.find(barcode => barcode.rawValue)?.rawValue?.trim();
+        if (code) {
+            importProfileModalInput.value = code;
+            updateImportProfileModalState();
+            if (importProfileScanStatus) importProfileScanStatus.textContent = 'QR kod bol nacitany.';
+            await stopImportProfileScanner();
+            return;
+        }
+    } catch (e) {
+        if (importProfileScanStatus) importProfileScanStatus.textContent = 'QR skenovanie sa nepodarilo spustit.';
+        console.warn('QR scan failed:', e);
+        return;
+    }
+
+    importProfileScanTimer = setTimeout(scanImportProfileQrFrame, 250);
+}
+
+async function startImportProfileScanner() {
+    if (!importProfileScannerField || !importProfileVideo || !importProfileScanStatus) return;
+
+    if (importProfileScanUnavailableReason) {
+        updateImportProfileScanAvailabilityUI();
+        return;
+    }
+
+    if (!('BarcodeDetector' in window)) {
+        importProfileScannerField.style.display = 'block';
+        importProfileScanStatus.textContent = 'QR skenovanie nie je podporovane v tomto prehliadaci.';
+        return;
+    }
+
+    try {
+        if (!importProfileBarcodeDetector) {
+            const formats = BarcodeDetector.getSupportedFormats
+                ? await BarcodeDetector.getSupportedFormats()
+                : ['qr_code'];
+            if (!formats.includes('qr_code')) throw new Error('qr_code format not supported');
+            importProfileBarcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+        }
+
+        await stopImportProfileScanner();
+        importProfileScanStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } },
+            audio: false,
+        });
+
+        importProfileScannerField.style.display = 'block';
+        importProfileScanStatus.textContent = 'Namierte kameru na QR kod profilu.';
+        importProfileVideo.srcObject = importProfileScanStream;
+        await importProfileVideo.play();
+        importProfileScanTimer = setTimeout(scanImportProfileQrFrame, 200);
+    } catch (e) {
+        importProfileScannerField.style.display = 'block';
+        importProfileScanStatus.textContent = 'Kameru sa nepodarilo spustit alebo QR skenovanie nie je podporovane.';
+        console.warn('Failed to start QR scanner:', e);
+    }
+}
+
+function openImportProfileModal() {
+    if (!importProfileModal) return;
+    importProfileModal.style.display = 'flex';
+    resetImportProfileModal();
+    importProfileModalInput?.focus();
+}
+
+function closeImportProfileModal() {
+    stopImportProfileScanner();
+    if (importProfileModal) importProfileModal.style.display = 'none';
 }
 
 function doDeleteProfile(id) {
@@ -253,7 +691,11 @@ function toggleProfile(id) {
     const opening = !content.classList.contains('expanded');
     content.classList.toggle('expanded');
     toggle?.classList.toggle('expanded');
-    if (opening) setTimeout(() => drawWaveVisualization(id), 50);
+    if (opening) {
+        setTimeout(() => drawWaveVisualization(id), 50);
+        const mp = id === 'default' ? TinyTUS.DEFAULT_MODEM_PROFILE : getProfileById(id)?.modemProfile;
+        if (mp) setTimeout(() => updateProfileSpectrogram(id, mp), 60);
+    }
     saveConfigState();
 }
 
@@ -264,6 +706,8 @@ function updateProfile(id, field, value) {
     if (field === 'name') {
         profile.name = (value || `Profil ${id}`).substring(0, MAX_PROFILE_NAME).trim();
     } else {
+        // Tieto polia su odvodene alebo fixne, UI ich nema menit.
+        if (field === 'sample_rate' || field === 'bits_per_tone') return;
         profile.modemProfile[field] = parseFloat(value) || 0;
         window.dispatchEvent(new CustomEvent("modem-profile-updated", { detail: { profile: profile.modemProfile } }));
         // Pri zmene sample_rate alebo samples_per_symbol
@@ -275,7 +719,27 @@ function updateProfile(id, field, value) {
             drawWaveVisualization(id);
         }
     }
+    updateProfileCodeUI(id, profile.modemProfile);
+    updateProfileSpectrogram(id, profile.modemProfile);
     saveProfiles();
+}
+
+function updateProfileCodeUI(profileId, mp) {
+    const profileCode = getModemProfileTLVCode(mp);
+    syncProfileCodeInput(profileId, profileCode);
+
+    const shareWrap = document.querySelector(`[data-profile-share-for="${profileId}"]`);
+    if (!shareWrap) return;
+
+    const unchanged = isProfileSameAsDefault(mp);
+    const row = shareWrap.closest('.profile-share-row');
+    const shareBtn = row?.querySelector('[data-action="share-profile"]');
+    const codeWrap = shareWrap.querySelector('.profile-share-code-wrap');
+    const unchangedNote = shareWrap.querySelector('.profile-share-nochanges');
+
+    if (shareBtn) shareBtn.disabled = unchanged;
+    if (codeWrap) codeWrap.classList.toggle('is-hidden', unchanged);
+    if (unchangedNote) unchangedNote.classList.toggle('is-hidden', !unchanged);
 }
 
 /* Info o vlne */
@@ -469,6 +933,341 @@ function selectField(name, mp, id, readonly, { options = [], help = '' } = {}) {
     return fieldWrap(name, `<select data-profile-id="${id}" data-field="${name}">${optionsHtml}</select>`, help);
 }
 
+function bytesToCode(bytes) {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function getModemProfileTLVCode(mp) {
+    if (!mp?.ptr || !TinyTUS.EXPORTS?.mp_encode_tlv || !TinyTUS.EXPORTS?.malloc || !TinyTUS.EXPORTS?.free) {
+        return '';
+    }
+
+    const maxSize =
+        TinyTUS.CONSTS?.U32_MODEM_PROFILE_TLV_MAX_BYTES ||
+        TinyTUS.CONSTS?.U32_MODEM_PROFILE_MAX_TLV_BYTES ||
+        TinyTUS.CONSTS?.U32_MODEM_PROFILE_SERIALIZED_MAX_BYTES ||
+        512;
+
+    const bufferPtr = TinyTUS.EXPORTS.malloc(maxSize);
+    if (!bufferPtr) return '';
+
+    try {
+        const outLen = TinyTUS.EXPORTS.mp_encode_tlv(mp.ptr, bufferPtr, maxSize);
+        if (!outLen) return '';
+
+        const tlvBytes = new Uint8Array(TinyTUS.EXPORTS.memory.buffer, bufferPtr, outLen).slice();
+        return bytesToCode(tlvBytes);
+    } finally {
+        TinyTUS.EXPORTS.free(bufferPtr);
+    }
+
+}
+
+function isProfileSameAsDefault(mp) {
+    const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
+    if (!mp || !defaultMp) return false;
+
+    const profileCode = getModemProfileTLVCode(mp);
+    const defaultCode = getModemProfileTLVCode(defaultMp);
+    if (profileCode && defaultCode) {
+        return profileCode === defaultCode;
+    }
+
+    // Fallback, ak TLV serializacia nie je dostupna.
+    try {
+        return JSON.stringify(mp.toObject()) === JSON.stringify(defaultMp.toObject());
+    } catch {
+        return false;
+    }
+}
+
+function renderShareProfileRow(mp, idSuffix, readonly) {
+    if (readonly) return '';
+
+    const profileCode = getModemProfileTLVCode(mp);
+    const unchanged = isProfileSameAsDefault(mp);
+    return `<div class="profile-share-row">
+        <button class="share-profile-button" data-action="share-profile" data-profile-id="${idSuffix}" ${unchanged ? 'disabled' : ''}>
+            <i class="fas fa-share-nodes"></i> Zdieľať profil
+        </button>
+        <div class="profile-share-content" data-profile-share-for="${idSuffix}">
+            <div class="profile-share-code-wrap${unchanged ? ' is-hidden' : ''}">
+                <input type="text" class="profile-code-input" data-profile-code-for="${idSuffix}" value="${profileCode}"
+                    readonly title="Kliknite pre skopirovanie kodu profilu">
+                <button class="copy-profile-code-button" data-action="copy-profile-code" data-profile-id="${idSuffix}"
+                    title="Skopirovat kod profilu">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <div class="profile-share-nochanges${unchanged ? '' : ' is-hidden'}">
+                Profil nema zmeny oproti predvolenemu profilu.
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderReadonlyProfileProperties(mp, idSuffix) {
+    const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
+    const items = [
+        { label: PARAM_LABELS.sample_rate, value: `${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)` },
+        { label: PARAM_LABELS.bits_per_tone, value: `${mp.bits_per_tone}` },
+        { label: 'Rychlost', value: `<span data-profile-speed-for="${idSuffix}">${getProfileSpectrogramSpeedText(mp)}</span>` },
+    ];
+
+    const rows = items
+        .map(item => `<div class="profile-readonly-prop-row">
+            <span class="profile-readonly-prop-label">${item.label}</span>
+            <span class="profile-readonly-prop-value">${item.value}</span>
+        </div>`)
+        .join('');
+
+    return `<div class="profile-readonly-properties">
+        ${rows}
+    </div>`;
+}
+
+function getProfileSpectrogramSpeedText(mp) {
+    const symbolRate = Number(mp.symbol_rate) || 0;
+    const bytesPerSymbol = Number(mp.bytes_per_symbol) || 0;
+    const bytesPerSecond = symbolRate * bytesPerSymbol;
+    if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return 'Rychlost: -';
+    return `Rychlost: ${bytesPerSecond.toFixed(2)} B/s`;
+}
+
+function renderProfileSpectrogramPreview(mp, idSuffix) {
+    return `<div class="profile-spectrogram-preview">
+        <div class="profile-spectrogram-head">
+            <div class="profile-spectrogram-title">FFT waterfall nahlad (sprava: \"test\")</div>
+        </div>
+        <canvas class="profile-spectrogram-canvas" id="profile-spectrogram-${idSuffix}" width="560" height="140"></canvas>
+    </div>`;
+}
+
+const spectrogramFftCache = new Map();
+
+function nextPow2(v) {
+    let n = 1;
+    while (n < v) n <<= 1;
+    return n;
+}
+
+function getSpectrogramFftPlan(fftSize) {
+    const cached = spectrogramFftCache.get(fftSize);
+    if (cached) return cached;
+
+    const bitRev = new Uint32Array(fftSize);
+    const bits = Math.log2(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+        let x = i;
+        let y = 0;
+        for (let b = 0; b < bits; b++) {
+            y = (y << 1) | (x & 1);
+            x >>= 1;
+        }
+        bitRev[i] = y;
+    }
+
+    const window = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+        window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (fftSize - 1));
+    }
+
+    const plan = { bitRev, window };
+    spectrogramFftCache.set(fftSize, plan);
+    return plan;
+}
+
+function fftRealMagnitudeInPlace(re, im) {
+    const n = re.length;
+    for (let len = 2; len <= n; len <<= 1) {
+        const half = len >> 1;
+        const ang = (-2 * Math.PI) / len;
+        const wLenRe = Math.cos(ang);
+        const wLenIm = Math.sin(ang);
+
+        for (let i = 0; i < n; i += len) {
+            let wRe = 1;
+            let wIm = 0;
+            for (let j = 0; j < half; j++) {
+                const a = i + j;
+                const b = a + half;
+
+                const uRe = re[a];
+                const uIm = im[a];
+                const vRe = re[b] * wRe - im[b] * wIm;
+                const vIm = re[b] * wIm + im[b] * wRe;
+
+                re[a] = uRe + vRe;
+                im[a] = uIm + vIm;
+                re[b] = uRe - vRe;
+                im[b] = uIm - vIm;
+
+                const nwRe = wRe * wLenRe - wIm * wLenIm;
+                wIm = wRe * wLenIm + wIm * wLenRe;
+                wRe = nwRe;
+            }
+        }
+    }
+}
+
+function getSpectrogramParams(sampleRate, mp) {
+    const sr = Math.max(8000, Number(sampleRate) || 48000);
+    const minTx = Number(mp?.min_tx_freq) || 800;
+    const maxTx = Number(mp?.max_tx_freq) || Math.min(sr / 2 - 1, minTx + 1200);
+    const span = Math.max(200, maxTx - minTx);
+    const targetBinHz = Math.max(4, Math.min(14, span / 120));
+    let fftSize = nextPow2(Math.round(sr / targetBinHz));
+    fftSize = Math.max(2048, Math.min(8192, fftSize));
+    const hopSize = Math.max(64, fftSize >> 4);
+    return { fftSize, hopSize };
+}
+
+function computeSpectrogramFrames(signal, sampleRate, mp = null) {
+    const { fftSize, hopSize } = getSpectrogramParams(sampleRate, mp);
+    if (!signal || signal.length < fftSize) return null;
+
+    const bins = fftSize >> 1;
+    const frameCountRaw = Math.max(1, Math.floor((signal.length - fftSize) / hopSize) + 1);
+    const maxFrames = 220;
+    const frameStep = Math.max(1, Math.ceil(frameCountRaw / maxFrames));
+    const frameCount = Math.ceil(frameCountRaw / frameStep);
+    const frames = new Array(frameCount);
+
+    const { bitRev, window } = getSpectrogramFftPlan(fftSize);
+    const re = new Float32Array(fftSize);
+    const im = new Float32Array(fftSize);
+
+    for (let outIdx = 0, f = 0; f < frameCountRaw; f += frameStep, outIdx++) {
+        const start = f * hopSize;
+
+        for (let i = 0; i < fftSize; i++) {
+            const src = start + i;
+            const val = src < signal.length ? signal[src] : 0;
+            const br = bitRev[i];
+            re[br] = val * window[i];
+            im[br] = 0;
+        }
+
+        fftRealMagnitudeInPlace(re, im);
+
+        const mags = new Float32Array(bins);
+        for (let k = 0; k < bins; k++) {
+            mags[k] = Math.hypot(re[k], im[k]);
+        }
+        frames[outIdx] = mags;
+    }
+
+    return { frames, sampleRate, fftSize };
+}
+
+function drawProfileSpectrogram(canvas, spec, mp) {
+    if (!canvas || !spec?.frames?.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(240, Math.floor(rect.width || 560));
+    const cssH = Math.max(96, Math.floor(rect.height || 140));
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const { frames, sampleRate, fftSize } = spec;
+    const nyquist = sampleRate / 2;
+    const minFreq = Math.max(0, Number(mp.min_tx_freq || 0) - 120);
+    const maxFreq = Math.min(nyquist, Number(mp.max_tx_freq || 0) + 120);
+    const minBin = Math.max(0, Math.floor((minFreq / nyquist) * (fftSize / 2)));
+    const maxBin = Math.max(minBin + 1, Math.min((fftSize / 2) - 1, Math.ceil((maxFreq / nyquist) * (fftSize / 2))));
+    const binCount = maxBin - minBin + 1;
+
+    const dbValues = [];
+    for (let r = 0; r < frames.length; r++) {
+        for (let b = minBin; b <= maxBin; b++) {
+            dbValues.push(20 * Math.log10(frames[r][b] + 1e-12));
+        }
+    }
+    dbValues.sort((a, b) => a - b);
+    const p10 = dbValues[Math.floor(dbValues.length * 0.10)] ?? -120;
+    const p995 = dbValues[Math.floor(dbValues.length * 0.995)] ?? -10;
+    const lowDb = p10;
+    const highDb = Math.max(lowDb + 1, p995);
+
+    ctx.fillStyle = 'rgba(14, 20, 28, 0.92)';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const xScale = cssW / binCount;
+    const yScale = cssH / frames.length;
+    for (let r = 0; r < frames.length; r++) {
+        for (let b = 0; b < binCount; b++) {
+            const db = 20 * Math.log10(frames[r][minBin + b] + 1e-12);
+            const norm = Math.min(1, Math.max(0, (db - lowDb) / (highDb - lowDb)));
+            if (norm >= 0.9) {
+                ctx.fillStyle = `hsl(40 78% 77%)`;
+            } else {
+                ctx.fillStyle = `hsl(215 78% 10%)`;
+            }
+            ctx.fillRect(b * xScale, r * yScale, Math.ceil(xScale), Math.ceil(yScale));
+        }
+    }
+
+    if (Number(mp.min_tx_freq) > 0 && Number(mp.max_tx_freq) > Number(mp.min_tx_freq)) {
+        const minX = ((Number(mp.min_tx_freq) - minFreq) / (maxFreq - minFreq)) * cssW;
+        const maxX = ((Number(mp.max_tx_freq) - minFreq) / (maxFreq - minFreq)) * cssW;
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(minX + 0.5, 0);
+        ctx.lineTo(minX + 0.5, cssH);
+        ctx.moveTo(maxX + 0.5, 0);
+        ctx.lineTo(maxX + 0.5, cssH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, cssW - 1, cssH - 1);
+}
+
+function updateProfileSpectrogram(profileId, mp) {
+    const idSuffix = profileId === 'default' ? 'default' : String(profileId);
+    const speedEl = document.querySelector(`[data-profile-speed-for="${idSuffix}"]`);
+    if (speedEl) speedEl.textContent = getProfileSpectrogramSpeedText(mp);
+
+    const canvas = document.getElementById(`profile-spectrogram-${idSuffix}`);
+    if (!canvas || !TinyTUS.modulateMessage) return;
+
+    try {
+        const waveform = TinyTUS.modulateMessage('test', mp);
+        const spec = computeSpectrogramFrames(waveform, Number(mp.sample_rate) || 48000, mp);
+        drawProfileSpectrogram(canvas, spec, mp);
+    } catch {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(14, 20, 28, 0.92)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.font = '12px JetBrains Mono, monospace';
+        ctx.fillText('Nahlad nie je dostupny', 12, 22);
+    }
+}
+
+function refreshExpandedProfileSpectrograms() {
+    const ids = [...profiles.map(p => p.id), 'default'];
+    ids.forEach(id => {
+        if (!$(`profile-content-${id}`)?.classList.contains('expanded')) return;
+        const mp = id === 'default' ? TinyTUS.DEFAULT_MODEM_PROFILE : getProfileById(id)?.modemProfile;
+        if (mp) updateProfileSpectrogram(id, mp);
+    });
+}
+
 /* HTML karty profilu */
 
 function renderProfileFields(mp, idSuffix, readonly) {
@@ -478,16 +1277,24 @@ function renderProfileFields(mp, idSuffix, readonly) {
     const sel = (name, opts) => selectField(name, mp, idSuffix, readonly, opts);
     const divider = title => `<div class="section-divider"><div class="section-title">${title}</div></div>`;
     const row = (...fields) => `<div class="profile-field-row">${fields.join('')}</div>`;
+    const markerSubsection = `
+        <div class="profile-subsection-title">Markery</div>
+        <div class="section-description">
+            Marker je kratka synchronizacna znacka na zaciatku a konci prenosu. Prijimac ju hlada, aby vedel presne urcit hranice spravy. Dlzka markeru urcuje pocet symbolov a hustota urcuje pocet tonov v markeri.
+        </div>`;
 
     return `
+        ${renderProfileSpectrogramPreview(mp, idSuffix)}
+        ${renderShareProfileRow(mp, idSuffix, readonly)}
+        ${readonly ? '<div class="profile-readonly-note"><i class="fas fa-lock"></i> Tento profil sa používa na synchronizáciu komunikácie a nedá sa upravovať.</div>' : ''}
+        ${renderReadonlyProfileProperties(mp, idSuffix)}
         ${divider('Základné parametre')}
-        ${row(n('sample_rate', { min: 8000, max: 96000, step: 1000, help: 'Vzorkovacia frekvencia modulátora a demodulator (8 000 - 48 000 Hz)' }),
-        sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }))}
-        ${row(sel('bits_per_tone', { options: [1, 2, 4, 8], help: 'Koľko bitov má reprezentovať jeden tón v symbole (1, 2, 4 alebo 8)' }),
+        ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }),
             n('bytes_per_symbol', { min: 1, max: 32, help: 'Koľko bajtov má jeden symbol obsahovať. Každý z bajtov bude rozdelený do jednotlivých tónov.' }))}
+        ${row(n('tones_per_symbol', { min: 1, max: 255, help: 'Koľko tónov má jeden symbol obsahovať.' }))}
+        ${markerSubsection}
         ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Koľko dĺžok symbolu má jeden marker začiatku alebo konca trvať.' }),
                 n('bits_in_marker', { min: 1, max: 255, help: 'Koľko tónov má marker začiatku alebo konca obsahovať.' }))}
-        ${row(n('tones_per_symbol', { min: 1, max: 255, help: 'Počet rámcov v TX bloku' }))}
         ${divider('TX Parametre (vysielanie)')}
         ${s('max_tx_amp', {
                     min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
@@ -518,9 +1325,9 @@ function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = f
 
     const headerLeft = isDefault
         ? `<i id="profile-toggle-default" class="fas fa-chevron-right profile-toggle"></i>
-           <span class="profile-name-display">Predvolený profil</span>
-           <span class="profile-tag profile-tag--readonly"><i class="fas fa-lock"></i> Len na čítanie</span>`
+              <span class="profile-name-display">Predvolený profil</span>`
         : `<i id="profile-toggle-${id}" class="fas fa-chevron-right profile-toggle"></i>
+             <span class="profile-id-label" title="ID profilu">#${id}</span>
            <input type="text" id="profile-name-input-${id}" class="profile-name-input"
                   value="${name}" data-profile-id="${id}" data-field="name"
                   maxlength="${MAX_PROFILE_NAME}" placeholder="Názov profilu"
@@ -575,12 +1382,42 @@ function renderProfiles() {
     populateUsbProfileSelector();
     initFreqPickers();
     setupStickyHeaderObservers();
+    setTimeout(() => refreshExpandedProfileSpectrograms(), 50);
 }
 
 /* Delegacia eventov */
 
-container?.addEventListener('click', e => {
+container?.addEventListener('click', async e => {
     const btn = action => e.target.closest(`[data-action="${action}"]`);
+    const codeInput = e.target.closest('.profile-code-input');
+
+    if (btn('copy-profile-code')) {
+        e.stopPropagation();
+        const copyButton = btn('copy-profile-code');
+        const profileId = parseInt(copyButton.dataset.profileId, 10);
+        if (!Number.isNaN(profileId)) await copyProfileCode(profileId, copyButton);
+        return;
+    }
+
+    if (codeInput) {
+        e.stopPropagation();
+        const profileId = parseInt(codeInput.dataset.profileCodeFor, 10);
+        if (!Number.isNaN(profileId)) {
+            await copyProfileCode(profileId, codeInput);
+        }
+        return;
+    }
+
+    if (btn('share-profile')) {
+        e.stopPropagation();
+        const profileId = parseInt(btn('share-profile').dataset.profileId);
+        if (!Number.isNaN(profileId)) {
+            const profileCode = getProfileCodeById(profileId);
+            syncProfileCodeInput(profileId, profileCode);
+            window.dispatchEvent(new CustomEvent('chat-share-profile', { detail: { profileCode } }));
+        }
+        return;
+    }
 
     if (btn('delete')) {
         e.stopPropagation();
@@ -589,7 +1426,7 @@ container?.addEventListener('click', e => {
     }
     if (btn('use-profile')) {
         e.stopPropagation();
-        const profile = profiles.find(p => p.id === parseInt(btn('use-profile').dataset.profileId));
+        const profile = getProfileById(parseInt(btn('use-profile').dataset.profileId));
         return profile && setActiveProfile(profile.modemProfile);
     }
     if (btn('use-default')) { e.stopPropagation(); return setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE); }
@@ -600,6 +1437,8 @@ container?.addEventListener('click', e => {
 container?.addEventListener('change', e => {
     const { profileId, field, type } = e.target.dataset;
     if (!profileId || !field) return;
+    // Odmietni hodnoty, ktore nesplnaju HTML validaciu (min, max, step).
+    if (e.target.type === 'number' && !e.target.validity.valid) return;
     const id = parseInt(profileId);
     const value = type === 'checkbox' ? (e.target.checked ? 1 : 0) : e.target.value;
     updateProfile(id, field, value);
@@ -629,6 +1468,22 @@ function syncAutoProfileWithUSBState() {
 }
 
 addButton?.addEventListener('click', addProfile);
+importProfileTriggerButton?.addEventListener('click', openImportProfileModal);
+importProfileScanButton?.addEventListener('click', startImportProfileScanner);
+importProfileCancelButton?.addEventListener('click', closeImportProfileModal);
+importProfileConfirmButton?.addEventListener('click', importProfileFromCode);
+importProfileModal?.addEventListener('click', e => {
+    if (e.target === importProfileModal) closeImportProfileModal();
+});
+importProfileModalInput?.addEventListener('input', updateImportProfileModalState);
+importProfileModalInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        importProfileFromCode();
+    }
+});
+updateImportProfileModalState();
+initImportProfileScanAvailability();
 confirmButton?.addEventListener('click', confirmDelete);
 cancelButton?.addEventListener('click', closeModal);
 confirmationModal?.addEventListener('click', e => { if (e.target === confirmationModal) closeModal(); });
@@ -654,6 +1509,12 @@ configTabContent?.addEventListener('scroll', () => {
 window.addEventListener('refresh-local-storage', saveProfiles);
 
 window.addEventListener("usb-device-connected", syncAutoProfileWithUSBState);
+
+window.addEventListener("chat-focus-profile", (event) => {
+    const modemProfile = event.detail?.profile;
+    if (!modemProfile) return;
+    focusProfileForReview(modemProfile);
+});
 
 window.addEventListener("active-modem-profile-changed", (e) => {
     const profile = e.detail?.profile;

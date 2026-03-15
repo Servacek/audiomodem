@@ -14,6 +14,12 @@
     overflow-x: clip;
     box-sizing: border-box;
 
+    --config-btn-radius: 8px;
+    --config-btn-font-size: 13px;
+    --config-btn-font-weight: 600;
+    --config-btn-padding-y: 8px;
+    --config-btn-padding-x: 14px;
+
     /* Nedajme tu margin lebo nam to oreze obsah tabu. */
 }
 
@@ -43,6 +49,30 @@
     font-weight: 500;
 }
 
+#username-config-option {
+    flex-wrap: wrap;
+}
+
+#username-config-input {
+    /* flex-basis: 0 — rozsiruje sa z nuly, takze menu sa suciti skor ako zalomenie */
+    flex: 1 1 0;
+    min-width: 10ch;
+}
+
+#username-config-option .remember-me-inline-wrap {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+#username-config-option .remember-me-inline-wrap label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--msger-header-colour);
+    opacity: 0.85;
+    font-size: 13px;
+}
+
 #tab-config select:focus {
     outline: none;
     border-color: var(--msger-send-button-bg);
@@ -51,6 +81,12 @@
 #tab-config input[type="checkbox"] {
     width: 18px;
     height: 18px;
+    min-width: 18px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 4px;
+    background: var(--config-input-bg, transparent);
+    vertical-align: middle;
+    margin: 0;
     cursor: pointer;
 }
 
@@ -73,11 +109,6 @@ separator {
     height: 1px;
     background: var(--config-border, rgba(255, 255, 255, 0.15));
     margin: 16px 0;
-}
-
-.config-sub-header {
-    display: block;
-    margin-top: 20px;
 }
 
 /* Sekcia USB zariadenia */
@@ -103,24 +134,6 @@ separator {
     align-items: center;
     gap: 16px;
     margin-bottom: 16px;
-}
-
-.usb-device-icon {
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--config-border, rgba(255, 255, 255, 0.1));
-    border-radius: 8px;
-    font-size: 24px;
-    color: var(--msger-header-colour);
-    flex-shrink: 0;
-}
-
-.usb-device-card.connected .usb-device-icon {
-    background: rgba(76, 175, 80, 0.2);
-    color: #4CAF50;
 }
 
 .usb-device-info-wrapper {
@@ -174,14 +187,14 @@ separator {
 }
 
 .usb-connect-button {
-    padding: 10px 20px;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 6px;
+    padding: var(--config-btn-padding-y) calc(var(--config-btn-padding-x) + 2px);
+    background: var(--config-btn-primary-bg);
+    color: var(--config-btn-primary-fg);
+    border: 1px solid var(--config-btn-primary-border);
+    border-radius: var(--config-btn-radius);
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: var(--config-btn-font-size);
+    font-weight: var(--config-btn-font-weight);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -190,18 +203,22 @@ separator {
 }
 
 .usb-connect-button:hover:not(:disabled) {
-    background: #45a049;
+    background: var(--config-btn-primary-hover-bg);
+    border-color: var(--config-btn-primary-hover-border);
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    box-shadow: 0 4px 8px rgba(67, 128, 96, 0.25);
 }
 
 .usb-connect-button.paired {
-    background: #ff6666;
+    background: var(--config-btn-danger-bg);
+    color: var(--config-btn-danger-fg);
+    border-color: var(--config-btn-danger-border);
 }
 
 .usb-connect-button.paired:hover {
-    background: #ff5252;
-    box-shadow: 0 4px 8px rgba(255, 102, 102, 0.3);
+    background: var(--config-btn-danger-hover-bg);
+    border-color: var(--config-btn-danger-hover-border);
+    box-shadow: 0 4px 8px rgba(150, 95, 95, 0.28);
 }
 
 .usb-connect-button:disabled {
@@ -290,26 +307,129 @@ separator {
     display: flex;
     justify-content: flex-start;
     align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
     margin: 16px 0;
 }
 
-#add-profile-button {
-    background: var(--msger-send-button-bg);
-    color: var(--msger-send-button-fg);
+.profiles-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.profiles-header-actions button {
     padding: 8px 16px;
     display: flex;
     align-items: center;
     gap: 8px;
-    border: none;
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: var(--config-btn-radius);
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: var(--config-btn-font-size);
+    font-weight: var(--config-btn-font-weight);
+}
+
+#add-profile-button {
+    background: var(--config-btn-primary-bg);
+    color: var(--config-btn-primary-fg);
+    border-color: var(--config-btn-primary-border);
+}
+
+#import-profile-trigger-button {
+    background: var(--config-btn-secondary-bg);
+    color: var(--config-btn-secondary-fg);
+    border-color: var(--config-btn-secondary-border);
 }
 
 #add-profile-button:hover {
-    background: var(--msger-send-button-hover-bg);
+    background: var(--config-btn-primary-hover-bg);
+    border-color: var(--config-btn-primary-hover-border);
 }
+
+#import-profile-trigger-button:hover:not(:disabled) {
+    background: var(--config-btn-secondary-hover-bg);
+    border-color: var(--config-btn-secondary-hover-border);
+}
+
+#import-profile-modal .modal-content {
+    max-width: 560px;
+}
+
+#import-profile-modal-input {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+#import-profile-validation-text {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    min-height: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    visibility: hidden;
+}
+
+#import-profile-validation-text.is-valid {
+    color: #1db97b;
+}
+
+#import-profile-validation-text.is-invalid {
+    color: #e07a5f;
+}
+
+#import-profile-scan-button {
+    width: auto;
+    min-width: 180px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: var(--config-btn-padding-y, 8px) var(--config-btn-padding-x, 14px);
+    border-radius: var(--config-btn-radius, 8px);
+    border: 1px solid var(--config-btn-secondary-border, #628f8b);
+    background: var(--config-btn-secondary-bg, #6f9e9a);
+    color: var(--config-btn-secondary-fg, #0f2826);
+    font-size: var(--config-btn-font-size, 13px);
+    font-weight: var(--config-btn-font-weight, 600);
+}
+
+#import-profile-scan-button:hover:not(:disabled) {
+    background: var(--config-btn-secondary-hover-bg, #80aaa6);
+    border-color: var(--config-btn-secondary-hover-border, #719c98);
+}
+
+#import-profile-scan-unavailable-note {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--msger-header-colour);
+    opacity: 0.58;
+    line-height: 1.4;
+}
+
+#import-profile-scanner-field {
+    text-align: left;
+}
+
+#import-profile-video {
+    width: 100%;
+    min-height: 220px;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #111;
+    margin-bottom: 10px;
+}
+
+#import-profile-scan-status {
+    font-size: 12px;
+    color: var(--msger-header-colour);
+    opacity: 0.65;
+    line-height: 1.5;
+}
+
 
 .profile-item {
     margin: 12px 0;
@@ -392,6 +512,16 @@ separator {
     white-space: nowrap;
 }
 
+.profile-id-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--msger-header-colour);
+    opacity: 0.6;
+    flex-shrink: 0;
+    user-select: none;
+}
+
 .profile-name-input {
     font-weight: 500;
     color: var(--msger-header-colour);
@@ -424,17 +554,19 @@ separator {
 }
 
 .delete-profile-button {
-    background: #dc3545;
-    color: white;
+    background: var(--config-btn-danger-bg);
+    color: var(--config-btn-danger-fg);
     padding: 6px 12px;
-    font-size: 13px;
-    border: none;
-    border-radius: 4px;
+    font-size: var(--config-btn-font-size);
+    border: 1px solid var(--config-btn-danger-border);
+    border-radius: var(--config-btn-radius);
     cursor: pointer;
+    font-weight: var(--config-btn-font-weight);
 }
 
 .delete-profile-button:hover {
-    background: #c82333;
+    background: var(--config-btn-danger-hover-bg);
+    border-color: var(--config-btn-danger-hover-border);
 }
 
 
@@ -478,67 +610,39 @@ separator {
     width: 100%;
 }
 
+#tab-config :is(.profile-field input, .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select) {
+    border-radius: 8px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    background: var(--config-input-bg, transparent);
+    color: var(--msger-header-colour);
+}
+
+#tab-config :is(.profile-field input, .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select):focus {
+    outline: none;
+    border-color: var(--config-btn-secondary-border, rgba(98, 143, 139, 0.8));
+    box-shadow: 0 0 0 3px rgba(98, 143, 139, 0.16);
+}
+
+#tab-config input[type="number"]:disabled {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+#tab-config input[type="number"]:disabled::-webkit-outer-spin-button,
+#tab-config input[type="number"]:disabled::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .profile-field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
 }
 
-.profile-field-row-full {
-    display: block;
-    width: 100%;
-}
-
-.wave-visualization {
-    margin: 20px 0;
-    padding: 20px;
-    background: var(--profile-header-bg, rgba(255, 255, 255, 0.04));
-    border-radius: 6px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-}
-
-.wave-viz-header {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--msger-header-colour);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.wave-canvas-container {
-    background: var(--config-input-bg, rgba(0, 0, 0, 0.2));
-    border-radius: 4px;
-    padding: 10px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-}
-
 #tab-config canvas {
     display: block;
     width: 100%;
-}
-
-.wave-info {
-    margin-top: 12px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 8px;
-    font-size: 13px;
-    color: var(--msger-header-colour);
-    opacity: 0.8;
-}
-
-.wave-info-item {
-    background: var(--config-input-bg, rgba(0, 0, 0, 0.2));
-    padding: 8px 12px;
-    border-radius: 4px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-}
-
-.wave-info-label {
-    font-weight: 600;
-    color: var(--msger-header-colour);
 }
 
 .section-divider {
@@ -568,11 +672,126 @@ separator {
     margin: 4px 0 8px 0;
 }
 
+.profile-subsection-title {
+    margin: 14px 0 6px 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--config-border, rgba(255, 255, 255, 0.15));
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.72;
+}
+
 .help-text {
     font-size: 12px;
     color: var(--msger-header-colour);
     opacity: 0.5;
     margin-top: 4px;
+}
+
+.profile-readonly-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--msger-header-colour);
+    opacity: 0.58;
+}
+
+.dark-scheme .profile-readonly-note {
+    opacity: 0.52;
+}
+
+.profile-spectrogram-preview {
+    margin: 0 0 14px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 78%, transparent);
+}
+
+.profile-spectrogram-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.profile-spectrogram-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.7;
+}
+
+.profile-spectrogram-speed {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--msger-header-colour);
+    opacity: 0.8;
+    white-space: nowrap;
+}
+
+.profile-spectrogram-canvas {
+    display: block;
+    width: 100%;
+    height: 140px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 70%, transparent);
+    background: rgba(14, 20, 28, 0.92);
+}
+
+.profile-readonly-properties {
+    margin: 0 0 14px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 72%, transparent);
+}
+
+.profile-readonly-properties-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.66;
+}
+
+.profile-readonly-prop-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 200px) minmax(0, 1fr);
+    gap: 10px;
+    padding: 6px 0;
+    border-top: 1px dashed color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 70%, transparent);
+}
+
+.profile-readonly-prop-row:first-of-type {
+    border-top: none;
+    padding-top: 2px;
+}
+
+.profile-readonly-prop-label {
+    font-size: 12px;
+    color: var(--msger-header-colour);
+    opacity: 0.68;
+}
+
+.profile-readonly-prop-value {
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--msger-header-colour);
+    font-weight: 600;
 }
 
 .empty-state {
@@ -601,30 +820,34 @@ separator {
 }
 
 .modal-button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
+    padding: var(--config-btn-padding-y, 8px) var(--config-btn-padding-x, 14px);
+    border: 1px solid transparent;
+    border-radius: var(--config-btn-radius, 8px);
     cursor: pointer;
-    font-weight: 500;
-    font-size: 14px;
+    font-weight: var(--config-btn-font-weight, 600);
+    font-size: var(--config-btn-font-size, 13px);
 }
 
 .modal-button.cancel {
-    background: #6c757d;
-    color: white;
+    background: var(--config-modal-cancel-bg, #5f6770);
+    color: #ffffff;
+    border-color: var(--config-modal-cancel-border, #505861);
 }
 
 .modal-button.cancel:hover {
-    background: #5a6268;
+    background: var(--config-modal-cancel-hover-bg, #6b737b);
+    border-color: var(--config-modal-cancel-hover-border, #5b646d);
 }
 
 .modal-button.confirm {
-    background: #dc3545;
-    color: white;
+    background: var(--config-modal-confirm-bg, #915f5f);
+    color: #ffffff;
+    border-color: var(--config-modal-confirm-border, #805252);
 }
 
 .modal-button.confirm:hover {
-    background: #c82333;
+    background: var(--config-modal-confirm-hover-bg, #a06c6c);
+    border-color: var(--config-modal-confirm-hover-border, #8e5f5f);
 }
 
 :root:not(.dark-scheme) #tab-config {
@@ -633,6 +856,40 @@ separator {
     --config-input-bg: #fff;
     --profile-header-bg: #f8f9fa;
     --profile-header-hover-bg: #e9ecef;
+    --config-btn-primary-bg: #78b08e;
+    --config-btn-primary-hover-bg: #88be9b;
+    --config-btn-primary-fg: #0f2a1c;
+    --config-btn-primary-border: #6aa883;
+    --config-btn-primary-hover-border: #79b792;
+    --config-btn-secondary-bg: #6f9e9a;
+    --config-btn-secondary-hover-bg: #80aaa6;
+    --config-btn-secondary-fg: #0f2826;
+    --config-btn-secondary-border: #628f8b;
+    --config-btn-secondary-hover-border: #719c98;
+    --config-btn-neutral-bg: #8b949d;
+    --config-btn-neutral-hover-bg: #98a0a7;
+    --config-btn-neutral-fg: #0f1419;
+    --config-btn-neutral-border: #7e868f;
+    --config-btn-neutral-hover-border: #8a939b;
+    --config-btn-danger-bg: #c48787;
+    --config-btn-danger-hover-bg: #ce9393;
+    --config-btn-danger-fg: #2b1111;
+    --config-btn-danger-border: #b77b7b;
+    --config-btn-danger-hover-border: #c28686;
+    --config-modal-cancel-bg: #636b74;
+    --config-modal-cancel-hover-bg: #6f7881;
+    --config-modal-cancel-border: #565e67;
+    --config-modal-cancel-hover-border: #626b74;
+    --config-modal-confirm-bg: #985f5f;
+    --config-modal-confirm-hover-bg: #a86d6d;
+    --config-modal-confirm-border: #875353;
+    --config-modal-confirm-hover-border: #956060;
+    --freq-graph-good-line: #5d8fd6;
+    --freq-graph-good-fill: rgba(93, 143, 214, 0.24);
+    --freq-graph-bad-line: #c48787;
+    --freq-graph-bad-fill: rgba(196, 135, 135, 0.16);
+    --freq-graph-threshold-line: rgba(196, 135, 135, 0.62);
+    --freq-graph-select-line: rgba(93, 143, 214, 0.68);
 }
 
 :root.dark-scheme #tab-config {
@@ -641,6 +898,40 @@ separator {
     --config-input-bg: rgba(255, 255, 255, 0.06);
     --profile-header-bg: rgba(255, 255, 255, 0.04);
     --profile-header-hover-bg: rgba(255, 255, 255, 0.08);
+    --config-btn-primary-bg: #4d7c60;
+    --config-btn-primary-hover-bg: #5a8c6d;
+    --config-btn-primary-fg: #d6f2e2;
+    --config-btn-primary-border: #58896a;
+    --config-btn-primary-hover-border: #669779;
+    --config-btn-secondary-bg: #3b6f6a;
+    --config-btn-secondary-hover-bg: #467f79;
+    --config-btn-secondary-fg: #d0ece9;
+    --config-btn-secondary-border: #467974;
+    --config-btn-secondary-hover-border: #528883;
+    --config-btn-neutral-bg: #5f6770;
+    --config-btn-neutral-hover-bg: #6b737b;
+    --config-btn-neutral-fg: #e0e6ea;
+    --config-btn-neutral-border: #6a727b;
+    --config-btn-neutral-hover-border: #77808a;
+    --config-btn-danger-bg: #915f5f;
+    --config-btn-danger-hover-bg: #a06c6c;
+    --config-btn-danger-fg: #ffeaea;
+    --config-btn-danger-border: #9b6868;
+    --config-btn-danger-hover-border: #a97878;
+    --config-modal-cancel-bg: #535c65;
+    --config-modal-cancel-hover-bg: #616a73;
+    --config-modal-cancel-border: #616a73;
+    --config-modal-cancel-hover-border: #6e7780;
+    --config-modal-confirm-bg: #7e5353;
+    --config-modal-confirm-hover-bg: #8d5f5f;
+    --config-modal-confirm-border: #8b5d5d;
+    --config-modal-confirm-hover-border: #9a6b6b;
+    --freq-graph-good-line: #7fa8e3;
+    --freq-graph-good-fill: rgba(127, 168, 227, 0.28);
+    --freq-graph-bad-line: #a06c6c;
+    --freq-graph-bad-fill: rgba(160, 108, 108, 0.24);
+    --freq-graph-threshold-line: rgba(160, 108, 108, 0.70);
+    --freq-graph-select-line: rgba(127, 168, 227, 0.74);
 }
 
 @media (max-width: 600px) {
@@ -665,11 +956,16 @@ separator {
         font-size: 13px;
     }
 
-    .profile-field-row {
-        grid-template-columns: 1fr;
+    #username-config-option {
+        flex-direction: row;
+        align-items: center;
     }
 
-    .wave-info {
+    #username-config-input {
+        flex-basis: 180px;
+    }
+
+    .profile-field-row {
         grid-template-columns: 1fr;
     }
 
@@ -745,29 +1041,6 @@ separator {
         font-size: 13px;
     }
 
-    .wave-visualization {
-        margin: 12px 0;
-        padding: 12px;
-    }
-
-    .wave-viz-header {
-        font-size: 13px;
-        margin-bottom: 10px;
-    }
-
-    .wave-canvas-container {
-        padding: 8px;
-    }
-
-    .wave-info {
-        margin-top: 10px;
-        font-size: 12px;
-    }
-
-    .wave-info-item {
-        padding: 6px 10px;
-    }
-
     .section-divider {
         margin: 16px 0 12px 0;
         padding-top: 12px;
@@ -782,6 +1055,37 @@ separator {
         font-size: 12px;
     }
 
+    .profile-spectrogram-preview {
+        padding: 10px;
+    }
+
+    .profile-spectrogram-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .profile-spectrogram-canvas {
+        height: 120px;
+    }
+
+    .profile-readonly-properties {
+        padding: 10px;
+    }
+
+    .profile-readonly-prop-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .profile-readonly-prop-label {
+        font-size: 11px;
+    }
+
+    .profile-readonly-prop-value {
+        font-size: 12px;
+    }
+
     .help-text {
         font-size: 11px;
     }
@@ -790,15 +1094,19 @@ separator {
         margin: 12px 0;
     }
 
-    #add-profile-button {
+    .profiles-header-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: stretch;
+    }
+
+    .profiles-header-actions button {
+        justify-content: center;
+        align-self: stretch;
         padding: 7px 12px;
         font-size: 13px;
         gap: 6px;
-    }
-
-    .profile-tag {
-        font-size: 10px;
-        padding: 2px 8px;
     }
 
     .modal-content {
@@ -837,15 +1145,6 @@ separator {
         align-self: center;
     }
 
-    .slider-manual-control {
-        grid-column: 1 / -1;
-        justify-content: center;
-        margin-left: 0;
-    }
-
-    .slider-manual-input {
-        width: 110px;
-    }
 }
 
 /* Velmi male displeje */
@@ -867,6 +1166,10 @@ separator {
         font-size: 12px;
     }
 
+    .profile-id-label {
+        font-size: 12px;
+    }
+
     .profile-name-input {
         max-width: 120px;
         min-width: 60px;
@@ -874,16 +1177,11 @@ separator {
     }
 
     .use-profile-button {
-        font-size: 10px;
-        padding: 4px 8px;
-    }
-
-    .use-profile-button i {
-        font-size: 10px;
+        padding: 6px 10px;
     }
 
     .delete-profile-button {
-        padding: 4px 8px;
+        padding: 6px 10px;
     }
 
     .profile-content.expanded {
@@ -894,16 +1192,11 @@ separator {
         gap: 12px;
     }
 
-    .wave-visualization {
-        padding: 10px;
-    }
-
     .section-title {
         font-size: 13px;
     }
 
     #add-profile-button {
-        font-size: 12px;
         padding: 6px 10px;
     }
 
@@ -922,19 +1215,10 @@ separator {
         font-size: 13px;
     }
 
-    .profile-tag--readonly {
-        font-size: 9px;
-        padding: 2px 6px;
-        gap: 3px;
-    }
 }
 
-/* Ultra male displeje: skry text tagu, nechaj ikonu */
+/* Ultra male displeje */
 @media (max-width: 360px) {
-    .profile-tag--readonly {
-        padding: 3px 6px;
-    }
-
     .profile-name-input {
         max-width: 100px;
         min-width: 50px;
@@ -949,77 +1233,6 @@ separator {
     color-scheme: light;
 }
 
-/* Tagy profilu */
-
-.profile-tag {
-    display:         inline-flex;
-    align-items:     center;
-    gap:             5px;
-    padding:         3px 10px;
-    border-radius:   999px;
-    font-size:       11px;
-    font-weight:     600;
-    letter-spacing:  0.04em;
-    text-transform:  uppercase;
-    line-height:     1;
-    user-select:     none;
-    vertical-align:  middle;
-    flex-shrink:     0;
-
-    /* Jemny prechod pri prepinani. */
-    transition: opacity 0.2s ease, box-shadow 0.2s ease;
-}
-
-.profile-tag i {
-    font-size: 9px;
-    opacity:   0.8;
-}
-
-/* Tag len na citanie */
-.profile-tag--readonly {
-    color:            #8a94a6;
-    background:       rgba(138, 148, 166, 0.10);
-    border:           1px solid rgba(138, 148, 166, 0.22);
-}
-
-/* Tmava schema */
-.dark-scheme .profile-tag--readonly {
-    color:      #7e8a9e;
-    background: rgba(126, 138, 158, 0.12);
-    border:     1px solid rgba(126, 138, 158, 0.20);
-}
-
-/* Aktivny tag */
-.profile-tag--active {
-    color:       #1db97b;
-    background:  rgba(29, 185, 123, 0.10);
-    border:      1px solid rgba(29, 185, 123, 0.28);
-    /* Jemna pulzacia. */
-    animation:   tag-pulse 2.4s ease-in-out infinite;
-}
-
-.dark-scheme .profile-tag--active {
-    color:      #22d68e;
-    background: rgba(34, 214, 142, 0.10);
-    border:     1px solid rgba(34, 214, 142, 0.25);
-}
-
-/* Pulzacia bodky ako indikator aktivity. */
-/* .profile-tag--active i {
-    animation: dot-pulse 2.4s ease-in-out infinite;
-} */
-
-/* @keyframes dot-pulse {
-    0%, 100% { opacity: 1;    transform: scale(1); }
-    50%       { opacity: 0.4; transform: scale(0.75); }
-}
-
-@keyframes tag-pulse {
-    0%, 100% { box-shadow: 0 0 0   0px rgba(29, 185, 123, 0); }
-    50%       { box-shadow: 0 0 0   3px rgba(29, 185, 123, 0.12); }
-} */
-
-
 /* Tlacidlo pouzit profil */
 
 .use-profile-button {
@@ -1027,17 +1240,17 @@ separator {
     align-items:      center;
     gap:              6px;
     padding:          6px 14px;
-    border-radius:    8px;
-    font-size:        12px;
-    font-weight:      600;
+    border-radius:    var(--config-btn-radius);
+    font-size:        var(--config-btn-font-size);
+    font-weight:      var(--config-btn-font-weight);
     letter-spacing:   0.02em;
     cursor:           pointer;
     white-space:      nowrap;
 
     /* Kludovy stav s obrysom. */
-    color:            #3b82f6;
-    background:       transparent;
-    border:           1.5px solid rgba(59, 130, 246, 0.40);
+    color:            var(--config-btn-secondary-fg);
+    background:       var(--config-btn-secondary-bg);
+    border:           1px solid var(--config-btn-secondary-border);
 
     transition:
         background   0.18s ease,
@@ -1047,6 +1260,179 @@ separator {
         transform    0.12s ease;
 }
 
+.share-profile-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--config-btn-radius);
+    border: 1px solid var(--config-btn-secondary-border);
+    background: var(--config-btn-secondary-bg);
+    color: var(--config-btn-secondary-fg);
+    font-size: var(--config-btn-font-size);
+    font-weight: var(--config-btn-font-weight);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+.profile-share-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.profile-share-content {
+    min-width: 0;
+}
+
+.profile-share-code-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.profile-share-nochanges {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px dashed rgba(138, 148, 166, 0.35);
+    background: rgba(138, 148, 166, 0.08);
+    color: var(--msger-header-colour);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.is-hidden {
+    display: none !important;
+}
+
+.profile-code-input {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px dashed rgba(138, 148, 166, 0.35);
+    background: rgba(138, 148, 166, 0.08);
+    color: var(--msger-header-colour);
+    font: 600 11px 'JetBrains Mono', monospace;
+    letter-spacing: 0.03em;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.profile-code-input:focus {
+    outline: none;
+    border-color: rgba(59, 130, 246, 0.45);
+}
+
+.profile-copy-tooltip {
+    position: fixed;
+    z-index: 2600;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -4px) scale(0.96);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 245, 186, 0.45);
+    background: linear-gradient(180deg, rgba(38, 170, 106, 0.96) 0%, rgba(33, 145, 91, 0.96) 100%);
+    color: #ecfff4;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 8px 24px rgba(22, 95, 62, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.profile-copy-tooltip.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1);
+}
+
+.profile-copy-tooltip i {
+    color: #d8ffe6;
+    font-size: 12px;
+}
+
+.copy-profile-code-button {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--config-btn-radius);
+    border: 1px solid var(--config-btn-secondary-border);
+    background: var(--config-btn-secondary-bg);
+    color: var(--config-btn-secondary-fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+.copy-profile-code-button:hover {
+    background: var(--config-btn-secondary-hover-bg);
+    border-color: var(--config-btn-secondary-hover-border);
+    transform: translateY(-1px);
+}
+
+.copy-profile-code-button:active {
+    transform: translateY(0);
+}
+
+.share-profile-button i {
+    font-size: 11px;
+}
+
+.share-profile-button:hover {
+    background: var(--config-btn-secondary-hover-bg);
+    border-color: var(--config-btn-secondary-hover-border);
+    transform: translateY(-1px);
+}
+
+.share-profile-button:active {
+    transform: translateY(0);
+}
+
+.share-profile-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.share-profile-button:hover:disabled {
+    background: var(--config-btn-secondary-bg);
+    border-color: var(--config-btn-secondary-border);
+}
+
+.dark-scheme .profile-code-input {
+    border-color: rgba(126, 138, 158, 0.3);
+    background: rgba(126, 138, 158, 0.1);
+}
+
+.dark-scheme .profile-share-nochanges {
+    border-color: rgba(126, 138, 158, 0.3);
+    background: rgba(126, 138, 158, 0.1);
+}
+
+@media (max-width: 600px) {
+    .profile-share-row {
+        grid-template-columns: 1fr;
+    }
+
+    .share-profile-button {
+        justify-content: center;
+    }
+}
+
 .use-profile-button i {
     font-size:  11px;
     transition: transform 0.18s ease;
@@ -1054,10 +1440,10 @@ separator {
 
 /* Hover stav */
 .use-profile-button:hover:not(:disabled) {
-    color:       #fff;
-    background:  #3b82f6;
-    border-color: #3b82f6;
-    box-shadow:  0 2px 10px rgba(59, 130, 246, 0.35);
+    color:       var(--config-btn-primary-fg);
+    background:  var(--config-btn-primary-hover-bg);
+    border-color: var(--config-btn-primary-hover-border);
+    box-shadow:  0 2px 10px rgba(70, 128, 98, 0.3);
     transform:   translateY(-1px);
 }
 
@@ -1068,40 +1454,19 @@ separator {
 /* Stlaceny stav */
 .use-profile-button:active:not(:disabled) {
     transform:  translateY(0);
-    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 1px 4px rgba(70, 128, 98, 0.22);
 }
 
 /* Aktivny alebo vybrany stav */
 .use-profile-button--active,
 .use-profile-button--active:disabled {
-    color:        #1db97b;
-    background:   rgba(29, 185, 123, 0.08);
-    border-color: rgba(29, 185, 123, 0.35);
+    color:        var(--config-btn-primary-fg);
+    background:   var(--config-btn-primary-bg);
+    border-color: var(--config-btn-primary-border);
     cursor:       default;
     /* Pri disabled vypni hover efekty. */
     transform:    none;
     box-shadow:   none;
-}
-
-/* Tmava schema - kludovy stav */
-.dark-scheme .use-profile-button {
-    color:        #60a5fa;
-    border-color: rgba(96, 165, 250, 0.30);
-}
-
-.dark-scheme .use-profile-button:hover:not(:disabled) {
-    color:        #fff;
-    background:   #3b82f6;
-    border-color: #3b82f6;
-    box-shadow:   0 2px 12px rgba(59, 130, 246, 0.40);
-}
-
-/* Tmava schema - aktivny stav */
-.dark-scheme .use-profile-button--active,
-.dark-scheme .use-profile-button--active:disabled {
-    color:        #22d68e;
-    background:   rgba(34, 214, 142, 0.08);
-    border-color: rgba(34, 214, 142, 0.30);
 }
 
 

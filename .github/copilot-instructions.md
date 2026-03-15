@@ -6,6 +6,7 @@ a compromise between.
 </Goals>
 
 <Limitations>
+- Use no other models other than the Claude Sonnet 4.5 model. For all tasks.
 - Write all comments in a consice non-fancy, way and in Slovak language without diacritics.
 - Use the same consistent style as the existing codebase, details of thís style
 can be found in the .clang-format file in the root of the repo.
