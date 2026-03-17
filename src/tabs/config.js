@@ -15,8 +15,8 @@ const MAX_PROFILE_NAME = 24;
 const PARAM_LABELS = {
     min_tx_freq: "Frekvenčný offset vysielača",
     sample_rate: "Vzorkovacia frekvencia (Hz)",
+    channel_size: "Šírka kanála (Hz)",
     bits_per_tone: "Počet bitov na jeden tón",
-    bytes_per_symbol: "Počet bajtov v symbole",
     symbols_per_marker: "Počet symbolov na marker",
     bits_in_marker: "Počet tón v markeri",
     tones_per_symbol: "Počet tónov v symbole",
@@ -707,7 +707,6 @@ function updateProfile(id, field, value) {
         profile.name = (value || `Profil ${id}`).substring(0, MAX_PROFILE_NAME).trim();
     } else {
         // Tieto polia su odvodene alebo fixne, UI ich nema menit.
-        if (field === 'sample_rate' || field === 'bits_per_tone') return;
         profile.modemProfile[field] = parseFloat(value) || 0;
         window.dispatchEvent(new CustomEvent("modem-profile-updated", { detail: { profile: profile.modemProfile } }));
         // Pri zmene sample_rate alebo samples_per_symbol
@@ -1012,7 +1011,7 @@ function renderReadonlyProfileProperties(mp, idSuffix) {
     const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
     const items = [
         { label: PARAM_LABELS.sample_rate, value: `${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)` },
-        { label: PARAM_LABELS.bits_per_tone, value: `${mp.bits_per_tone}` },
+        { label: PARAM_LABELS.channel_size, value: getProfileChannelSizeText(mp) },
         { label: 'Rychlost', value: `<span data-profile-speed-for="${idSuffix}">${getProfileSpectrogramSpeedText(mp)}</span>` },
     ];
 
@@ -1028,12 +1027,17 @@ function renderReadonlyProfileProperties(mp, idSuffix) {
     </div>`;
 }
 
+function getProfileChannelSizeText(mp) {
+    const value = Number(mp.channel_size);
+    if (!Number.isFinite(value) || value <= 0) return '-';
+    return `${value} Hz (${mp.min_tx_freq} - ${mp.min_tx_freq + value} Hz)`;
+}
+
 function getProfileSpectrogramSpeedText(mp) {
     const symbolRate = Number(mp.symbol_rate) || 0;
-    const bytesPerSymbol = Number(mp.bytes_per_symbol) || 0;
-    const bytesPerSecond = symbolRate * bytesPerSymbol;
-    if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return 'Rychlost: -';
-    return `Rychlost: ${bytesPerSecond.toFixed(2)} B/s`;
+    const bitsPerSecond = symbolRate * (Number(mp.bits_per_tone) || 0);
+    if (!Number.isFinite(bitsPerSecond) || bitsPerSecond <= 0) return 'Rychlost: -';
+    return `Rychlost: ${bitsPerSecond.toFixed(2)} b/s`;
 }
 
 function renderProfileSpectrogramPreview(mp, idSuffix) {
@@ -1236,6 +1240,7 @@ function drawProfileSpectrogram(canvas, spec, mp) {
 }
 
 function updateProfileSpectrogram(profileId, mp) {
+    return; // Zatial vypnute kym to nebude pouzitelne.
     const idSuffix = profileId === 'default' ? 'default' : String(profileId);
     const speedEl = document.querySelector(`[data-profile-speed-for="${idSuffix}"]`);
     if (speedEl) speedEl.textContent = getProfileSpectrogramSpeedText(mp);
@@ -1284,13 +1289,13 @@ function renderProfileFields(mp, idSuffix, readonly) {
         </div>`;
 
     return `
-        ${renderProfileSpectrogramPreview(mp, idSuffix)}
+        <!--{renderProfileSpectrogramPreview(mp, idSuffix)}-->
         ${renderShareProfileRow(mp, idSuffix, readonly)}
         ${readonly ? '<div class="profile-readonly-note"><i class="fas fa-lock"></i> Tento profil sa používa na synchronizáciu komunikácie a nedá sa upravovať.</div>' : ''}
         ${renderReadonlyProfileProperties(mp, idSuffix)}
         ${divider('Základné parametre')}
         ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }),
-            n('bytes_per_symbol', { min: 1, max: 32, help: 'Koľko bajtov má jeden symbol obsahovať. Každý z bajtov bude rozdelený do jednotlivých tónov.' }))}
+            n('bits_per_tone', { min: 1, max: 32, help: 'Koľko bitov má jeden tón reprezentovať.' }))}
         ${row(n('tones_per_symbol', { min: 1, max: 255, help: 'Koľko tónov má jeden symbol obsahovať.' }))}
         ${markerSubsection}
         ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Koľko dĺžok symbolu má jeden marker začiatku alebo konca trvať.' }),

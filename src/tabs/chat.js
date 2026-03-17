@@ -225,12 +225,39 @@ function getUsername() {
     return (username || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function encodeImageForTransmission(imgElement) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 100;
+    canvas.height = 100;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(imgElement, 0, 0, 100, 100);
+
+    const imageData = ctx.getImageData(0, 0, 100, 100);
+    const pixels = imageData.data; // RGBA, 4 bytes per pixel
+
+    // Pack pixels into bits: 1 bit per pixel, 8 pixels per byte.
+    // Threshold: average of RGB channels > 127 = white (1), else black (0).
+    const packed = new Uint8Array(Math.ceil(100 * 100 / 8)); // 1250 bytes
+    for (let i = 0; i < 100 * 100; i++) {
+        const r = pixels[i * 4];
+        const g = pixels[i * 4 + 1];
+        const b = pixels[i * 4 + 2];
+        const color_average = (r + g + b) / 3;
+        const white = color_average > 127 ? 1 : 0;
+        packed[i >> 3] |= (white << (i & 7));
+    }
+
+    return packed;
+}
+
 function createSelfMessage(text, image = null, profile = null) {
     const username = getUsername();
     const message = createUserMessage(username, CONST.ALIGMENT_RIGHT, text);
 
     if (image != null) {
         addImageToMessage(message, image);
+        message.imageData = encodeImageForTransmission(image);
+        print("Encoded image data length (bytes):", message.imageData.length);
     }
 
     const progressBar = document.createElement("progress");
@@ -270,13 +297,16 @@ function addImageToMessage(message, image) {
 }
 
 function displayMessageAtBottom(msg) {
-    const lastMessage = messageArea.lastElementChild;
-    const currentDate = new Date().toISOString().split('T')[0];
-    const lastMessageDate = lastMessage ? new Date(lastMessage.date) : null;
-    const currentDateObject = new Date(currentDate);
+    let lastMessage = messageArea.lastElementChild;
+    while (lastMessage && !(lastMessage.date instanceof Date)) {
+        lastMessage = lastMessage.previousElementSibling;
+    }
+
+    const currentDateObject = msg?.date instanceof Date ? msg.date : new Date();
+    const lastMessageDate = lastMessage?.date instanceof Date ? lastMessage.date : null;
     const dayDiffers = lastMessageDate
         ? lastMessageDate.toDateString() !== currentDateObject.toDateString()
-        : null;
+        : false;
 
     if (!lastMessage || dayDiffers) {
         const separator = document.createElement('div');
