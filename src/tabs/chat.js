@@ -390,7 +390,7 @@ imageLabel.addEventListener('input', () => {
     sendButton.disabled = !imageLabel.value.trim();
 })
 
-function systemMessage(text, type, icon = null) {
+export function systemMessage(text, type, icon = null) {
     const msg = createMessageBase();
     msg.classList.add("system-message", "system-message-" + type);
     msg.style.color = CONST.SYSTEM_MESSAGE_COLORS[type];
@@ -406,6 +406,11 @@ function systemMessage(text, type, icon = null) {
     msg.appendChild(content);
 
     return msg;
+}
+
+export function displaySystemMessage(text, type, icon = null) {
+    const msg = systemMessage(text, type, icon);
+    displayMessageAtBottom(msg);
 }
 
 function openSettingsTab() {

@@ -6,6 +6,8 @@
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
 import { renderFreqPicker, initFreqPickers, updateFreqPickerRange, clearAttenuationData } from '../freq_picker.js';
+import * as VersionTracker from '../wasmVersionTracker.js';
+import { displaySystemMessage } from './chat.js';
 
 /* Konstanty */
 
@@ -1551,6 +1553,35 @@ TinyTUS.afterLoad(() => {
     const versionEl = document.getElementById('lib-version-display');
     if (versionEl && TinyTUS.EXPORTS.get_lib_version) {
         const ptr = TinyTUS.EXPORTS.get_lib_version();
-        versionEl.textContent = TinyTUS.getStringFromPointer(ptr) || '-';
+        const currentVersion = TinyTUS.getStringFromPointer(ptr) || '-';
+
+        // Skontroluj ci sa verzia zmenila.
+        const versionChangeInfo = VersionTracker.checkVersionChanged(currentVersion);
+        if (versionChangeInfo.changed) {
+            // Zaznamena zmenu.
+            VersionTracker.recordVersionChange(versionChangeInfo);
+
+            // Uloz novy cas aktualizacie.
+            VersionTracker.saveLastUpdatedDate();
+
+            // Zobraz notifikaciu v chate.
+            const message = VersionTracker.getVersionChangeMessage(versionChangeInfo);
+            displaySystemMessage(message, 'info');
+
+            console.info('WASM library version changed:', versionChangeInfo);
+        } else if (!VersionTracker.getLastSavedVersion()) {
+            // Prvy krat - uloz cas aktualizacie.
+            VersionTracker.saveLastUpdatedDate();
+        }
+
+        // Uloz aktualna verziu.
+        VersionTracker.saveCurrentVersion(currentVersion);
+
+        versionEl.textContent = `v${currentVersion}`;
+        if (VersionTracker.getLastUpdatedDate() != null) {
+            versionEl.textContent += ` (${VersionTracker.formatLastUpdatedDate(
+                VersionTracker.getLastUpdatedDate()
+            )})`;
+        }
     }
 });
