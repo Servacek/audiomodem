@@ -59,10 +59,11 @@ function startKeepalive() {
             return;
         }
         try {
+            print("KEEP ALIVE SENDING")
             await port.controlTransferOut({
                 requestType: "vendor",
                 recipient: "device",
-                request: TinyTUS.CONSTS.U8_USB_RELAY_KEEPALIVE,
+                request: TinyTUS.CONSTS.U8_USB_SWITCH_REQUEST_KEEPALIVE,
                 value: 0,
                 index: 0
             });
@@ -254,20 +255,14 @@ TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
     const bytes = TinyTUS.getDynamicBufferFromPointer("u8", frame_ptr, frame_len);
     const profile = TinyTUS._activeDemodProfileForCallback || null;
     console.log("Received frame of length", frame_len, "data:", bytes, "profile:", profile);
-    window.dispatchEvent(new CustomEvent("message-received", { detail: { bytes, profile } }));
-};
 
-TinyTUS.MAPPINGS.on_bytes_received = (bytes_ptr, bytes_len) => {
-    const profile = TinyTUS._activeDemodProfileForCallback || null;
-    let bytes = [];
-
-    if (bytes_ptr && bytes_len > 0) {
-        bytes = TinyTUS.getDynamicBufferFromPointer("u8", bytes_ptr, bytes_len);
+    if (frame_len == 255) {
+        // IMAGE FRAME
+        window.dispatchEvent(new CustomEvent("image-frame-received", { detail: { bytes, profile } }));
+    } else {
+        // REGULAR FRAME
+        window.dispatchEvent(new CustomEvent("message-received", { detail: { bytes, profile } }));
     }
-
-    window.dispatchEvent(new CustomEvent("message-marker-detected", {
-        detail: { profile, bytesLen: bytes_len, bytes }
-    }));
 };
 
 TinyTUS.loadLibrary();

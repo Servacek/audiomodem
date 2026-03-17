@@ -110,6 +110,52 @@
     pointer-events: none;
     transition: left 0.04s, width 0.04s;
 }
+
+.freq-picker-channel-bins {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.freq-channel-bin {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.freq-channel-bin--alt {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.freq-channel-bin-label {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--freq-label-text);
+    opacity: 0.72;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+
+:root.dark-scheme .freq-channel-bin {
+    border-right-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+:root.dark-scheme .freq-channel-bin--alt {
+    background: rgba(0, 0, 0, 0.18);
+}
+
+:root.dark-scheme .freq-channel-bin-label {
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
 .freq-picker-track--readonly .freq-picker-band {
     background: linear-gradient(90deg, #86919f, #9ba3ad);
     opacity: 0.4;

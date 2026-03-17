@@ -60,6 +60,31 @@
     word-wrap: break-word;
 }
 
+.chat-profile-code-actions {
+    margin-top: 8px;
+}
+
+.chat-profile-code-add-button {
+    border: 1px solid var(--msger-send-button-bg);
+    color: var(--msger-send-button-bg);
+    background: transparent;
+    border-radius: 7px;
+    padding: 4px 9px;
+    font-size: 0.78em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.chat-profile-code-add-button:hover {
+    background: var(--msger-send-button-bg);
+    color: var(--msger-send-button-fg);
+}
+
+.chat-profile-code-add-button:disabled {
+    opacity: 0.65;
+    cursor: default;
+}
+
 .msg-bubble img {
     cursor: pointer;
 }

@@ -18,6 +18,7 @@ export function renderFreqPicker(mp, idSuffix, readonly) {
     const minF    = mp.min_tx_freq ?? 800;
     const maxF    = mp.max_tx_freq ?? 1600;
     const binHz   = mp.freq_bin_hz || 1;
+    const channelCount = Math.max(1, parseInt(mp.channel_count, 10) || 1);
     const bw      = Math.abs(maxF - minF);
 
     const inputAttrs = (field, val) => readonly
@@ -33,13 +34,14 @@ export function renderFreqPicker(mp, idSuffix, readonly) {
          data-profile-id="${idSuffix}"
          data-nyquist="${nyquist}"
          data-bin-hz="${binHz}"
+            data-channel-count="${channelCount}"
          data-min-freq="${minF}"
          data-max-freq="${maxF}"
          data-readonly="${readonly ? '1' : '0'}">
 
         <!-- Hlavicka -->
         <div class="freq-picker-top">
-            <label class="freq-picker-field-label">Frekvenčné spektrum TX</label>
+            <label class="freq-picker-field-label">Frekvenčné spektrum</label>
             <span class="freq-picker-bw" id="freq-bw-${idSuffix}">BW: <strong>${formatHz(bw)}</strong></span>
         </div>
 
@@ -48,6 +50,7 @@ export function renderFreqPicker(mp, idSuffix, readonly) {
              id="freq-track-${idSuffix}">
             <div class="freq-picker-bin-grid" id="freq-grid-${idSuffix}"></div>
             <div class="freq-picker-band" id="freq-band-${idSuffix}"></div>
+            <div class="freq-picker-channel-bins" id="freq-channel-bins-${idSuffix}"></div>
 
             <div class="freq-picker-handle freq-picker-handle--min${readonly ? ' freq-picker-handle--readonly' : ''}"
                  id="freq-handle-min-${idSuffix}" data-handle="min"
@@ -165,11 +168,15 @@ function ensureMicrophonePermissionWatch() {
 function initSinglePicker(wrap) {
     const idSuffix = wrap.dataset.profileId;
     const readonly = wrap.dataset.readonly === '1';
-    const nyquist  = parseInt(wrap.dataset.nyquist, 10);
+    const nyquist  = parseFloat(wrap.dataset.nyquist);
     const binHz    = parseFloat(wrap.dataset.binHz) || 1;
+    const channelCount = Math.max(1, parseInt(wrap.dataset.channelCount, 10) || 1);
+    const minSpectrumHz = Math.max(binHz, 1e-9);
+    const maxSnappedHz = Math.floor(nyquist / binHz) * binHz;
 
     const track      = document.getElementById(`freq-track-${idSuffix}`);
     const band       = document.getElementById(`freq-band-${idSuffix}`);
+    const channelBins = document.getElementById(`freq-channel-bins-${idSuffix}`);
     const gridEl     = document.getElementById(`freq-grid-${idSuffix}`);
     const bwEl       = document.getElementById(`freq-bw-${idSuffix}`);
     const axisEl     = document.getElementById(`freq-axis-${idSuffix}`);
@@ -192,10 +199,10 @@ function initSinglePicker(wrap) {
     measureBtn = document.getElementById(`freq-measure-${idSuffix}`);
     bestBtn    = document.getElementById(`freq-best-range-${idSuffix}`);
 
-    const defaultMin = parseInt(wrap.dataset.minFreq, 10);
-    const defaultMax = parseInt(wrap.dataset.maxFreq, 10);
-    let valMin = inputMin ? (parseInt(inputMin.value, 10) || defaultMin) : defaultMin;
-    let valMax = inputMax ? (parseInt(inputMax.value, 10) || defaultMax) : defaultMax;
+    const defaultMin = parseFloat(wrap.dataset.minFreq);
+    const defaultMax = parseFloat(wrap.dataset.maxFreq);
+    let valMin = inputMin ? (parseFloat(inputMin.value) || defaultMin) : defaultMin;
+    let valMax = inputMax ? (parseFloat(inputMax.value) || defaultMax) : defaultMax;
 
     // Deklaruj pred paint(), renderAttenuation ich potrebuje.
     const attCanvas = document.getElementById(`freq-att-canvas-${idSuffix}`);
@@ -265,6 +272,35 @@ function initSinglePicker(wrap) {
         return Math.round(hz / binHz) * binHz;
     }
 
+    function setRange(nextMin, nextMax, anchor = 'max') {
+        const safeMin = Number.isFinite(nextMin) ? nextMin : 0;
+        const safeMax = Number.isFinite(nextMax) ? nextMax : maxSnappedHz;
+
+        let min = clamp(snapToGrid(safeMin), 0, maxSnappedHz);
+        let max = clamp(snapToGrid(safeMax), 0, maxSnappedHz);
+
+        if (max - min < minSpectrumHz) {
+            if (anchor === 'min') {
+                max = clamp(snapToGrid(min + minSpectrumHz), 0, maxSnappedHz);
+                if (max - min < minSpectrumHz) {
+                    max = maxSnappedHz;
+                    min = clamp(snapToGrid(max - minSpectrumHz), 0, maxSnappedHz);
+                }
+            } else {
+                min = clamp(snapToGrid(max - minSpectrumHz), 0, maxSnappedHz);
+                if (max - min < minSpectrumHz) {
+                    min = 0;
+                    max = clamp(snapToGrid(min + minSpectrumHz), 0, maxSnappedHz);
+                }
+            }
+        }
+
+        valMin = min;
+        valMax = max;
+    }
+
+    setRange(valMin, valMax, 'max');
+
     function pxToHz(clientX) {
         const rect = track.getBoundingClientRect();
         const t    = clamp((clientX - rect.left) / rect.width, 0, 1);
@@ -295,9 +331,9 @@ function initSinglePicker(wrap) {
         if (!dragging) return;
         const hz = pxToHz(e.clientX);
         if (dragging === 'min') {
-            valMin = clamp(hz, 0, valMax - binHz);
+            setRange(hz, valMax, 'min');
         } else {
-            valMax = clamp(hz, valMin + binHz, nyquist);
+            setRange(valMin, hz, 'max');
         }
         paint();
         if (dragging === 'min' && inputMin) inputMin.value = valMin;
@@ -322,10 +358,10 @@ function initSinglePicker(wrap) {
         const dir  = (e.key === 'ArrowRight' || e.key === 'ArrowUp') ? 1 : -1;
 
         if (handle === 'min') {
-            valMin = clamp(valMin + dir * step, 0, valMax - binHz);
+            setRange(valMin + dir * step, valMax, 'min');
             if (inputMin) { inputMin.value = valMin; inputMin.dispatchEvent(new Event('change', { bubbles: true })); }
         } else {
-            valMax = clamp(valMax + dir * step, valMin + binHz, nyquist);
+            setRange(valMin, valMax + dir * step, 'max');
             if (inputMax) { inputMax.value = valMax; inputMax.dispatchEvent(new Event('change', { bubbles: true })); }
         }
         paint();
@@ -355,11 +391,11 @@ function initSinglePicker(wrap) {
     if (inputMin) {
         blockTyping(inputMin);
         inputMin.addEventListener('input', () => {
-            const v = parseInt(inputMin.value, 10);
-            if (!isNaN(v)) { valMin = clamp(snapToGrid(v), 0, valMax - binHz); paint(); }
+            const v = parseFloat(inputMin.value);
+            if (!isNaN(v)) { setRange(v, valMax, 'min'); paint(); }
         });
         inputMin.addEventListener('change', () => {
-            valMin = clamp(snapToGrid(parseInt(inputMin.value, 10) || 0), 0, valMax - binHz);
+            setRange(parseFloat(inputMin.value) || 0, valMax, 'min');
             inputMin.value = valMin;
             paint();
         });
@@ -367,11 +403,11 @@ function initSinglePicker(wrap) {
     if (inputMax) {
         blockTyping(inputMax);
         inputMax.addEventListener('input', () => {
-            const v = parseInt(inputMax.value, 10);
-            if (!isNaN(v)) { valMax = clamp(snapToGrid(v), valMin + binHz, nyquist); paint(); }
+            const v = parseFloat(inputMax.value);
+            if (!isNaN(v)) { setRange(valMin, v, 'max'); paint(); }
         });
         inputMax.addEventListener('change', () => {
-            valMax = clamp(snapToGrid(parseInt(inputMax.value, 10) || nyquist), valMin + binHz, nyquist);
+            setRange(valMin, parseFloat(inputMax.value) || nyquist, 'max');
             inputMax.value = valMax;
             paint();
         });
@@ -399,8 +435,7 @@ function initSinglePicker(wrap) {
             const data = loadAttenuationData(idSuffix);
             const bestRange = findBestTxRange(data);
             if (!bestRange) return;
-            valMin = clamp(snapToGrid(bestRange.minFreq), 0, nyquist - binHz);
-            valMax = clamp(snapToGrid(bestRange.maxFreq), valMin + binHz, nyquist);
+            setRange(bestRange.minFreq, bestRange.maxFreq, 'max');
             if (inputMin) inputMin.value = valMin;
             if (inputMax) inputMax.value = valMax;
             paint();
@@ -418,6 +453,7 @@ function initSinglePicker(wrap) {
 
         band.style.left  = `${loPct}%`;
         band.style.width = `${hiPct - loPct}%`;
+        paintChannelBins(channelBins, valMin, valMax, nyquist, channelCount);
 
         const hMin2 = document.getElementById(`freq-handle-min-${idSuffix}`);
         const hMax2 = document.getElementById(`freq-handle-max-${idSuffix}`);
@@ -437,6 +473,9 @@ export function updateFreqPickerRange(idSuffix, mp) {
     if (!wrap) return;
     wrap.dataset.nyquist = Math.round(mp.sample_rate / 2);
     wrap.dataset.binHz   = mp.freq_bin_hz || 1;
+    if (mp.channel_count != null) {
+        wrap.dataset.channelCount = Math.max(1, parseInt(mp.channel_count, 10) || 1);
+    }
     initSinglePicker(wrap);
 }
 
@@ -496,6 +535,32 @@ function buildBinGrid(gridEl, nyquist, binHz) {
         html += `<div class="freq-bin-line" style="left:${pct}%"></div>`;
     }
     gridEl.innerHTML = html;
+}
+
+function paintChannelBins(channelBinsEl, minFreq, maxFreq, nyquist, channelCount) {
+    if (!channelBinsEl || nyquist <= 0) return;
+
+    const count = Math.max(1, parseInt(channelCount, 10) || 1);
+    const lo = Math.max(0, Math.min(minFreq, nyquist));
+    const hi = Math.max(lo, Math.min(maxFreq, nyquist));
+    const span = hi - lo;
+
+    if (span <= 0 || count <= 0) {
+        channelBinsEl.innerHTML = '';
+        return;
+    }
+
+    const showLabels = count <= 24;
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        const chLo = lo + (span * i) / count;
+        const chHi = lo + (span * (i + 1)) / count;
+        const left = (chLo / nyquist) * 100;
+        const width = ((chHi - chLo) / nyquist) * 100;
+        html += `<div class="freq-channel-bin ${i % 2 ? 'freq-channel-bin--alt' : ''}" style="left:${left}%;width:${width}%">${showLabels ? `<span class="freq-channel-bin-label">${i + 1}</span>` : ''}</div>`;
+    }
+
+    channelBinsEl.innerHTML = html;
 }
 
 // Meranie frekvencnej odozvy kanala.
@@ -858,6 +923,7 @@ function drawMeasurementGraph(canvas, data, measureNyquist, measureMin = 0) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const dark = document.documentElement.classList.contains('dark-scheme');
+    const palette = getFreqGraphPalette(dark);
     ctx.fillStyle = dark ? '#1a1f2e' : '#f9fafb';
     ctx.fillRect(0, 0, w, h);
 

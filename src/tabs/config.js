@@ -13,21 +13,22 @@ import { displaySystemMessage } from './chat.js';
 
 const MAX_PROFILES = 10;
 const MAX_PROFILE_NAME = 24;
+const MAX_CHANNEL_COUNT = 8;
 
 const PARAM_LABELS = {
-    min_tx_freq: "Frekvenčný offset vysielača",
     sample_rate: "Vzorkovacia frekvencia (Hz)",
     channel_size: "Šírka kanála (Hz)",
     bits_per_tone: "Počet bitov na jeden tón",
-    symbols_per_marker: "Počet symbolov na marker",
-    bits_in_marker: "Počet tón v markeri",
+    symbols_per_marker: "Dĺžka markera v symboloch",
+    bits_in_marker: "Počet tónov v markeri",
     tones_per_symbol: "Počet tónov v symbole",
     ecc_percent: "Podiel samoopravných bajtov",
     dss_enabled: "DSS (rozptyl spektra)",
-    squelch_thresh: "Squelch prah",
+    squelch_thresh: "Squelch",
     cphase: "Spojitá fáza",
-    max_tx_amp: "Max TX amplitúda (hlasitosť)",
+    max_tx_amp: "Hlasitosť vysielača",
     samples_per_symbol: "Počet vzorkov na jeden symbol",
+    channel_count: "Počet kanálov",
 };
 
 /* Stav a DOM referencie */
@@ -184,18 +185,69 @@ function focusProfileForReview(modemProfile) {
     }
 }
 
+function clampChannelCount(value) {
+    return Math.max(1, Math.min(MAX_CHANNEL_COUNT, value));
+}
+
+function getDefaultChannelCount() {
+    const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
+    if (!defaultMp) return 1;
+
+    const minF = Number(defaultMp.min_tx_freq) || 0;
+    const maxF = Number(defaultMp.max_tx_freq) || 0;
+    const span = Math.max(1, Math.abs(maxF - minF));
+    const channelSize = Number(defaultMp.channel_size);
+
+    if (!Number.isFinite(channelSize) || channelSize <= 0) return 1;
+    return clampChannelCount(Math.round(span / channelSize));
+}
+
+function normalizeChannelCount(value, fallback = getDefaultChannelCount()) {
+    const parsed = parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+    return clampChannelCount(parsed);
+}
+
+function estimateChannelCountFromModemProfile(modemProfile) {
+    const minF = Number(modemProfile?.min_tx_freq) || 0;
+    const maxF = Number(modemProfile?.max_tx_freq) || 0;
+    const span = Math.max(1, Math.abs(maxF - minF));
+    const channelSize = Number(modemProfile?.channel_size);
+
+    if (Number.isFinite(channelSize) && channelSize > 0) {
+        return normalizeChannelCount(Math.round(span / channelSize), getDefaultChannelCount());
+    }
+
+    return getDefaultChannelCount();
+}
+
 /* Persistencia */
 
 function loadProfiles() {
     try {
         const parsed = JSON.parse(localStorage.getItem('modemProfiles') || 'null');
-        if (parsed) profiles = parsed.map(p => ({ id: p.id, name: p.name, modemProfile: new ModemProfile(p) }));
+        if (parsed) {
+            profiles = parsed.map(p => {
+                const modemProfile = new ModemProfile(p);
+                return {
+                    id: p.id,
+                    name: p.name,
+                    channelCount: normalizeChannelCount(p.channelCount, estimateChannelCountFromModemProfile(modemProfile)),
+                    modemProfile,
+                };
+            });
+        }
     } catch { profiles = []; }
 }
 
 function saveProfiles() {
     localStorage.setItem('modemProfiles', JSON.stringify(
-        profiles.map(p => ({ id: p.id, name: p.name, ...p.modemProfile.toObject() }))
+        profiles.map(p => ({
+            id: p.id,
+            name: p.name,
+            channelCount: normalizeChannelCount(p.channelCount, estimateChannelCountFromModemProfile(p.modemProfile)),
+            ...p.modemProfile.toObject(),
+        }))
     ));
 }
 
@@ -285,11 +337,16 @@ function findFreeProfileID() {
 function addProfileFromModemProfile(modemProfile, event = null) {
     if (!ensureCanAddProfile()) {
         modemProfile?.destroy?.();
-        return;
+        return null;
     }
 
     const id = findFreeProfileID();
-    const newProfile = { id, name: `Profil ${id}`, modemProfile };
+    const newProfile = {
+        id,
+        name: `Profil ${id}`,
+        channelCount: estimateChannelCountFromModemProfile(modemProfile),
+        modemProfile,
+    };
     profiles.unshift(newProfile);
     saveProfiles();
     renderProfiles();
@@ -306,6 +363,8 @@ function addProfileFromModemProfile(modemProfile, event = null) {
             drawWaveVisualization(id);
         }
     }, 100);
+
+    return newProfile;
 }
 
 function addProfile(event = null) {
@@ -489,6 +548,29 @@ function validateImportProfileCode(code) {
     } finally {
         tempProfile.destroy();
     }
+}
+
+export function isValidProfileCode(code) {
+    return validateImportProfileCode(code).valid;
+}
+
+export function addProfileFromCodeAndActivate(code) {
+    const trimmedCode = (code || '').trim();
+    const validation = validateImportProfileCode(trimmedCode);
+    if (!validation.valid) return false;
+
+    const modemProfile = new ModemProfile();
+    const ok = applyProfileCodeToModemProfile(modemProfile, trimmedCode);
+    if (!ok) {
+        modemProfile.destroy();
+        return false;
+    }
+
+    const addedProfile = addProfileFromModemProfile(modemProfile);
+    if (!addedProfile?.modemProfile) return false;
+
+    setActiveProfile(addedProfile.modemProfile);
+    return true;
 }
 
 function updateImportProfileValidationUI(validation) {
@@ -707,6 +789,14 @@ function updateProfile(id, field, value) {
 
     if (field === 'name') {
         profile.name = (value || `Profil ${id}`).substring(0, MAX_PROFILE_NAME).trim();
+    } else if (field === 'channel_count') {
+        profile.channelCount = normalizeChannelCount(value, profile.channelCount || getDefaultChannelCount());
+        updateFreqPickerRange(id, {
+            ...profile.modemProfile.toObject(),
+            sample_rate: profile.modemProfile.sample_rate,
+            freq_bin_hz: profile.modemProfile.freq_bin_hz,
+            channel_count: profile.channelCount,
+        });
     } else {
         // Tieto polia su odvodene alebo fixne, UI ich nema menit.
         profile.modemProfile[field] = parseFloat(value) || 0;
@@ -714,12 +804,18 @@ function updateProfile(id, field, value) {
         // Pri zmene sample_rate alebo samples_per_symbol
         // treba aktualizovat binsize.
         if (field === 'sample_rate' || field === 'samples_per_symbol')
-            updateFreqPickerRange(id, profile.modemProfile);
+            updateFreqPickerRange(id, {
+                ...profile.modemProfile.toObject(),
+                sample_rate: profile.modemProfile.sample_rate,
+                freq_bin_hz: profile.modemProfile.freq_bin_hz,
+                channel_count: profile.channelCount,
+            });
         if ($(`profile-content-${id}`)?.classList.contains('expanded')) {
             updateWaveInfo(id, profile.modemProfile);
             drawWaveVisualization(id);
         }
     }
+    updateReadonlyProfileProperties(id, profile.modemProfile, profile.channelCount);
     updateProfileCodeUI(id, profile.modemProfile);
     updateProfileSpectrogram(id, profile.modemProfile);
     saveProfiles();
@@ -1012,9 +1108,9 @@ function renderShareProfileRow(mp, idSuffix, readonly) {
 function renderReadonlyProfileProperties(mp, idSuffix) {
     const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
     const items = [
-        { label: PARAM_LABELS.sample_rate, value: `${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)` },
-        { label: PARAM_LABELS.channel_size, value: getProfileChannelSizeText(mp) },
-        { label: 'Rychlost', value: `<span data-profile-speed-for="${idSuffix}">${getProfileSpectrogramSpeedText(mp)}</span>` },
+        { label: PARAM_LABELS.sample_rate, value: `<span data-profile-sample-rate-for="${idSuffix}">${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)</span>` },
+        { label: PARAM_LABELS.channel_size, value: `<span data-profile-channel-size-for="${idSuffix}">${getProfileChannelSummaryText(mp)}</span>` },
+        { label: 'Rýchlosť', value: `<span data-profile-speed-for="${idSuffix}">${getProfileSpectrogramSpeedText(mp)}</span>` },
     ];
 
     const rows = items
@@ -1035,11 +1131,45 @@ function getProfileChannelSizeText(mp) {
     return `${value} Hz (${mp.min_tx_freq} - ${mp.min_tx_freq + value} Hz)`;
 }
 
+function getProfileChannelSummaryText(mp) {
+    const channelCount = normalizeChannelCount(mp?.channel_count, estimateChannelCountFromModemProfile(mp));
+    const channelSize = Number(mp?.channel_size);
+    const minTx = Number(mp?.min_tx_freq);
+
+    if (!Number.isFinite(channelSize) || channelSize <= 0 || !Number.isFinite(minTx)) return '-';
+
+    const rangeEnd = minTx + channelSize;
+    return `${channelCount}x${channelSize} Hz (${minTx} - ${rangeEnd} Hz)`;
+}
+
 function getProfileSpectrogramSpeedText(mp) {
-    const symbolRate = Number(mp.symbol_rate) || 0;
-    const bitsPerSecond = symbolRate * (Number(mp.bits_per_tone) || 0);
-    if (!Number.isFinite(bitsPerSecond) || bitsPerSecond <= 0) return 'Rychlost: -';
-    return `Rychlost: ${bitsPerSecond.toFixed(2)} b/s`;
+    const symbolRate = Number(mp.symbol_rate) || 0; // Koľko symbolov za sekundu.
+    // Koľko bitov za sekundu sa prenáša.
+    const bitsPerSecond = symbolRate * ((Number(mp.bits_per_tone) || 0) * Number(mp.tones_per_symbol || 0));
+    if (!Number.isFinite(bitsPerSecond) || bitsPerSecond <= 0) return 'ýchlosť: -';
+    return `${bitsPerSecond.toFixed(2)} b/s`;
+}
+
+function updateReadonlyProfileProperties(profileId, mp, channelCount = null) {
+    const idSuffix = profileId === 'default' ? 'default' : String(profileId);
+    const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
+    const renderMp = Object.create(mp);
+    renderMp.channel_count = channelCount ?? mp?.channel_count;
+
+    const sampleRateEl = document.querySelector(`[data-profile-sample-rate-for="${idSuffix}"]`);
+    if (sampleRateEl) {
+        sampleRateEl.textContent = `${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)`;
+    }
+
+    const channelSizeEl = document.querySelector(`[data-profile-channel-size-for="${idSuffix}"]`);
+    if (channelSizeEl) {
+        channelSizeEl.textContent = getProfileChannelSummaryText(renderMp);
+    }
+
+    const speedEl = document.querySelector(`[data-profile-speed-for="${idSuffix}"]`);
+    if (speedEl) {
+        speedEl.textContent = getProfileSpectrogramSpeedText(mp);
+    }
 }
 
 function renderProfileSpectrogramPreview(mp, idSuffix) {
@@ -1284,10 +1414,18 @@ function renderProfileFields(mp, idSuffix, readonly) {
     const sel = (name, opts) => selectField(name, mp, idSuffix, readonly, opts);
     const divider = title => `<div class="section-divider"><div class="section-title">${title}</div></div>`;
     const row = (...fields) => `<div class="profile-field-row">${fields.join('')}</div>`;
+    const pickerProfile = {
+        sample_rate: Number(mp.sample_rate) || 0,
+        min_tx_freq: Number(mp.min_tx_freq) || 0,
+        max_tx_freq: Number(mp.max_tx_freq) || 0,
+        freq_bin_hz: Number(mp.freq_bin_hz) || 1,
+        channel_count: normalizeChannelCount(mp?.channel_count, getDefaultChannelCount()),
+    };
     const markerSubsection = `
         <div class="profile-subsection-title">Markery</div>
         <div class="section-description">
-            Marker je kratka synchronizacna znacka na zaciatku a konci prenosu. Prijimac ju hlada, aby vedel presne urcit hranice spravy. Dlzka markeru urcuje pocet symbolov a hustota urcuje pocet tonov v markeri.
+            Markery sú špeciálne tóny, ktoré označujú začiatok alebo koniec dátového prenosu. Obsahujú viacero tónov
+            umiestnených tak aby bola detekcia čo najjednoduchšia ale zároveň sme sa vyhli falošným poplachom.
         </div>`;
 
     return `
@@ -1297,30 +1435,37 @@ function renderProfileFields(mp, idSuffix, readonly) {
         ${renderReadonlyProfileProperties(mp, idSuffix)}
         ${divider('Základné parametre')}
         ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Počet vzoriek na jeden symbol (mocnina 2)' }),
-            n('bits_per_tone', { min: 1, max: 32, help: 'Koľko bitov má jeden tón reprezentovať.' }))}
-        ${row(n('tones_per_symbol', { min: 1, max: 255, help: 'Koľko tónov má jeden symbol obsahovať.' }))}
-        ${markerSubsection}
-        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Koľko dĺžok symbolu má jeden marker začiatku alebo konca trvať.' }),
-                n('bits_in_marker', { min: 1, max: 255, help: 'Koľko tónov má marker začiatku alebo konca obsahovať.' }))}
+        n('bits_per_tone', { min: 1, max: 32, help: 'Koľko bitov má jeden tón reprezentovať.' }))}
+        ${row(
+            n('tones_per_symbol', { min: 1, max: 255, help: 'Koľko tónov má jeden symbol obsahovať.' }),
+            fieldWrap('channel_count', readonly
+                ? `<input type="number" value="${normalizeChannelCount(mp?.channel_count, getDefaultChannelCount())}" disabled>`
+                : `<input type="number" value="${normalizeChannelCount(mp?.channel_count, getDefaultChannelCount())}" data-profile-id="${idSuffix}" data-field="channel_count" min="1" max="${MAX_CHANNEL_COUNT}" step="1">`,
+                'Na koľko rovnako veľkých častí máme rozdeliť spektrum frekvencií.')
+        )}
         ${divider('TX Parametre (vysielanie)')}
         ${s('max_tx_amp', {
-                    min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
-                    help: 'Maximálna amplitúda vysielaného signálu',
-                    format: v => parseFloat(v).toFixed(2)
-                })}
-        ${renderFreqPicker(mp, idSuffix, readonly)}
+            min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
+            help: 'Maximálna amplitúda vysielaného signálu',
+            format: v => parseFloat(v).toFixed(2)
+        })}
+        ${renderFreqPicker(pickerProfile, idSuffix, readonly)}
 
         ${divider('Pokročilé nastavenia')}
+        ${markerSubsection}
+        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Koľko dĺžok symbolu má jeden marker začiatku alebo konca trvať.' }),
+            n('bits_in_marker', { min: 1, max: 255, help: 'Koľko tónov má marker začiatku alebo konca obsahovať.' }))}
+        <div class="profile-subsection-title"></div>
         ${s('ecc_percent', {
-                    min: 0, max: 1, step: 0.05,
-                    help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
-                    format: v => `${Math.round(v * 100)} %`
-                })}
+                min: 0, max: 1, step: 0.05,
+                help: 'Podiel ECC bajtov (0 % = žiadne, 100 % = maximálna ochrana)',
+                format: v => `${Math.round(v * 100)} %`
+            })}
         ${s('squelch_thresh', {
-                    min: 0, max: 1, step: 0.005, icon: 'fas fa-filter',
-                    help: 'Prahova hodnota squelch - signaly pod touto urovnou su ignorovane',
-                    format: v => parseFloat(v).toFixed(3)
-                })}
+                min: 0, max: 1, step: 0.005, icon: 'fas fa-filter',
+                help: 'Prahová hodnota squelchu - signály pod touto úrovňou sú ignorované',
+                format: v => parseFloat(v).toFixed(3)
+            })}
         <div class="profile-field-row" style="gap:24px;align-items:center;">
             ${t('cphase', 'Spojitá fáza (CPM)')} ${t('dss_enabled', 'Vynásobí prenášané bajty pseudonáhodnými číslami, ktoré zaistia rovnomernejšie rozloženie energie v signály.')}
         </div>`;
@@ -1381,9 +1526,28 @@ function setupStickyHeaderObservers() {
 function renderProfiles() {
     if (!container) return;
     const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
+    const profileRenderItems = profiles.map(p => {
+        const renderMp = Object.create(p.modemProfile);
+        renderMp.channel_count = p.channelCount;
+
+        return {
+            id: p.id,
+            name: p.name,
+            mp: renderMp,
+            active: isProfileActive(p),
+        };
+    });
+    const defaultRenderMp = defaultMp
+        ? (() => {
+            const renderMp = Object.create(defaultMp);
+            renderMp.channel_count = estimateChannelCountFromModemProfile(defaultMp);
+            return renderMp;
+        })()
+        : null;
+
     container.innerHTML = [
-        ...profiles.map(p => profileCardHtml({ id: p.id, name: p.name, mp: p.modemProfile, active: isProfileActive(p) })),
-        defaultMp ? profileCardHtml({ mp: defaultMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
+        ...profileRenderItems.map(item => profileCardHtml(item)),
+        defaultRenderMp ? profileCardHtml({ mp: defaultRenderMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
         profiles.length === 0 ? '<div class="empty-state">Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>' : '',
     ].join('');
     populateUsbProfileSelector();
