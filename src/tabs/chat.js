@@ -20,6 +20,7 @@ const sendMessageButton = document.getElementById("send-message-button");
 
 let messagesToSend = [];
 let currentlySendingMessage = null;
+let currentIncomingStreamedMessage = null;
 
 ////////////////////
 
@@ -717,6 +718,37 @@ window.addEventListener("message-received", (event) => {
     const newMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText, profileMeta);
     attachAddProfileActionIfCode(newMessage, decodedText);
     displayMessageAtBottom(newMessage);
+});
+
+window.addEventListener("bytes-received", (event) => {
+    console.log("[BYTES] bytes-received, byte length:", event.detail.bytes.length);
+    const bytes = event.detail.bytes;
+    const profile = event.detail.profile;
+    const textDecoder = new TextDecoder("utf-8");
+    const decodedText = textDecoder.decode(new Uint8Array(bytes));
+    
+    if (!currentIncomingStreamedMessage) {
+        // Vytvor novu spravu pri prvych bajtoch.
+        const profileMeta = {
+            ...getModemProfileMeta(profile),
+            profile: profile,
+        };
+        currentIncomingStreamedMessage = createUserMessage("Niekto", CONST.ALIGMENT_LEFT, decodedText, profileMeta);
+        displayMessageAtBottom(currentIncomingStreamedMessage);
+    } else {
+        // Pripoj nove znaky k existujucej sprave.
+        currentIncomingStreamedMessage.content += decodedText;
+        const textElement = currentIncomingStreamedMessage.bubble.querySelector(".msg-text");
+        if (textElement) {
+            textElement.textContent = currentIncomingStreamedMessage.content;
+        }
+    }
+});
+
+window.addEventListener("message-received-complete", (event) => {
+    // Tato udalost sa aktivuje iba v pripade, ze sprava bola uplne prijata.
+    // Vynuluj stav streamujucej spravy.
+    currentIncomingStreamedMessage = null;
 });
 
 window.addEventListener("chat-share-profile", (event) => {

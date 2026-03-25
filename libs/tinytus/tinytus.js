@@ -63,6 +63,11 @@ export function requiresLoadedWASM(block) {
 async function _init(path) {
     const response = await fetch(path);
 
+    const writeU64Le = (ptr, value) => {
+        const view = new DataView(TinyTUS.MEMORY.buffer);
+        view.setBigUint64(ptr, value, true);
+    };
+
     const env = {
         _emscripten_memcpy_js: (dest, src, num) => TinyTUS.MEMORY.copyWithin(dest, src, src + num),
         emscripten_notify_memory_growth: (_index) => {
@@ -108,6 +113,12 @@ async function _init(path) {
             fd_close: () => 0,
             fd_seek: () => 0,
             fd_read: () => 0,
+            clock_time_get: (_clockId, _precision, timePtr) => {
+                if (!TinyTUS.MEMORY) return 52;
+                const nowNs = BigInt(Date.now()) * 1000000n;
+                writeU64Le(timePtr, nowNs);
+                return 0;
+            },
             proc_exit: () => { },
             environ_sizes_get: () => 0,
             environ_get: () => 0,
@@ -249,7 +260,7 @@ export let TinyTUS = {
         return new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, 1)[0];
     },
 
-    getDynamicBufferFromPointer(type, ptr, length) {
+    getDynamicBufferFromPointerUnsafe(type, ptr, length) {
         if (!TYPE_TO_ARRAY.hasOwnProperty(type))
             throw new Error(`Invalid type "${type}". Must be one of: ${Object.keys(TYPE_TO_ARRAY).join(", ")}`);
         if (typeof ptr !== "number" || !Number.isInteger(ptr) || ptr < 0)
@@ -258,9 +269,13 @@ export let TinyTUS = {
             throw new RangeError(`Length must be a non-negative integer, got ${length}`);
 
         const typedArray = new TYPE_TO_ARRAY[type](EXPORTS.memory.buffer, ptr, length);
-        const copy = typedArray.slice();
-        EXPORTS.fsk_free_wave(ptr);
-        return copy;
+        return typedArray.slice();
+    },
+
+    getDynamicBufferFromPointer(type, ptr, length) {
+        const buffer = TinyTUS.getDynamicBufferFromPointerUnsafe(type, ptr, length);
+        EXPORTS.free(ptr);
+        return buffer;
     },
 
     sendMessage(modem_profile, message) {
@@ -622,7 +637,10 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
             } finally {
                 TinyTUS._activeDemodProfileForCallback = null;
                 _processingLocked = false;
-                if (_pendingSnapshots.length > 0) _processSnapshotQueue();
+                // Neopakuj ak WASM zlyhal - vyprazdni frontu a zastav.
+                if (_pendingSnapshots.length > 0) {
+                    queueMicrotask(_processSnapshotQueue); // defer, not recurse
+                }
             }
         });
     };

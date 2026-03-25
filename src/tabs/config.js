@@ -7,7 +7,6 @@ import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
 import { renderFreqPicker, initFreqPickers, updateFreqPickerRange, clearAttenuationData } from '../freq_picker.js';
 import * as VersionTracker from '../wasmVersionTracker.js';
-import { displaySystemMessage } from './chat.js';
 
 /* Konstanty */
 
@@ -1730,7 +1729,10 @@ TinyTUS.afterLoad(() => {
 
             // Zobraz notifikaciu v chate.
             const message = VersionTracker.getVersionChangeMessage(versionChangeInfo);
-            displaySystemMessage(message, 'info');
+            (async () => {
+                const { displaySystemMessage } = await import('./chat.js');
+                displaySystemMessage(message, 'info');
+            })();
 
             console.info('WASM library version changed:', versionChangeInfo);
         } else if (!VersionTracker.getLastSavedVersion()) {
