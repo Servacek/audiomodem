@@ -266,7 +266,8 @@ TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
 };
 
 TinyTUS.MAPPINGS.on_bytes_received = (bytes_ptr, bytes_len) => {
-    const bytes = TinyTUS.getDynamicBufferFromPointer("u8", bytes_ptr, bytes_len);
+    // Nedealokujeme, lebo tento buffer je staticky (zatial).
+    const bytes = TinyTUS.getDynamicBufferFromPointerUnsafe("u8", bytes_ptr, bytes_len);
     const profile = TinyTUS._activeDemodProfileForCallback || null;
     console.log("Received bytes of length", bytes_len, "data:", bytes, "profile:", profile);
     window.dispatchEvent(new CustomEvent("bytes-received", { detail: { bytes, profile } }));
