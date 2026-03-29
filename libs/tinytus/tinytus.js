@@ -681,6 +681,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     mediaStreamSource.connect(currentRecorder);
     currentRecorder.connect(currentContext.destination);
 
-    window.dispatchEvent(new CustomEvent("microphone-started"));
+    const deviceLabel = currentStream.getAudioTracks()[0]?.label || null;
+    window.dispatchEvent(new CustomEvent("microphone-started", { detail: { deviceLabel } }));
     console.log(`[TinyTUS] Audio graph connected via AudioWorkletNode. Accumulating 128-sample chunks into ${bufferSize}-sample buffers.`);
 }

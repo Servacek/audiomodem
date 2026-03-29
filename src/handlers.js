@@ -16,6 +16,65 @@ const TAB_NAME_PREFIX = "tab-";
 
 const TABS = []
 const TAB_BUTTONS = document.getElementsByClassName("tab-button")
+const GRAPH_TAB_ID = "tab-graph";
+const DESKTOP_GRAPH_MEDIA = "(min-width: 1100px)";
+const GRAPH_SIDEBAR_STORAGE_KEY = "graph-sidebar-visible";
+
+let graphSidebarVisible = localStorage.getItem(GRAPH_SIDEBAR_STORAGE_KEY) !== "0";
+
+function isDesktopGraphPinned() {
+    return window.matchMedia(DESKTOP_GRAPH_MEDIA).matches;
+}
+
+function getGraphTab() {
+    return document.getElementById(GRAPH_TAB_ID);
+}
+
+function getGraphButton() {
+    return document.getElementById("graph-button");
+}
+
+function setGraphSidebarVisible(visible) {
+    graphSidebarVisible = visible;
+    const tabsEl = document.getElementById("tabs");
+    if (tabsEl) {
+        tabsEl.classList.toggle("graph-sidebar-hidden", !visible);
+    }
+
+    const graphButton = getGraphButton();
+    if (graphButton) {
+        graphButton.classList.toggle("selected", visible && isDesktopGraphPinned());
+    }
+
+    localStorage.setItem(GRAPH_SIDEBAR_STORAGE_KEY, visible ? "1" : "0");
+}
+
+function toggleGraphSidebar() {
+    setGraphSidebarVisible(!graphSidebarVisible);
+}
+
+function applyDesktopGraphPinning() {
+    const graphTab = getGraphTab();
+    if (!graphTab) return;
+
+    if (isDesktopGraphPinned()) {
+        graphTab.classList.add("opened");
+        setGraphSidebarVisible(graphSidebarVisible);
+        if (currentTab && currentTab.id === GRAPH_TAB_ID) {
+            const chatTab = document.getElementById("tab-chat");
+            if (chatTab) {
+                openTab(chatTab);
+                return;
+            }
+        }
+    } else if (currentTab && currentTab.id !== GRAPH_TAB_ID) {
+        closeTab(graphTab);
+        const graphButton = getGraphButton();
+        if (graphButton) {
+            graphButton.classList.remove("selected");
+        }
+    }
+}
 
 
 function closeTab(tab) {
@@ -24,7 +83,11 @@ function closeTab(tab) {
 }
 
 function closeAllTabs() {
+    const graphTab = getGraphTab();
     for (const tab of TABS) {
+        if (isDesktopGraphPinned() && graphTab && tab === graphTab) {
+            continue;
+        }
         closeTab(tab);
     }
 }
@@ -38,6 +101,8 @@ function openTab(tab) {
 
     tab.classList.add("opened"); // Otvor tab.
     tab.button.classList.add("selected"); // Oznac tlacidlo tabu.
+
+    applyDesktopGraphPinning();
 }
 
 
@@ -59,6 +124,11 @@ for (const button of TAB_BUTTONS) {
     document.head.appendChild(tabScript);
 
     button.addEventListener("click", () => {
+        if (name === "graph" && isDesktopGraphPinned()) {
+            toggleGraphSidebar();
+            return;
+        }
+
         openTab(tab);
     })
 
@@ -78,6 +148,9 @@ if (savedTabId != null) {
 if (currentTab == null && TABS.length > 0) {
     openTab(TABS[0]);
 }
+
+applyDesktopGraphPinning();
+window.addEventListener("resize", applyDesktopGraphPinning);
 
 // Uisti sa, ze kontajner tabov je viditelny.
 document.getElementById("tabs").style.display = "flex";

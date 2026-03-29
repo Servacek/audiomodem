@@ -6,9 +6,6 @@ import * as CONST from '../constants.js';
 import { max, formatDate } from '../utils.js';
 import { setMicStatus } from '../indicator.js';
 
-// TODO: Vypni odoslanie pri prazdnom obsahu.
-// TODO: Pridaj kompaktnu verziu tlacidla aj na mobil.
-
 ////////////////////
 
 const inputArea = document.getElementById("input-area");
@@ -94,7 +91,7 @@ async function sendMessage(message) {
 }
 
 // TODO: Docasne riesenie do finalneho dizajnu.
-const sendMessageButtonWithIcon = document.getElementById("send-message-button-with-icon");
+const sendMessageButtonWithIcon = document.getElementById("send-message-button");
 
 inputBar.oninput = function () {
     //this.style.height = 'auto'; // Reset vysky pre vypocet scrollHeight.
@@ -123,14 +120,10 @@ inputArea.submit = () => {
     /// @TODO: Pridaj moznost menit username.
     // Najprv zobraz spravu.
     const newMessage = createSelfMessage(msgText);
+    if (!newMessage) return; // Modulacia zlyhala, chyba je uz zobrazena.
+
     clearInputBar();
     displayMessageAtBottom(newMessage);
-
-    // Rezerva pre buduci debug waveformu.
-    // if (CONST.DEBUG_MODE) {
-    //     plotWaveform(newMessage.waveform);
-    // }
-
     sendMessage(newMessage);
 }
 
@@ -285,6 +278,11 @@ function createSelfMessage(text, image = null, profile = null) {
     // Uloz sample_rate v case modulacie, aby sa prehravanie nespoliehalo
     // na aktualnu hodnotu profilu (moze sa zmenit pred prehranim).
     message.sampleRate = message.modemProfile.sample_rate;
+
+    if (!message.waveform?.length) {
+        displaySystemMessage('Modulacia zlyhala. Skontroluj nastavenia profilu (frekvencne rozsahy).', 'error');
+        return null;
+    }
 
     return message;
 }
@@ -697,8 +695,15 @@ window.addEventListener("microphone-waiting-for-gesture", () => {
     ));
 });
 
-window.addEventListener("microphone-started", () => {
+let _lastMicDeviceLabel = undefined;
+
+window.addEventListener("microphone-started", (event) => {
     console.log("[MIC] microphone-started - audio graph connected and running.");
+    const deviceLabel = event.detail?.deviceLabel ?? null;
+    if (deviceLabel === _lastMicDeviceLabel) return;
+    _lastMicDeviceLabel = deviceLabel;
+    const deviceText = deviceLabel ? `<b>${escapeHtml(deviceLabel)}</b>` : "neznáme zariadenie";
+    displayMessageAtBottom(systemMessage(`Prijímanie spustené na: ${deviceText}`, "info"));
 });
 
 window.addEventListener("mic-blocked", () => {
@@ -726,7 +731,7 @@ window.addEventListener("bytes-received", (event) => {
     const profile = event.detail.profile;
     const textDecoder = new TextDecoder("utf-8");
     const decodedText = textDecoder.decode(new Uint8Array(bytes));
-    
+
     if (!currentIncomingStreamedMessage) {
         // Vytvor novu spravu pri prvych bajtoch.
         const profileMeta = {
@@ -820,6 +825,7 @@ function onUserLoggedIn() {
     const welcomeMessage = systemMessage("Vitaj <span id='username-text'>" + getUsername() + "</span>! Svoju prezývku si môžeš kedykoľvek zmeniť v nastaveniach" + configButtonRef, "welcome");
     displayMessageAtBottom(welcomeMessage);
     initStateUpdate("user-logged-in");
+    initAudioInputWatcher();
 }
 
 window.addEventListener("user-logged", onUserLoggedIn);

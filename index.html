@@ -70,9 +70,9 @@
                 <button id="chat-button" class="tab-button" title="Čet">
                     <i class="fa-solid fa-message"></i>
                 </button>
-                <button id="oscillator-button" class="tab-button" title="Oscilátor">
+                <!-- <button id="oscillator-button" class="tab-button" title="Oscilátor">
                     <i class="fas fa-wave-square"></i>
-                </button>
+                </button> -->
                 <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
                     <i class="fas fa-chart-simple"></i>
                 </button>
@@ -84,24 +84,53 @@
 
         <div id="tabs">
             <div id="tab-chat" class="tab loaded default">
-                <!-- Oblast sprav -->
-                <main id="message-area" class="message-area"></main>
+                <div id="chat-area">
+                    <!-- Oblast sprav -->
+                    <main id="message-area" class="message-area"></main>
 
-                <form id="input-area" class="input-area">
-                    <div id="left-input-toolbar">
-                        <label for="attachment-input" id="attachment-button">
-                            <input id="attachment-input" type="file" accept=".png, .jpg, .jpeg">
-                            <i class="fas fa-plus"></i>
-                        </label>
+                    <form id="input-area" class="input-area">
+                        <div id="left-input-toolbar">
+                            <label for="attachment-input" id="attachment-button">
+                                <input id="attachment-input" type="file" accept=".png, .jpg, .jpeg">
+                                <i class="fas fa-plus"></i>
+                            </label>
+                        </div>
+
+                        <textarea id="input-bar" class="message-input" placeholder="Zadajte správu..."
+                            rows="1"></textarea>
+
+                        <div id="right-input-toolbar">
+                            <button id="send-message-button" type="button" disabled><i
+                                    class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </form>
+
+                    <!-- Oblast konfiguracií pod input barom pre rychle upravy. -->
+                    <div id="quick-config-wrapper">
+                        <!-- vyber aktualneho profilu -->
+                        <div id="quick-profile-select-wrapper">
+                            <select id="quick-profile-select">
+                                <option value="" disabled selected>Rýchly výber profilu</option>
+                            </select>
+                        </div>
+
+                        <!-- vyber aktualneho kanálu -->
+                        <div id="quick-channel-select-wrapper">
+                            <select id="quick-channel-select">
+                                <option value="" disabled selected>Rýchly výber kanálu</option>
+                            </select>
+                        </div>
+
+                        <!-- textový ukazovateľ SNR -->
+                        <div id="quick-snr-indicator">
+                            SNR:
+                        </div>
                     </div>
+                </div>
 
-                    <textarea id="input-bar" class="message-input" placeholder="Zadajte správu..." rows="1"></textarea>
-
-                    <div id="right-input-toolbar">
-                        <button id="send-message-button" type="button" disabled>Odoslať</button>
-                        <button id="send-message-button-with-icon" type="button" disabled><i class="fas fa-paper-plane"></i></button>
-                    </div>
-                </form>
+                <div id="chat-db-meter" aria-label="Decibel meter">
+                    <div id="chat-db-fill"></div>
+                </div>
             </div>
 
             <div id="tab-config" class="tab loaded">
@@ -122,100 +151,99 @@
 
                 <separator>
 
-                <h3>Modemové profily</h3>
-                <p class="section-description">
-                    Modemové profily definujú parametre modulácie a demodulácie zvukového signálu.
-                </p>
-                <div class="profiles-header">
-                    <div class="profiles-header-actions">
-                        <button id="add-profile-button" type="button">
-                            <i class="fas fa-plus"></i>
-                            Pridať profil
-                        </button>
-                        <button id="import-profile-trigger-button" type="button">
-                            <i class="fas fa-file-import"></i>
-                            Importovať profil
-                        </button>
-                    </div>
-                </div>
-
-                <div id="profiles-container">
-                    <div class="empty-state">Žiadne profily. Kliknite na "Pridať profil" pre vytvorenie nového.</div>
-                </div>
-
-                <separator></separator>
-
-                <h3>USB Zariadenia</h3>
-                <p class="section-description">
-                    Pripojenie USB zariadenia umožňuje automatické prepínanie medzi vysielaním a prijímaním.
-                    Môžete vybrať profil, ktorý sa má automaticky použiť pri pripojení zariadenia.
-                </p>
-
-                <div class="usb-device-section">
-                    <div class="usb-device-card">
-                        <div class="usb-device-header">
-                            <div class="usb-device-info-wrapper">
-                                <div class="usb-device-status" id="usb-device-status">
-                                    <i class="fas fa-circle"></i>
-                                    <span id="usb-device-status-text">Nepripojené</span>
-                                </div>
-                                <div id="usb-device-info" class="usb-device-name">
-                                    Žiadne zariadenie
-                                </div>
-                                <div id="usb-device-details" class="usb-device-details"></div>
-                            </div>
-                            <button id="connect-usb-device-button" class="usb-connect-button unpaired" disabled>
-                                <i class="fas fa-plug"></i>
-                                <span>Pripojiť</span>
+                    <h3>Modemové profily</h3>
+                    <p class="section-description">
+                        Modemové profily definujú parametre modulácie a demodulácie zvukového signálu.
+                    </p>
+                    <div class="profiles-header">
+                        <div class="profiles-header-actions">
+                            <button id="add-profile-button" type="button">
+                                <i class="fas fa-plus"></i>
+                                Pridať profil
+                            </button>
+                            <button id="import-profile-trigger-button" type="button">
+                                <i class="fas fa-file-import"></i>
+                                Importovať profil
                             </button>
                         </div>
+                    </div>
 
-                        <div class="usb-device-settings">
-                            <label class="usb-setting-option">
-                                <div class="usb-setting-label">
-                                    <i class="fas fa-sliders"></i>
-                                    <span>Profil pri pripojení</span>
-                                </div>
-                                <select id="usb-profile-selector" class="usb-profile-select">
-                                    <option value="">Ponechať aktuálny profil</option>
-                                </select>
-                            </label>
+                    <div id="profiles-container">
+                        <div class="empty-state">Žiadne profily. Kliknite na "Pridať profil" pre vytvorenie nového.
                         </div>
                     </div>
-                </div>
 
-                <separator></separator>
+                    <separator></separator>
 
-                <h3>O knižnici</h3>
-                <div class="lib-info-section">
-                    <div class="lib-info-row">
-                        <span class="lib-info-label">Knižnica</span>
-                        <span class="lib-info-value">TinyTUS</span>
-                    </div>
-                    <div class="lib-info-row">
-                        <span class="lib-info-label">Verzia</span>
-                        <span class="lib-info-value" id="lib-version-display">–</span>
-                    </div>
-                    <div class="lib-info-row">
-                        <span class="lib-info-label">Popis</span>
-                        <span class="lib-info-value">Softvérový modem pre prenos dát cez akustický kanál</span>
-                    </div>
-                </div>
+                    <h3>USB Zariadenia</h3>
+                    <p class="section-description">
+                        Pripojenie USB zariadenia umožňuje automatické prepínanie medzi vysielaním a prijímaním.
+                        Môžete vybrať profil, ktorý sa má automaticky použiť pri pripojení zariadenia.
+                    </p>
 
-                <!--- Trocha volneho miesta na koniec -->
-                <div style="height: 20px;"></div>
+                    <div class="usb-device-section">
+                        <div class="usb-device-card">
+                            <div class="usb-device-header">
+                                <div class="usb-device-info-wrapper">
+                                    <div class="usb-device-status" id="usb-device-status">
+                                        <i class="fas fa-circle"></i>
+                                        <span id="usb-device-status-text">Nepripojené</span>
+                                    </div>
+                                    <div id="usb-device-info" class="usb-device-name">
+                                        Žiadne zariadenie
+                                    </div>
+                                    <div id="usb-device-details" class="usb-device-details"></div>
+                                </div>
+                                <button id="connect-usb-device-button" class="usb-connect-button unpaired" disabled>
+                                    <i class="fas fa-plug"></i>
+                                    <span>Pripojiť</span>
+                                </button>
+                            </div>
+
+                            <div class="usb-device-settings">
+                                <label class="usb-setting-option">
+                                    <div class="usb-setting-label">
+                                        <i class="fas fa-sliders"></i>
+                                        <span>Profil pri pripojení</span>
+                                    </div>
+                                    <select id="usb-profile-selector" class="usb-profile-select">
+                                        <option value="">Ponechať aktuálny profil</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <separator></separator>
+
+                    <h3>O knižnici</h3>
+                    <div class="lib-info-section">
+                        <div class="lib-info-row">
+                            <span class="lib-info-label">Knižnica</span>
+                            <span class="lib-info-value">TinyTUS</span>
+                        </div>
+                        <div class="lib-info-row">
+                            <span class="lib-info-label">Verzia</span>
+                            <span class="lib-info-value" id="lib-version-display">–</span>
+                        </div>
+                        <div class="lib-info-row">
+                            <span class="lib-info-label">Popis</span>
+                            <span class="lib-info-value">Softvérový modem pre prenos dát cez akustický kanál</span>
+                        </div>
+                    </div>
+
+                    <!--- Trocha volneho miesta na koniec -->
+                    <div style="height: 20px;"></div>
             </div>
 
             <div id="tab-graph" class="tab">
-                <header class="tab-header">
-                    <div class="tab-header-title">Spektogram</div>
-                </header>
-
                 <div class="tab-loading-indicator">
                     <i class="fas fa-spinner fa-spin"></i>
                     <span>Načítavam...</span>
                 </div>
-                <div id="spectrogram-container"></div>
+                <div id="spectrogram-container">
+                    <!-- <div class="tab-header-title">Spektogram</div> -->
+                </div>
             </div>
 
             <div id="tab-oscillator" class="tab loaded">
@@ -226,20 +254,26 @@
                 <div class="oscillator-controls">
                     <label class="config-option">
                         <span>Frekvencia [Hz]</span><br>
-                        <input id="frequency-slider" class="oscillator-slider" type="range" min="1" max="20000" step="1" value="440">
-                        <br><input id="frequency-slider-display" class="oscillator-slider-display" type="number" value="440" min="1" max="20000" step="1">
+                        <input id="frequency-slider" class="oscillator-slider" type="range" min="1" max="20000" step="1"
+                            value="440">
+                        <br><input id="frequency-slider-display" class="oscillator-slider-display" type="number"
+                            value="440" min="1" max="20000" step="1">
                     </label>
 
                     <label class="config-option">
                         <span>Amplitúda [%]</span><br>
-                        <input id="amplitude-slider" class="oscillator-slider" type="range" min="1" max="100" step="1" value="25">
-                        <br><input id="amplitude-slider-display" class="oscillator-slider-display" type="number" value="25" min="1" max="100" step="1">
+                        <input id="amplitude-slider" class="oscillator-slider" type="range" min="1" max="100" step="1"
+                            value="25">
+                        <br><input id="amplitude-slider-display" class="oscillator-slider-display" type="number"
+                            value="25" min="1" max="100" step="1">
                     </label>
 
                     <label class="config-option">
                         <span>Fáza [°]</span><br>
-                        <input id="phase-slider" class="oscillator-slider" type="range" min="0" max="360" step="1" value="0">
-                        <br><input id="phase-slider-display" class="oscillator-slider-display" type="number" value="0" min="0" max="360" step="1">
+                        <input id="phase-slider" class="oscillator-slider" type="range" min="0" max="360" step="1"
+                            value="0">
+                        <br><input id="phase-slider-display" class="oscillator-slider-display" type="number" value="0"
+                            min="0" max="360" step="1">
                     </label>
                 </div>
 
@@ -275,7 +309,7 @@
     <div id="login-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <img src="assets/pigeon.png" alt="Holub Icon" width="72px", height="72px">
+                <img src="assets/pigeon.png" alt="Holub Icon" width="72px" , height="72px">
                 <div class="modal-header-title">Holub™</div>
             </div>
 
@@ -285,7 +319,8 @@
                         PREZÝVKA
                     </div>
                     <div class="field-input">
-                        <input id="username-input" type="text" class="username-input" placeholder="Ako ťa máme volať?" autocomplete="off">
+                        <input id="username-input" type="text" class="username-input" placeholder="Ako ťa máme volať?"
+                            autocomplete="off">
                     </div>
                 </div>
 
@@ -332,7 +367,8 @@
                 <div class="field">
                     <div class="field-title">KOD PROFILU</div>
                     <div class="field-input">
-                        <input id="import-profile-modal-input" type="text" placeholder="Vlozte kod alebo naskenujte QR" autocomplete="off">
+                        <input id="import-profile-modal-input" type="text" placeholder="Vlozte kod alebo naskenujte QR"
+                            autocomplete="off">
                     </div>
                     <div id="import-profile-validation-text"></div>
                 </div>
@@ -349,7 +385,8 @@
                 </div>
                 <div class="field modal-footer">
                     <button id="import-profile-cancel-button" class="modal-button cancel" type="button">Zrušiť</button>
-                    <button id="import-profile-confirm-button" class="modal-button confirm" type="button" disabled>Vytvoriť</button>
+                    <button id="import-profile-confirm-button" class="modal-button confirm" type="button"
+                        disabled>Vytvoriť</button>
                 </div>
             </div>
         </div>

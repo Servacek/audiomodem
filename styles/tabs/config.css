@@ -73,44 +73,6 @@
     font-size: 13px;
 }
 
-#tab-config select:focus {
-    outline: none;
-    border-color: var(--msger-send-button-bg);
-}
-
-#tab-config input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-    border-radius: 4px;
-    background: var(--config-input-bg, transparent);
-    vertical-align: middle;
-    margin: 0;
-    cursor: pointer;
-}
-
-#tab-config select {
-    padding: 8px 12px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-    border-radius: 4px;
-    font-size: 14px;
-    background: var(--config-input-bg, transparent);
-    color: var(--msger-header-colour);
-    max-width: 100%;
-}
-
-#tab-config input[type="text"] {
-    max-width: 100%;
-}
-
-separator {
-    display: block;
-    height: 1px;
-    background: var(--config-border, rgba(255, 255, 255, 0.15));
-    margin: 16px 0;
-}
-
 /* Sekcia USB zariadenia */
 
 .usb-device-section {
