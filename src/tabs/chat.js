@@ -75,6 +75,21 @@ function sendNextMessage() {
 }
 
 async function sendMessage(message) {
+    if (message.groupedWith) {
+        const prev = messagesToSend.find(m => m === message.groupedWith);
+        if (prev) {
+            // Predchadzajuca sprava este nehraje — zretaz waveformy.
+            const joined = new Float32Array(prev.waveform.length + message.waveform.length);
+            joined.set(prev.waveform);
+            joined.set(message.waveform, prev.waveform.length);
+            prev.waveform = joined;
+            return;
+        }
+        // Predchadzajuca sprava uz hraje — presmeruj na viditelnu bublinu.
+        message.groupedWith.bubble.appendChild(message.progressBar);
+        message.bubble = message.groupedWith.bubble;
+    }
+
     messagesToSend.push(message)
     message.progressBar.style.display = "block";
     message.bubble.classList.add("sending");
@@ -90,24 +105,19 @@ async function sendMessage(message) {
     setTimeout(() => sendNextMessage(), window.port != null ? 500 : 0);
 }
 
-// TODO: Docasne riesenie do finalneho dizajnu.
-const sendMessageButtonWithIcon = document.getElementById("send-message-button");
-
 inputBar.oninput = function () {
-    //this.style.height = 'auto'; // Reset vysky pre vypocet scrollHeight.
-    //this.style.height = `${Math.min(this.scrollHeight, 200)}px`; // 200 musi sediet s max-height.
+    this.style.height = 'auto'; // Reset vysky pre vypocet scrollHeight.
+    this.style.height = `${Math.min(this.scrollHeight, 200)}px`; // 200 musi sediet s max-height.
 
     sendMessageButton.disabled = !this.value.trim();
-    sendMessageButtonWithIcon.disabled = sendMessageButton.disabled;
 }
 
 // Obsluha kliknutia na odoslanie.
 sendMessageButton.addEventListener("click", () => inputArea.submit());
-sendMessageButtonWithIcon.addEventListener("click", () => sendMessageButton.click());
 
-// Enter odosle spravu, Shift+Enter vlozi novy riadok.
+// Na pocitaci Enter odosle spravu, Shift+Enter vlozi novy riadok.
 inputArea.addEventListener("keydown", event => {
-    if (sendMessageButtonWithIcon.offsetParent == null && event.keyCode === 13 && !event.shiftKey) {
+    if (window.innerWidth >= 600 && event.keyCode === 13 && !event.shiftKey) {
         event.preventDefault();
         inputArea.submit();
     }
@@ -147,6 +157,7 @@ function createMessageBase() {
 function createUserMessage(author, alignment, content, profileMeta = null) {
     const msg = createMessageBase();
     msg.classList.add("user-msg", `${alignment}-user-msg`);
+    msg.author = author;
 
     const bubble = document.createElement("div");
     bubble.classList.add("msg-bubble");
@@ -368,6 +379,20 @@ function addImageToMessage(message, image) {
     imgModal.append(imgModalImg);
 }
 
+// Casovy limit pre zdruzovanie sprav (v milisekundach).
+const GROUP_TIMEOUT_MS = 60_000;
+
+// Vrati true ak mozno novu spravu vizualne zlucit s predchadzajucou.
+function canGroupWith(prev, next) {
+    if (!prev?.classList.contains('user-msg') || !next?.classList.contains('user-msg')) return false;
+    if (prev.author !== next.author) return false;
+    const prevRight = prev.classList.contains('right-user-msg');
+    const nextRight = next.classList.contains('right-user-msg');
+    if (prevRight !== nextRight) return false;
+    const dt = next.date - prev.date;
+    return dt >= 0 && dt <= GROUP_TIMEOUT_MS;
+}
+
 function displayMessageAtBottom(msg) {
     let lastMessage = messageArea.lastElementChild;
     while (lastMessage && !(lastMessage.date instanceof Date)) {
@@ -387,6 +412,18 @@ function displayMessageAtBottom(msg) {
         const formattedDate = currentDateObject.toLocaleDateString(document.documentElement.lang, dateOptions);
         separator.textContent = formattedDate;
         messageArea.appendChild(separator);
+    }
+
+    // Pridaj text priamo do predchadzajucej bubliny ak mozno zlucit.
+    if (!dayDiffers && !msg.imageData && canGroupWith(lastMessage, msg)) {
+        const extra = document.createElement('pre');
+        extra.className = 'msg-text';
+        extra.textContent = msg.content;
+        lastMessage.bubble.appendChild(extra);
+        lastMessage.date = msg.date;
+        msg.groupedWith = lastMessage;
+        scrollToBottom();
+        return;
     }
 
     messageArea.appendChild(msg);

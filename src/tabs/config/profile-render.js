@@ -8,7 +8,7 @@ import {
     normalizeChannelCount, estimateChannelCountFromModemProfile,
     updateProfileField, saveProfiles, MAX_PROFILE_NAME, MAX_CHANNEL_COUNT,
 } from './profile-store.js';
-import { getModemProfileTLVCode, isProfileSameAsDefault, applyProfileCodeToModemProfile } from './profile-import.js';
+import { getModemProfileTLVCode, isProfileSameAsDefault } from './profile-tlv.js';
 import { updateProfileSpectrogram } from './profile-spectrogram.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
 
@@ -133,20 +133,15 @@ function renderShareRow(mp, idSuffix, readonly) {
     const unchanged = isProfileSameAsDefault(mp);
     return `<div class="profile-share-row">
         <button class="share-profile-button" data-action="share-profile" data-profile-id="${idSuffix}" ${unchanged ? 'disabled' : ''}>
-            <i class="fas fa-share-nodes"></i> Zdielat profil
+            <i class="fas fa-share-nodes"></i> Zdieľať profil
         </button>
-        <div class="profile-share-content" data-profile-share-for="${idSuffix}">
-            <div class="profile-share-code-wrap${unchanged ? ' is-hidden' : ''}">
-                <input type="text" class="profile-code-input" data-profile-code-for="${idSuffix}" value="${profileCode}"
-                    readonly title="Kliknite pre skopirovanie kodu profilu">
-                <button class="copy-profile-code-button" data-action="copy-profile-code" data-profile-id="${idSuffix}"
-                    title="Skopirovat kod profilu">
-                    <i class="fas fa-copy"></i>
-                </button>
-            </div>
-            <div class="profile-share-nochanges${unchanged ? '' : ' is-hidden'}">
-                Profil nema zmeny oproti predvolenemu profilu.
-            </div>
+        <div class="profile-share-code-wrap${unchanged ? ' is-hidden' : ''}">
+            <input type="text" class="profile-code-input" data-profile-code-for="${idSuffix}" value="${profileCode}"
+                readonly title="Kliknite pre skopírovanie kódu profilu">
+            <button class="copy-profile-code-button" data-action="copy-profile-code" data-profile-id="${idSuffix}"
+                title="Skopírovať kód profilu">
+                <i class="fas fa-copy"></i>
+            </button>
         </div>
     </div>`;
 }
@@ -158,68 +153,14 @@ export function syncProfileCodeInput(profileId, profileCode) {
 
 export function updateProfileCodeUI(profileId, mp) {
     const profileCode = getModemProfileTLVCode(mp);
-    syncProfileCodeInput(profileId, profileCode);
-
-    const shareWrap = document.querySelector(`[data-profile-share-for="${profileId}"]`);
-    if (!shareWrap) return;
-
     const unchanged = isProfileSameAsDefault(mp);
-    const row = shareWrap.closest('.profile-share-row');
-    const shareBtn = row?.querySelector('[data-action="share-profile"]');
+
+    const shareBtn = document.querySelector(`[data-action="share-profile"][data-profile-id="${profileId}"]`);
     if (shareBtn) shareBtn.disabled = unchanged;
-    shareWrap.querySelector('.profile-share-code-wrap')?.classList.toggle('is-hidden', unchanged);
-    shareWrap.querySelector('.profile-share-nochanges')?.classList.toggle('is-hidden', !unchanged);
-}
 
-// ─── Tooltip pre kopírovanie ──────────────────────────────────────────────────
-
-let copyTooltip = null;
-let copyTooltipTimer = null;
-
-function ensureCopyTooltip() {
-    if (copyTooltip && document.body.contains(copyTooltip)) return copyTooltip;
-    copyTooltip = document.createElement('div');
-    copyTooltip.className = 'profile-copy-tooltip';
-    copyTooltip.innerHTML = '<i class="fas fa-circle-check"></i><span>Skopirovane!</span>';
-    document.body.appendChild(copyTooltip);
-    return copyTooltip;
-}
-
-function showCopyTooltip(anchorEl) {
-    if (!anchorEl) return;
-    const tooltip = ensureCopyTooltip();
-    const rect = anchorEl.getBoundingClientRect();
-    tooltip.style.top = `${Math.max(10, rect.top - 12)}px`;
-    tooltip.style.left = `${Math.max(12, Math.min(window.innerWidth - 12, rect.left + rect.width / 2))}px`;
-    tooltip.classList.remove('is-visible');
-    requestAnimationFrame(() => tooltip.classList.add('is-visible'));
-    if (copyTooltipTimer) clearTimeout(copyTooltipTimer);
-    copyTooltipTimer = setTimeout(() => tooltip.classList.remove('is-visible'), 1300);
-}
-
-async function copyText(text, fallbackInput) {
-    if (!text) return false;
-    if (navigator.clipboard?.writeText) {
-        try { await navigator.clipboard.writeText(text); return true; } catch { /* fallback nizsie */ }
-    }
-    if (!fallbackInput) return false;
-    try {
-        fallbackInput.focus({ preventScroll: true });
-        fallbackInput.select();
-        return document.execCommand('copy');
-    } catch { return false; }
-}
-
-async function copyProfileCode(profileId, anchorEl) {
-    const profile = getProfileById(profileId);
-    if (!profile) return;
-    const profileCode = getModemProfileTLVCode(profile.modemProfile);
-    if (!profileCode) return;
-    syncProfileCodeInput(profileId, profileCode);
     const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
-    if (!await copyText(profileCode, codeInput)) return;
-    if (codeInput) { codeInput.focus({ preventScroll: true }); codeInput.select(); }
-    showCopyTooltip(anchorEl || codeInput);
+    codeInput?.closest('.profile-share-code-wrap')?.classList.toggle('is-hidden', unchanged);
+    syncProfileCodeInput(profileId, profileCode);
 }
 
 // ─── Pole s informaciami o vlne ───────────────────────────────────────────────
@@ -421,36 +362,45 @@ export function toggleProfile(id, onOpened) {
     if (opening && onOpened) onOpened(id);
 }
 
+// ─── Kopirovanie kodu profilu ─────────────────────────────────────────────────
+
+async function copyProfileCode(profileId, btn) {
+    const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
+    const code = codeInput?.value;
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); } catch {
+        if (codeInput) { codeInput.focus({ preventScroll: true }); codeInput.select(); }
+    }
+    if (btn) {
+        btn.classList.add('copied');
+        setTimeout(() => btn?.classList.remove('copied'), 1200);
+    }
+}
+
 // ─── Delegacia eventov ────────────────────────────────────────────────────────
 
 export function initContainerEvents(container, callbacks) {
     container?.addEventListener('click', async e => {
         const btn = action => e.target.closest(`[data-action="${action}"]`);
-        const codeInput = e.target.closest('.profile-code-input');
 
         if (btn('copy-profile-code')) {
             e.stopPropagation();
-            const id = parseInt(btn('copy-profile-code').dataset.profileId, 10);
-            if (!Number.isNaN(id)) await copyProfileCode(id, btn('copy-profile-code'));
+            const copyBtn = btn('copy-profile-code');
+            const id = parseInt(copyBtn.dataset.profileId, 10);
+            if (!Number.isNaN(id)) await copyProfileCode(id, copyBtn);
             return;
         }
-        if (codeInput) {
+        const inlineCodeInput = e.target.closest('.profile-code-input[data-profile-code-for]');
+        if (inlineCodeInput) {
             e.stopPropagation();
-            const id = parseInt(codeInput.dataset.profileCodeFor, 10);
-            if (!Number.isNaN(id)) await copyProfileCode(id, codeInput);
+            inlineCodeInput.focus({ preventScroll: true });
+            inlineCodeInput.select();
             return;
         }
         if (btn('share-profile')) {
             e.stopPropagation();
             const id = parseInt(btn('share-profile').dataset.profileId);
-            if (!Number.isNaN(id)) {
-                const profile = getProfileById(id);
-                if (profile) {
-                    const code = getModemProfileTLVCode(profile.modemProfile);
-                    syncProfileCodeInput(id, code);
-                    window.dispatchEvent(new CustomEvent('chat-share-profile', { detail: { profileCode: code } }));
-                }
-            }
+            if (!Number.isNaN(id)) callbacks.shareProfile(id);
             return;
         }
         if (btn('delete')) {

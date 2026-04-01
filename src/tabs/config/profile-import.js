@@ -1,9 +1,8 @@
-// TLV kodovanie/dekodovanie profilov a import modal s QR skenerom.
+// QR skener a import modal pre profily.
 
-import { TinyTUS } from '../../../libs/tinytus/tinytus.js';
+import { validateProfileCode, applyProfileCodeToModemProfile } from './profile-tlv.js';
+import { addProfileToStore } from './profile-store.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
-import { addProfileToStore, setActiveProfile } from './profile-store.js';
-import { wasmValidateProfile } from './profile-validation.js';
 
 // ─── DOM ──────────────────────────────────────────────────────────────────────
 
@@ -25,130 +24,6 @@ let scanStream = null;
 let scanTimer  = null;
 let barcodeDetector = null;
 let scanUnavailableReason = '';
-
-// ─── TLV kódovanie ────────────────────────────────────────────────────────────
-
-function bytesToCode(bytes) {
-    let binary = '';
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-export function getModemProfileTLVCode(mp) {
-    if (!mp?.ptr || !TinyTUS.EXPORTS?.mp_encode_tlv || !TinyTUS.EXPORTS?.malloc || !TinyTUS.EXPORTS?.free) {
-        return '';
-    }
-
-    const maxSize =
-        TinyTUS.CONSTS?.U32_MODEM_PROFILE_TLV_MAX_BYTES ||
-        TinyTUS.CONSTS?.U32_MODEM_PROFILE_MAX_TLV_BYTES ||
-        512;
-
-    const ptr = TinyTUS.EXPORTS.malloc(maxSize);
-    if (!ptr) return '';
-
-    try {
-        const outLen = TinyTUS.EXPORTS.mp_encode_tlv(mp.ptr, ptr, maxSize);
-        if (!outLen) return '';
-        return bytesToCode(new Uint8Array(TinyTUS.EXPORTS.memory.buffer, ptr, outLen).slice());
-    } finally {
-        TinyTUS.EXPORTS.free(ptr);
-    }
-}
-
-function codeToBytes(code) {
-    const normalized = (code || '').replace(/[\s:-]/g, '');
-    if (!normalized) return null;
-
-    if (/^[0-9A-Fa-f]+$/.test(normalized) && normalized.length % 2 === 0) {
-        const out = new Uint8Array(normalized.length / 2);
-        for (let i = 0; i < out.length; i++) {
-            out[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
-        }
-        return out;
-    }
-
-    if (!/^[A-Za-z0-9_-]+$/.test(normalized)) return null;
-
-    try {
-        const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((normalized.length + 3) % 4);
-        const binary = atob(base64);
-        return Uint8Array.from(binary, ch => ch.charCodeAt(0));
-    } catch {
-        return null;
-    }
-}
-
-export function applyProfileCodeToModemProfile(modemProfile, code) {
-    const bytes = codeToBytes(code);
-    if (!TinyTUS.EXPORTS?.mp_decode_tlv || !bytes || !TinyTUS.EXPORTS?.malloc || !TinyTUS.EXPORTS?.free) return false;
-
-    const ptr = TinyTUS.EXPORTS.malloc(bytes.length);
-    if (!ptr) return false;
-
-    try {
-        new Uint8Array(TinyTUS.EXPORTS.memory.buffer, ptr, bytes.length).set(bytes);
-        if (TinyTUS.EXPORTS.mp_decode_tlv(modemProfile.ptr, ptr, bytes.length) !== 0) return false;
-        // Dekodovanie uspesne - overime ze hodnoty su platne podla WASM.
-        return wasmValidateProfile(modemProfile);
-    } catch {
-        return false;
-    } finally {
-        TinyTUS.EXPORTS.free(ptr);
-    }
-}
-
-// ─── Validacia kódu ───────────────────────────────────────────────────────────
-
-export function validateProfileCode(code) {
-    const trimmed = (code || '').trim();
-    if (!trimmed) return { valid: false, message: '' };
-
-    const bytes = codeToBytes(trimmed);
-    if (!bytes) return { valid: false, message: 'Kod nema spravny format.' };
-    if (!TinyTUS.EXPORTS?.mp_decode_tlv) return { valid: false, message: 'Kniaznica este nie je nacitana.' };
-
-    const temp = new ModemProfile();
-    try {
-        return applyProfileCodeToModemProfile(temp, trimmed)
-            ? { valid: true, message: 'Kód profilu je platný.' }
-            : { valid: false, message: 'Kód profilu je neplatný.' };
-    } finally {
-        temp.destroy();
-    }
-}
-
-export function isValidProfileCode(code) {
-    return validateProfileCode(code).valid;
-}
-
-export function isProfileSameAsDefault(mp) {
-    const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
-    if (!mp || !defaultMp) return false;
-    const a = getModemProfileTLVCode(mp);
-    const b = getModemProfileTLVCode(defaultMp);
-    if (a && b) return a === b;
-    try { return JSON.stringify(mp.toObject()) === JSON.stringify(defaultMp.toObject()); } catch { return false; }
-}
-
-// ─── Pridanie profilu z kódu ──────────────────────────────────────────────────
-
-export function addProfileFromCodeAndActivate(code) {
-    const trimmed = (code || '').trim();
-    if (!validateProfileCode(trimmed).valid) return false;
-
-    const mp = new ModemProfile();
-    if (!applyProfileCodeToModemProfile(mp, trimmed)) {
-        mp.destroy();
-        return false;
-    }
-
-    const added = addProfileToStore(mp);
-    if (!added?.modemProfile) return false;
-
-    setActiveProfile(added.modemProfile);
-    return true;
-}
 
 // ─── Validation UI ───────────────────────────────────────────────────────────
 
@@ -195,12 +70,12 @@ async function scanFrame() {
         if (code) {
             if (modalInput) modalInput.value = code;
             refreshModalState();
-            if (scanStatus) scanStatus.textContent = 'QR kod bol nacitany.';
+            if (scanStatus) scanStatus.textContent = 'QR kód bol načítaný.';
             await stopScanner();
             return;
         }
     } catch (e) {
-        if (scanStatus) scanStatus.textContent = 'QR skenovanie sa nepodarilo spustit.';
+        if (scanStatus) scanStatus.textContent = 'QR skenovanie sa nepodarilo spustiť.';
         console.warn('QR scan failed:', e);
         return;
     }
@@ -213,7 +88,7 @@ async function startScanner() {
 
     if (!('BarcodeDetector' in window)) {
         scannerField.style.display = 'block';
-        scanStatus.textContent = 'QR skenovanie nie je podporovane v tomto prehliadaci.';
+        scanStatus.textContent = 'QR skenovanie nie je podporované v tomto prehliadači.';
         return;
     }
 
@@ -226,13 +101,13 @@ async function startScanner() {
         await stopScanner();
         scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
         scannerField.style.display = 'block';
-        scanStatus.textContent = 'Namierte kameru na QR kod profilu.';
+        scanStatus.textContent = 'Namierte kameru na QR kód profilu.';
         scanVideo.srcObject = scanStream;
         await scanVideo.play();
         scanTimer = setTimeout(scanFrame, 200);
     } catch (e) {
         scannerField.style.display = 'block';
-        scanStatus.textContent = 'Kameru sa nepodarilo spustit alebo QR skenovanie nie je podporovane.';
+        scanStatus.textContent = 'Kameru sa nepodarilo spustiť alebo QR skenovanie nie je podporované.';
         console.warn('Failed to start QR scanner:', e);
     }
 }
@@ -248,18 +123,18 @@ function updateScanAvailabilityUI() {
 async function initScanAvailability() {
     scanUnavailableReason = '';
     if (!navigator.mediaDevices?.getUserMedia) {
-        scanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze prehliadac nepodporuje pristup ku kamere.';
+        scanUnavailableReason = 'QR skenovanie nie je dostupné, pretože prehliadač nepodporuje prístup ku kamere.';
         return updateScanAvailabilityUI();
     }
     if (!('BarcodeDetector' in window)) {
-        scanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze prehliadac nepodporuje detekciu QR kodov.';
+        scanUnavailableReason = 'QR skenovanie nie je dostupné, pretože prehliadač nepodporuje detekciu QR kódov.';
         return updateScanAvailabilityUI();
     }
     try {
         const formats = BarcodeDetector.getSupportedFormats ? await BarcodeDetector.getSupportedFormats() : ['qr_code'];
-        if (!formats.includes('qr_code')) scanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze v tomto prehliadaci nie je podporovany format qr_code.';
+        if (!formats.includes('qr_code')) scanUnavailableReason = 'QR skenovanie nie je dostupné, pretože v tomto prehliadači nie je podporovaný formát qr_code.';
     } catch {
-        scanUnavailableReason = 'QR skenovanie nie je dostupne, pretoze sa nepodarilo zistit podporu QR kodov.';
+        scanUnavailableReason = 'QR skenovanie nie je dostupné, pretože sa nepodarilo zistiť podporu QR kódov.';
     }
     updateScanAvailabilityUI();
 }
@@ -268,7 +143,7 @@ async function initScanAvailability() {
 
 function resetModal() {
     if (modalInput) modalInput.value = '';
-    if (scanStatus) scanStatus.textContent = 'Namierte kameru na QR kod.';
+    if (scanStatus) scanStatus.textContent = 'Namierte kameru na QR kód.';
     if (scannerField) scannerField.style.display = 'none';
     updateValidationUI({ valid: false, message: '' });
     refreshModalState();
@@ -297,7 +172,7 @@ function doImport() {
     const mp = new ModemProfile();
     if (!applyProfileCodeToModemProfile(mp, code)) {
         mp.destroy();
-        updateValidationUI({ valid: false, message: 'Kod profilu je neplatny.' });
+        updateValidationUI({ valid: false, message: 'Kód profilu je neplatný.' });
         refreshModalState();
         return;
     }

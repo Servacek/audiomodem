@@ -8,7 +8,9 @@ import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
 import * as VersionTracker from '../wasmVersionTracker.js';
 
 import { loadProfiles, saveProfiles, addProfileToStore, removeProfileFromStore, getProfileById, getProfiles, setActiveProfile, getAllModemProfilesForDemodulation, getModemProfileMeta } from './config/profile-store.js';
-import { isValidProfileCode, addProfileFromCodeAndActivate, initImportModal } from './config/profile-import.js';
+import { isValidProfileCode, addProfileFromCodeAndActivate, getModemProfileTLVCode } from './config/profile-tlv.js';
+import { initImportModal } from './config/profile-import.js';
+import { initShareModal, openShareModal } from './config/profile-share-modal.js';
 import { updateProfileSpectrogram } from './config/profile-spectrogram.js';
 import { renderProfiles, updateActiveProfileUI, toggleProfile, updateReadonlyProps, updateProfileCodeUI, updateWaveInfo, initContainerEvents } from './config/profile-render.js';
 import { saveUsbProfileSetting, getUsbAutoProfile, syncAutoProfileWithUSBState, restoreProfileAfterUSBDisconnect, clearAutoProfileOnManualChange } from './config/usb-profile.js';
@@ -83,6 +85,13 @@ function onFieldChanged(id, field) {
     updateWaveInfo(id, mp);
 }
 
+function shareProfile(id) {
+    const profile = getProfileById(id);
+    if (!profile) return;
+    const code = getModemProfileTLVCode(profile.modemProfile);
+    openShareModal(profile.name || `Profil ${id}`, code);
+}
+
 function onProfileOpened(id) {
     const mp = id === 'default' ? TinyTUS.DEFAULT_MODEM_PROFILE : getProfileById(id)?.modemProfile;
     if (mp) updateProfileSpectrogram(TinyTUS, id, mp);
@@ -92,7 +101,7 @@ function onProfileOpened(id) {
 
 function rerender() {
     renderProfiles(container, configTabContent, usbProfileSelector);
-    initContainerEvents(container, { doDelete, confirmDelete, onProfileChanged: saveAndUpdateUI, onFieldChanged, onProfileOpened });
+    initContainerEvents(container, { doDelete, confirmDelete, onProfileChanged: saveAndUpdateUI, onFieldChanged, onProfileOpened, shareProfile });
 }
 
 function saveAndUpdateUI() {
@@ -218,6 +227,7 @@ TinyTUS.afterLoad(() => {
     rerender();
     restoreConfigState();
     initImportModal();
+    initShareModal(code => window.dispatchEvent(new CustomEvent('chat-share-profile', { detail: { profileCode: code } })));
 
     // Zobraz verziu kniaznice.
     const versionEl = $('lib-version-display');

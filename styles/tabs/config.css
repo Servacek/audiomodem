@@ -812,6 +812,47 @@
     border-color: var(--config-modal-confirm-hover-border, #8e5f5f);
 }
 
+.modal-button.primary {
+    background: var(--config-btn-primary-bg, #78b08e);
+    color: var(--config-btn-primary-fg, #0f2a1c);
+    border-color: var(--config-btn-primary-border, #6aa883);
+}
+
+.modal-button.primary:hover {
+    background: var(--config-btn-primary-hover-bg, #88be9b);
+    border-color: var(--config-btn-primary-hover-border, #79b792);
+}
+
+/* Share profilu - modal */
+#share-profile-modal .modal-content {
+    max-width: 380px;
+}
+
+#share-profile-modal-qr {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0 8px;
+}
+
+#share-profile-modal-qr svg {
+    width: 200px;
+    height: 200px;
+    padding: 8px;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.share-profile-modal-code-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.copy-profile-code-button.copied {
+    color: #1db97b;
+}
+
 :root:not(.dark-scheme) #tab-config {
     --config-option-bg: #f9f9f9;
     --config-border: #ddd;
@@ -1239,35 +1280,7 @@
 }
 
 .profile-share-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 10px;
-    align-items: center;
     margin-bottom: 14px;
-}
-
-.profile-share-content {
-    min-width: 0;
-}
-
-.profile-share-code-wrap {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-}
-
-.profile-share-nochanges {
-    min-height: 34px;
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px dashed rgba(138, 148, 166, 0.35);
-    background: rgba(138, 148, 166, 0.08);
-    color: var(--msger-header-colour);
-    font-size: 12px;
-    font-weight: 500;
 }
 
 .is-hidden {
@@ -1293,38 +1306,6 @@
     border-color: rgba(59, 130, 246, 0.45);
 }
 
-.profile-copy-tooltip {
-    position: fixed;
-    z-index: 2600;
-    top: 0;
-    left: 0;
-    transform: translate(-50%, -4px) scale(0.96);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 245, 186, 0.45);
-    background: linear-gradient(180deg, rgba(38, 170, 106, 0.96) 0%, rgba(33, 145, 91, 0.96) 100%);
-    color: #ecfff4;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    box-shadow: 0 8px 24px rgba(22, 95, 62, 0.35);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.profile-copy-tooltip.is-visible {
-    opacity: 1;
-    transform: translate(-50%, -10px) scale(1);
-}
-
-.profile-copy-tooltip i {
-    color: #d8ffe6;
-    font-size: 12px;
-}
 
 .copy-profile-code-button {
     width: 34px;
@@ -1380,17 +1361,9 @@
     background: rgba(126, 138, 158, 0.1);
 }
 
-.dark-scheme .profile-share-nochanges {
-    border-color: rgba(126, 138, 158, 0.3);
-    background: rgba(126, 138, 158, 0.1);
-}
-
 @media (max-width: 600px) {
-    .profile-share-row {
-        grid-template-columns: 1fr;
-    }
-
     .share-profile-button {
+        width: 100%;
         justify-content: center;
     }
 }

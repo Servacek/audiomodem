@@ -54,6 +54,7 @@
 
     <!-- Kniznice -->
     <script src="libs/chart/chart.js"></script>
+    <script src="libs/qrcode/qrcode.js"></script>
 </head>
 
 <body>
@@ -355,6 +356,26 @@
                     <button id="confirmation-confirm-button" class="modal-button confirm">Odstrániť</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal pre zdielanie profilu -->
+    <div id="share-profile-modal" class="modal" style="display: none;">
+        <div class="modal-content share-modal-content">
+            <div class="share-modal-title" id="share-profile-modal-title">Zdieľať profil</div>
+            <div id="share-profile-modal-qr" class="share-modal-qr"></div>
+            <div class="share-modal-code-row">
+                <input id="share-profile-modal-code" class="profile-code-input" type="text" readonly
+                    title="Kliknite pre skopírovanie kódu profilu">
+                <button id="share-profile-modal-copy" class="copy-profile-code-button" type="button"
+                    title="Skopírovať kód profilu">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <button id="share-profile-modal-broadcast" class="share-modal-broadcast-btn" type="button">
+                <i class="fas fa-tower-broadcast"></i> Vysielať kód
+            </button>
+            <button id="share-profile-modal-cancel" class="share-modal-cancel-btn" type="button">Zavrieť</button>
         </div>
     </div>
 
