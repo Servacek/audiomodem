@@ -78,14 +78,14 @@ async function sendMessage(message) {
     if (message.groupedWith) {
         const prev = messagesToSend.find(m => m === message.groupedWith);
         if (prev) {
-            // Predchadzajuca sprava este nehraje — zretaz waveformy.
+            // Predchadzajuca sprava este nehraje - zretaz waveformy.
             const joined = new Float32Array(prev.waveform.length + message.waveform.length);
             joined.set(prev.waveform);
             joined.set(message.waveform, prev.waveform.length);
             prev.waveform = joined;
             return;
         }
-        // Predchadzajuca sprava uz hraje — presmeruj na viditelnu bublinu.
+        // Predchadzajuca sprava uz hraje - presmeruj na viditelnu bublinu.
         message.groupedWith.bubble.appendChild(message.progressBar);
         message.bubble = message.groupedWith.bubble;
     }
@@ -127,7 +127,7 @@ inputArea.submit = () => {
     const msgText = inputBar.value.trim();
     if (!msgText) return; // Ignoruj prazdnu spravu.
 
-    /// @TODO: Pridaj moznost menit username.
+    /// @ULOHA: Pridaj moznost menit username.
     // Najprv zobraz spravu.
     const newMessage = createSelfMessage(msgText);
     if (!newMessage) return; // Modulacia zlyhala, chyba je uz zobrazena.
@@ -246,8 +246,8 @@ function encodeImageForTransmission(imgElement) {
     const imageData = ctx.getImageData(0, 0, IMAGE_DIMENSIONS.width, IMAGE_DIMENSIONS.height);
     const pixels = imageData.data; // RGBA, 4 bytes per pixel
 
-    // Pack pixels into bits: 1 bit per pixel, 8 pixels per byte.
-    // Threshold: average of RGB channels > 127 = white (1), else black (0).
+    // Zabal pixely do bitov: 1 bit na pixel, 8 pixelov na bajt.
+    // Prah: priemer RGB > 127 je biela (1), inak cierna (0).
     const packed = new Uint8Array(Math.ceil(IMAGE_DIMENSIONS.width * IMAGE_DIMENSIONS.height / 8)); // Variable bytes
     for (let i = 0; i < IMAGE_DIMENSIONS.width * IMAGE_DIMENSIONS.height; i++) {
         const r = pixels[i * 4];
@@ -862,7 +862,6 @@ function onUserLoggedIn() {
     const welcomeMessage = systemMessage("Vitaj <span id='username-text'>" + getUsername() + "</span>! Svoju prezývku si môžeš kedykoľvek zmeniť v nastaveniach" + configButtonRef, "welcome");
     displayMessageAtBottom(welcomeMessage);
     initStateUpdate("user-logged-in");
-    initAudioInputWatcher();
 }
 
 window.addEventListener("user-logged", onUserLoggedIn);

@@ -76,8 +76,8 @@ body::-webkit-scrollbar-thumb {
 /* Tlacidla */
 
 :disabled {
-    background-color: grey;
-    color: #666;
+    background-color: var(--msger-send-button-disabled-bg, #8f8f8f);
+    color: var(--msger-header-colour-disabled, #666);
     cursor: not-allowed;
     opacity: 0.6;
     pointer-events: none;
@@ -247,8 +247,16 @@ body::-webkit-scrollbar-thumb {
     #tab-graph {
         display: flex !important;
         flex: 0 0 380px;
-        margin: 20px 20px 20px 20px;
+        margin: 0;
         overflow: hidden;
+    }
+
+    #tabs:not(.graph-sidebar-hidden) #tab-chat {
+        margin: 0;
+    }
+
+    #tabs:not(.graph-sidebar-hidden) #tab-chat #chat-area {
+        margin: 0px 0 0 20px;
     }
 
     #tabs.graph-sidebar-hidden #tab-graph {
@@ -284,7 +292,7 @@ footer {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.7); /* Cierne pozadie s priehladnostou. */
+    background-color: var(--modal-overlay-bg, rgba(0, 0, 0, 0.7)); /* Cierne pozadie s priehladnostou. */
     justify-content: center;
     align-items: center;
 }
@@ -292,6 +300,7 @@ footer {
 .modal .field-title {
     padding-bottom: 10px;
     text-align: left;
+    color: var(--modal-subtle-text, var(--msger-header-colour));
 }
 
 .modal .modal-header {
@@ -344,11 +353,14 @@ footer {
 } */
 
 .modal-content {
-    background-color: #201c1c;
+    background-color: var(--modal-surface-bg, #201c1c);
+    border: 1px solid var(--modal-surface-border, rgba(255, 255, 255, 0.08));
     border-radius: 10px;
     padding: 40px;
     text-align: center;
     width: 500px;
+    color: var(--modal-text, var(--msger-header-colour));
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25);
     transition: all 0.23s;
 }
 
@@ -367,24 +379,44 @@ footer {
 .modal-content input[type="text"] {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--modal-input-border, #ccc);
     border-radius: 5px;
     font-size: 16px;
+    background: var(--modal-input-bg, #fff);
+    color: var(--modal-text, var(--msger-header-colour));
+}
+
+.modal-content input[type="text"]:focus {
+    outline: none;
+    border-color: var(--modal-input-focus-border, var(--msger-send-button-bg));
+    box-shadow: 0 0 0 3px rgba(47, 143, 102, 0.14);
 }
 
 .modal-content button {
     padding: 10px;
     font-size: 16px;
-    border: none;
+    border: 1px solid var(--modal-btn-primary-border, transparent);
     border-radius: 5px;
     cursor: pointer;
-    background-color: #007bff;
-    color: white;
+    background-color: var(--modal-btn-primary-bg, #007bff);
+    color: var(--modal-btn-primary-fg, #fff);
     width: 100%;
 }
 
 .modal-content button:hover {
-    background-color: #0056b3;
+    background-color: var(--modal-btn-primary-hover-bg, #0056b3);
+}
+
+.modal-content button.button-secondary,
+.modal-content button.modal-cancel {
+    background-color: var(--modal-btn-neutral-bg, #e6edf4);
+    color: var(--modal-btn-neutral-fg, #273340);
+    border-color: var(--modal-btn-neutral-border, #c9d5e0);
+}
+
+.modal-content button.button-secondary:hover,
+.modal-content button.modal-cancel:hover {
+    background-color: var(--modal-btn-neutral-hover-bg, #dce5ee);
 }
 
 /* separator {
@@ -399,27 +431,27 @@ footer {
 input[type="checkbox"] {
     appearance: none;
     -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-    background-color: var(--config-input-bg, rgba(255, 255, 255, 0.06));
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    border: 1px solid var(--checkbox-border, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+    background-color: var(--checkbox-bg, var(--config-input-bg, rgba(255, 255, 255, 0.06)));
     cursor: pointer;
     position: relative;
     vertical-align: middle;
-    margin-bottom: 2px;
+    margin: 0;
     transition: background-color 0.23s, border-color 0.23s;
 }
 
 input[type="checkbox"]:hover {
-    border-color: rgba(255, 255, 255, 0.4);
-    background-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--checkbox-hover-border, rgba(255, 255, 255, 0.4));
+    background-color: var(--checkbox-hover-bg, rgba(255, 255, 255, 0.08));
 }
 
 input[type="checkbox"]:checked {
-    background-color: rgb(88, 128, 101);
-    border-color: rgb(107, 141, 118);
+    background-color: var(--checkbox-checked-bg, rgb(88, 128, 101));
+    border-color: var(--checkbox-checked-border, rgb(107, 141, 118));
 }
 
 input[type="checkbox"]:checked::after {
@@ -436,7 +468,7 @@ input[type="checkbox"]:checked::after {
 }
 
 input[type="checkbox"]:focus-visible {
-    outline: 1px solid rgb(107, 141, 118);
+    outline: 1px solid var(--checkbox-focus-ring, rgb(107, 141, 118));
     outline-offset: 2px;
 }
 
@@ -465,26 +497,32 @@ select:focus {
     border-color: var(--msger-send-button-bg);
 }
 
-input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
-    border-radius: 4px;
-    background: var(--config-input-bg, transparent);
-    vertical-align: middle;
-    margin: 0;
-    cursor: pointer;
-}
-
 select {
     padding: 8px 12px;
-    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border: 1px solid var(--select-border, var(--config-border, rgba(255, 255, 255, 0.15)));
     border-radius: 4px;
     font-size: 14px;
-    background: var(--config-input-bg, transparent);
-    color: var(--msger-header-colour);
+    background: var(--select-bg, var(--config-input-bg, transparent));
+    color: var(--select-text, var(--msger-header-colour));
     max-width: 100%;
+}
+
+:root.dark-scheme select,
+:root.dark-scheme optgroup,
+:root.dark-scheme option {
+    color-scheme: dark;
+}
+
+:root.dark-scheme select option,
+:root.dark-scheme select optgroup {
+    background-color: #1e1d22;
+    color: #d6d9de;
+}
+
+:root:not(.dark-scheme) select,
+:root:not(.dark-scheme) optgroup,
+:root:not(.dark-scheme) option {
+    color-scheme: light;
 }
 
 input[type="text"] {

@@ -3,6 +3,7 @@
 import { TinyTUS } from '../../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
 import { preValidateFieldValue, wasmValidateProfile } from './profile-validation.js';
+import { STORE } from './profile-strings.js';
 import { clearAttenuationData } from '../../freq_picker.js';
 
 const MAX_PROFILES = 10;
@@ -11,7 +12,7 @@ const MAX_CHANNEL_COUNT = 8;
 
 let profiles = [];
 
-// ─── Pomocne funkcie ──────────────────────────────────────────────────────────
+// --- Pomocne funkcie ---
 
 function clampChannelCount(value) {
     return Math.max(1, Math.min(MAX_CHANNEL_COUNT, value));
@@ -41,7 +42,7 @@ export function estimateChannelCountFromModemProfile(mp) {
     return getDefaultChannelCount();
 }
 
-// ─── Persistencia ─────────────────────────────────────────────────────────────
+// --- Persistencia ---
 
 function isProfileIntegrityOk(mp) {
     return wasmValidateProfile(mp);
@@ -87,7 +88,7 @@ export function saveProfiles() {
     ));
 }
 
-// ─── Pristup k profilom ───────────────────────────────────────────────────────
+// --- Pristup k profilom ---
 
 export function getProfiles() {
     return profiles;
@@ -106,11 +107,11 @@ export function findFreeProfileID() {
 
 export function ensureCanAddProfile() {
     if (profiles.length < MAX_PROFILES) return true;
-    alert(`Maximalny pocet profilov je ${MAX_PROFILES}. Odstranzte niektory z existujucich profilov.`);
+    alert(STORE.tooManyProfiles(MAX_PROFILES));
     return false;
 }
 
-// ─── CRUD ──────────────────────────────────────────────────────────────────────
+// --- Zakladne operacie ---
 
 export function addProfileToStore(modemProfile) {
     if (!wasmValidateProfile(modemProfile)) {
@@ -188,7 +189,7 @@ export function updateProfileField(id, field, value) {
     return true;
 }
 
-// ─── Aktivny profil ───────────────────────────────────────────────────────────
+// --- Aktivny profil ---
 
 export const isProfileActive = profile => TinyTUS.currentlyUsedModemProfile === profile.modemProfile;
 export const isDefaultActive = () => TinyTUS.currentlyUsedModemProfile === TinyTUS.DEFAULT_MODEM_PROFILE;
@@ -198,15 +199,15 @@ export function setActiveProfile(modemProfile, source = 'manual') {
     window.dispatchEvent(new CustomEvent('active-modem-profile-changed', { detail: { profile: modemProfile, source } }));
 }
 
-// ─── Metadata profilov ────────────────────────────────────────────────────────
+// --- Metadata profilov ---
 
 export function getModemProfileMeta(modemProfile) {
-    if (!modemProfile) return { idLabel: '?', name: 'Neznamy profil', id: null };
+    if (!modemProfile) return { idLabel: '?', name: STORE.unknownProfile, id: null };
     if (modemProfile === TinyTUS.DEFAULT_MODEM_PROFILE) {
-        return { idLabel: 'default', name: 'Predvoleny profil', id: 'default' };
+        return { idLabel: 'default', name: STORE.defaultProfile, id: 'default' };
     }
     const profile = profiles.find(p => p.modemProfile === modemProfile);
-    if (!profile) return { idLabel: '?', name: 'Neznamy profil', id: null };
+    if (!profile) return { idLabel: '?', name: STORE.unknownProfile, id: null };
     return {
         idLabel: String(profile.id),
         name: profile.name || `Profil ${profile.id}`,

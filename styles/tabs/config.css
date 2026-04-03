@@ -9,7 +9,7 @@
     /* padding mozeme davat len na boky aby nebol odsadeny sticky profile header */
     padding-left: 24px;
     padding-right: 24px;
-    /* overflow-x: clip namiesto hidden — hidden by vytvaral scroll container
+    /* overflow-x: clip namiesto hidden - hidden by vytvaral scroll kontajner
        a zlomil by position: sticky na child elementoch */
     overflow-x: clip;
     box-sizing: border-box;
@@ -54,7 +54,7 @@
 }
 
 #username-config-input {
-    /* flex-basis: 0 — rozsiruje sa z nuly, takze menu sa suciti skor ako zalomenie */
+    /* flex-basis: 0 - rozsiruje sa z nuly, takze menu sa suciti skor ako zalomenie */
     flex: 1 1 0;
     min-width: 10ch;
 }
@@ -89,6 +89,18 @@
 
 .usb-device-card.connected {
     border-color: #4CAF50;
+}
+
+.usb-device-card.unsupported {
+    padding: 16px 20px;
+}
+
+.usb-device-card.unsupported .usb-device-header {
+    margin-bottom: 0;
+}
+
+.usb-device-card.unsupported .usb-device-name {
+    white-space: normal;
 }
 
 .usb-device-header {
@@ -230,11 +242,11 @@
     transition: all 0.2s ease;
 }
 
-.usb-profile-select:hover {
+.usb-profile-select:hover:not(:disabled) {
     border-color: var(--msger-send-button-bg);
 }
 
-.usb-profile-select:focus {
+.usb-profile-select:focus:not(:disabled) {
     outline: none;
     border-color: var(--msger-send-button-bg);
     box-shadow: 0 0 0 3px rgba(var(--msger-send-button-bg-rgb, 0, 123, 255), 0.1);
@@ -401,9 +413,10 @@
        To je nutne aby position: sticky fungoval cez tuto vrstvu. */
     overflow: clip;
     position: relative;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Sentinel pre IntersectionObserver — detekuje kedy je profile-header prilepeny. */
+/* Sentinel pre IntersectionObserver - detekuje kedy je profile-header prilepeny. */
 .profile-sticky-sentinel {
     position: absolute;
     top: 0;
@@ -433,7 +446,7 @@
     box-shadow: var(--profile-header-shadow, 0 2px 8px rgba(0, 0, 0, 0.12));
 }
 
-/* Explicitne solidne pozadie pre sticky header — zabrani presvitatiu obsahu cez nej */
+/* Explicitne plne pozadie pre sticky header - zabrani presvitaniu obsahu cez neho */
 :root:not(.dark-scheme) .profile-header {
     background: #f8f9fa;
 }
@@ -533,16 +546,24 @@
 
 
 .profile-content {
-    display: none;
-    padding: 0 16px;
-    max-height: 0;
+    display: grid;
+    grid-template-rows: 0fr;
     overflow: hidden;
+    transition: grid-template-rows 0.3s ease;
 }
 
 .profile-content.expanded {
-    display: block;
+    grid-template-rows: 1fr;
+}
+
+.profile-content-inner {
+    min-height: 0;
+    padding: 0 16px;
+    overflow: hidden;
+}
+
+.profile-content.expanded > .profile-content-inner {
     padding: 16px;
-    max-height: none;
     overflow: visible;
 }
 
@@ -560,7 +581,7 @@
     opacity: 0.85;
 }
 
-.profile-field input,
+.profile-field input:not([type="checkbox"]):not([type="range"]),
 .profile-field select {
     padding: 8px 12px;
     border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
@@ -572,17 +593,50 @@
     width: 100%;
 }
 
-#tab-config :is(.profile-field input, .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select) {
+#tab-config :is(.profile-field input:not([type="checkbox"]):not([type="range"]), .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select) {
     border-radius: 8px;
     border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
     background: var(--config-input-bg, transparent);
     color: var(--msger-header-colour);
 }
 
-#tab-config :is(.profile-field input, .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select):focus {
+:root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) {
+    color-scheme: dark;
+    background: #1e1d22;
+    color: #d6d9de;
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) option,
+:root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) optgroup {
+    background: #1e1d22;
+    color: #d6d9de;
+}
+
+#tab-config :is(.profile-field input:not([type="checkbox"]):not([type="range"]), .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select):focus {
     outline: none;
     border-color: var(--config-btn-secondary-border, rgba(98, 143, 139, 0.8));
     box-shadow: 0 0 0 3px rgba(98, 143, 139, 0.16);
+}
+
+.profile-field input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    max-width: none;
+    padding: 0;
+    margin: 0;
+    align-self: flex-start;
+    cursor: pointer;
+    accent-color: var(--msger-send-button-bg);
+}
+
+.profile-field input[type="checkbox"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(98, 143, 139, 0.16);
+}
+
+:root:not(.dark-scheme) #tab-config .profile-field input[type="checkbox"]:hover:not(:disabled) {
+    box-shadow: 0 0 0 3px rgba(98, 143, 139, 0.12);
 }
 
 #tab-config input[type="number"]:disabled {
@@ -792,7 +846,7 @@
 
 .modal-button.cancel {
     background: var(--config-modal-cancel-bg, #5f6770);
-    color: #ffffff;
+    color: var(--config-modal-cancel-fg, #ffffff);
     border-color: var(--config-modal-cancel-border, #505861);
 }
 
@@ -803,7 +857,7 @@
 
 .modal-button.confirm {
     background: var(--config-modal-confirm-bg, #915f5f);
-    color: #ffffff;
+    color: var(--config-modal-confirm-fg, #ffffff);
     border-color: var(--config-modal-confirm-border, #805252);
 }
 
@@ -825,32 +879,150 @@
 
 /* Share profilu - modal */
 #share-profile-modal .modal-content {
-    max-width: 380px;
+    width: min(440px, calc(100vw - 32px));
+    max-width: 440px;
+}
+
+#share-profile-modal .share-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-radius: 14px;
+    padding: 18px;
+}
+
+#share-profile-modal .share-modal-header {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    text-align: left;
+}
+
+#share-profile-modal .share-modal-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--msger-header-colour);
+    line-height: 1.2;
+}
+
+#share-profile-modal .share-modal-subtitle {
+    font-size: 12px;
+    color: var(--msger-header-colour);
+    opacity: 0.68;
+}
+
+#share-profile-modal .share-modal-qr-frame {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 82%, transparent);
+    background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 68%, transparent);
+    padding: 14px;
 }
 
 #share-profile-modal-qr {
     display: flex;
+    align-items: center;
     justify-content: center;
-    padding: 4px 0 8px;
+    width: 100%;
+    min-height: 210px;
 }
 
 #share-profile-modal-qr svg {
-    width: 200px;
-    height: 200px;
-    padding: 8px;
+    width: min(218px, 100%);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    padding: 10px;
     background: #fff;
-    border-radius: 8px;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-.share-profile-modal-code-wrap {
+#share-profile-modal .share-modal-qr-empty {
+    width: 100%;
+    min-height: 92px;
+    border-radius: 10px;
+    border: 1px dashed color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 86%, transparent);
+    background: color-mix(in srgb, var(--config-input-bg, transparent) 78%, transparent);
+    color: var(--msger-header-colour);
+    opacity: 0.7;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px;
+}
+
+#share-profile-modal .share-modal-code-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.66;
+    text-align: left;
+}
+
+#share-profile-modal .share-modal-code-box {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     align-items: center;
 }
 
+#share-profile-modal .share-modal-code-box .profile-code-input {
+    height: 42px;
+    font-size: 12px;
+    border-radius: 10px;
+    padding: 0 12px;
+}
+
+#share-profile-modal .copy-profile-code-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+}
+
+#share-profile-modal .share-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+#share-profile-modal .share-modal-actions .modal-button {
+    width: 100%;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+
 .copy-profile-code-button.copied {
-    color: #1db97b;
+    color: #ffffff;
+    background: var(--config-btn-primary-bg);
+    border-color: var(--config-btn-primary-border);
+}
+
+@media (max-width: 520px) {
+    #share-profile-modal .share-modal-content {
+        padding: 14px;
+        gap: 10px;
+    }
+
+    #share-profile-modal .share-modal-title {
+        font-size: 17px;
+    }
+
+    #share-profile-modal-qr {
+        min-height: 184px;
+    }
+
+    #share-profile-modal .share-modal-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 :root:not(.dark-scheme) #tab-config {
@@ -859,34 +1031,39 @@
     --config-input-bg: #fff;
     --profile-header-bg: #f8f9fa;
     --profile-header-hover-bg: #e9ecef;
-    --config-btn-primary-bg: #78b08e;
-    --config-btn-primary-hover-bg: #88be9b;
-    --config-btn-primary-fg: #0f2a1c;
-    --config-btn-primary-border: #6aa883;
-    --config-btn-primary-hover-border: #79b792;
-    --config-btn-secondary-bg: #6f9e9a;
-    --config-btn-secondary-hover-bg: #80aaa6;
-    --config-btn-secondary-fg: #0f2826;
-    --config-btn-secondary-border: #628f8b;
-    --config-btn-secondary-hover-border: #719c98;
-    --config-btn-neutral-bg: #8b949d;
-    --config-btn-neutral-hover-bg: #98a0a7;
-    --config-btn-neutral-fg: #0f1419;
-    --config-btn-neutral-border: #7e868f;
-    --config-btn-neutral-hover-border: #8a939b;
-    --config-btn-danger-bg: #c48787;
-    --config-btn-danger-hover-bg: #ce9393;
-    --config-btn-danger-fg: #2b1111;
-    --config-btn-danger-border: #b77b7b;
-    --config-btn-danger-hover-border: #c28686;
-    --config-modal-cancel-bg: #636b74;
-    --config-modal-cancel-hover-bg: #6f7881;
-    --config-modal-cancel-border: #565e67;
-    --config-modal-cancel-hover-border: #626b74;
-    --config-modal-confirm-bg: #985f5f;
-    --config-modal-confirm-hover-bg: #a86d6d;
-    --config-modal-confirm-border: #875353;
-    --config-modal-confirm-hover-border: #956060;
+    --profile-active-soft-bg: #f3f8f5;
+    --profile-active-soft-hover-bg: #eef5f1;
+    --profile-active-content-bg: #fbfdfc;
+    --config-btn-primary-bg: #2f8f66;
+    --config-btn-primary-hover-bg: #267a57;
+    --config-btn-primary-fg: #f6fffa;
+    --config-btn-primary-border: #2a7f5d;
+    --config-btn-primary-hover-border: #236f53;
+    --config-btn-secondary-bg: #2f6f9f;
+    --config-btn-secondary-hover-bg: #285f89;
+    --config-btn-secondary-fg: #f4faff;
+    --config-btn-secondary-border: #2a628c;
+    --config-btn-secondary-hover-border: #235576;
+    --config-btn-neutral-bg: #e6edf4;
+    --config-btn-neutral-hover-bg: #dce4ec;
+    --config-btn-neutral-fg: #273340;
+    --config-btn-neutral-border: #c7d3de;
+    --config-btn-neutral-hover-border: #b8c6d2;
+    --config-btn-danger-bg: #bd5f66;
+    --config-btn-danger-hover-bg: #aa535a;
+    --config-btn-danger-fg: #fff4f5;
+    --config-btn-danger-border: #a85258;
+    --config-btn-danger-hover-border: #99494f;
+    --config-modal-cancel-bg: #6d8196;
+    --config-modal-cancel-hover-bg: #60788f;
+    --config-modal-cancel-border: #60778d;
+    --config-modal-cancel-hover-border: #557084;
+    --config-modal-cancel-fg: #f7fbff;
+    --config-modal-confirm-bg: #b5535a;
+    --config-modal-confirm-hover-bg: #a74a50;
+    --config-modal-confirm-border: #9f464c;
+    --config-modal-confirm-hover-border: #934147;
+    --config-modal-confirm-fg: #fff7f8;
     --freq-graph-good-line: #5d8fd6;
     --freq-graph-good-fill: rgba(93, 143, 214, 0.24);
     --freq-graph-bad-line: #c48787;
@@ -899,8 +1076,11 @@
     --config-option-bg: rgba(255, 255, 255, 0.05);
     --config-border: rgba(255, 255, 255, 0.12);
     --config-input-bg: rgba(255, 255, 255, 0.06);
-    --profile-header-bg: rgba(255, 255, 255, 0.04);
-    --profile-header-hover-bg: rgba(255, 255, 255, 0.08);
+    --profile-header-bg: #1e1d22;
+    --profile-header-hover-bg: #252430;
+    --profile-active-soft-bg: #243029;
+    --profile-active-soft-hover-bg: #29362e;
+    --profile-active-content-bg: #1d2521;
     --config-btn-primary-bg: #4d7c60;
     --config-btn-primary-hover-bg: #5a8c6d;
     --config-btn-primary-fg: #d6f2e2;
@@ -925,10 +1105,12 @@
     --config-modal-cancel-hover-bg: #616a73;
     --config-modal-cancel-border: #616a73;
     --config-modal-cancel-hover-border: #6e7780;
+    --config-modal-cancel-fg: #ffffff;
     --config-modal-confirm-bg: #7e5353;
     --config-modal-confirm-hover-bg: #8d5f5f;
     --config-modal-confirm-border: #8b5d5d;
     --config-modal-confirm-hover-border: #9a6b6b;
+    --config-modal-confirm-fg: #ffffff;
     --freq-graph-good-line: #7fa8e3;
     --freq-graph-good-fill: rgba(127, 168, 227, 0.28);
     --freq-graph-bad-line: #a06c6c;
@@ -1026,7 +1208,11 @@
         font-size: 12px;
     }
 
-    .profile-content.expanded {
+    .profile-content-inner {
+        padding: 0 12px;
+    }
+
+    .profile-content.expanded > .profile-content-inner {
         padding: 12px;
     }
 
@@ -1038,7 +1224,7 @@
         font-size: 13px;
     }
 
-    .profile-field input,
+    .profile-field input:not([type="checkbox"]):not([type="range"]),
     .profile-field select {
         padding: 6px 10px;
         font-size: 13px;
@@ -1187,7 +1373,11 @@
         padding: 6px 10px;
     }
 
-    .profile-content.expanded {
+    .profile-content-inner {
+        padding: 0 10px;
+    }
+
+    .profile-content.expanded > .profile-content-inner {
         padding: 10px;
     }
 
@@ -1266,8 +1456,10 @@
 .share-profile-button {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 8px 14px;
+    height: 36px;
+    padding: 0 14px;
     border-radius: var(--config-btn-radius);
     border: 1px solid var(--config-btn-secondary-border);
     background: var(--config-btn-secondary-bg);
@@ -1281,6 +1473,22 @@
 
 .profile-share-row {
     margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 84%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 70%, transparent);
+}
+
+.profile-share-code-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
 }
 
 .is-hidden {
@@ -1290,7 +1498,7 @@
 .profile-code-input {
     width: 100%;
     min-width: 0;
-    height: 34px;
+    height: 36px;
     border-radius: 8px;
     border: 1px dashed rgba(138, 148, 166, 0.35);
     background: rgba(138, 148, 166, 0.08);
@@ -1308,8 +1516,8 @@
 
 
 .copy-profile-code-button {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--config-btn-radius);
     border: 1px solid var(--config-btn-secondary-border);
     background: var(--config-btn-secondary-bg);
@@ -1362,6 +1570,15 @@
 }
 
 @media (max-width: 600px) {
+    .profile-share-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .profile-share-code-wrap {
+        width: 100%;
+    }
+
     .share-profile-button {
         width: 100%;
         justify-content: center;
@@ -1408,15 +1625,32 @@
 /* Zvraznenie aktivnej karty profilu */
 
 .profile-item--active {
-    border-color: rgba(29, 185, 123, 0.30) !important;
-    /* box-shadow:   0 0 0 1px rgba(29, 185, 123, 0.15),
-                  0 2px 12px rgba(29, 185, 123, 0.06); */
+    border-color: rgba(29, 185, 123, 0.56) !important;
+    background: var(--profile-active-content-bg, transparent);
+    box-shadow: 0 0 0 1px rgba(29, 185, 123, 0.20),
+        0 5px 14px rgba(29, 185, 123, 0.10);
 }
 
 .dark-scheme .profile-item--active {
-    border-color: rgba(34, 214, 142, 0.25) !important;
-    /* box-shadow:   0 0 0 1px rgba(34, 214, 142, 0.12),
-                  0 2px 16px rgba(34, 214, 142, 0.06); */
+    border-color: rgba(34, 214, 142, 0.52) !important;
+    box-shadow: 0 0 0 1px rgba(34, 214, 142, 0.22),
+        0 7px 16px rgba(9, 22, 17, 0.44);
+}
+
+:root:not(.dark-scheme) .profile-item--active .profile-header {
+    background: var(--profile-active-soft-bg);
+}
+
+:root:not(.dark-scheme) .profile-item--active .profile-header:hover {
+    background: var(--profile-active-soft-hover-bg);
+}
+
+:root.dark-scheme .profile-item--active .profile-header {
+    background: var(--profile-active-soft-bg);
+}
+
+:root.dark-scheme .profile-item--active .profile-header:hover {
+    background: var(--profile-active-soft-hover-bg);
 }
 
 /* Predvoleny profil ma jemny lavy okraj. */
@@ -1425,7 +1659,7 @@
 }
 
 .profile-item--default.profile-item--active {
-    border-left-color: rgba(29, 185, 123, 0.50);
+    border-left-color: rgba(29, 185, 123, 0.72);
 }
 
 .dark-scheme .profile-item--default {
@@ -1433,7 +1667,7 @@
 }
 
 .dark-scheme .profile-item--default.profile-item--active {
-    border-left-color: rgba(34, 214, 142, 0.40);
+    border-left-color: rgba(34, 214, 142, 0.68);
 }
 
 /* Interaktivny vyber pasma moze ist na celu sirku. */
@@ -1513,4 +1747,108 @@
     font-size: 13px;
     font-family: 'JetBrains Mono', monospace;
     color: var(--msger-header-colour);
+}
+
+.audio-info-section {
+    margin: 12px 0;
+    padding: 10px;
+    border: 1px solid var(--config-border, rgba(255, 255, 255, 0.15));
+    border-radius: 8px;
+    background: var(--config-option-bg, rgba(255, 255, 255, 0.05));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.audio-info-top {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.audio-info-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 8px;
+    border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 85%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--config-input-bg, transparent) 86%, transparent);
+}
+
+.audio-info-kpi-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.56;
+}
+
+.audio-info-kpi-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--msger-header-colour);
+}
+
+.audio-info-kpi-value[data-state="ok"],
+.audio-info-kpi-value[data-state="granted"] {
+    color: #1db97b;
+}
+
+.audio-info-kpi-value[data-state="warn"],
+.audio-info-kpi-value[data-state="prompt"] {
+    color: #e1b45a;
+}
+
+.audio-info-kpi-value[data-state="bad"],
+.audio-info-kpi-value[data-state="denied"] {
+    color: #e07a5f;
+}
+
+.audio-info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.audio-info-item {
+    display: grid;
+    grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 80%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 65%, transparent);
+    min-width: 0;
+}
+
+.audio-info-item-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--msger-header-colour);
+    opacity: 0.56;
+}
+
+.audio-info-item-value {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--msger-header-colour);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .audio-info-top {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .audio-info-item {
+        grid-template-columns: 1fr;
+        gap: 3px;
+    }
 }

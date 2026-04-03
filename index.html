@@ -71,9 +71,6 @@
                 <button id="chat-button" class="tab-button" title="Čet">
                     <i class="fa-solid fa-message"></i>
                 </button>
-                <!-- <button id="oscillator-button" class="tab-button" title="Oscilátor">
-                    <i class="fas fa-wave-square"></i>
-                </button> -->
                 <button id="graph-button" class="tab-button" title="Zobraziť Spektogram">
                     <i class="fas fa-chart-simple"></i>
                 </button>
@@ -106,8 +103,8 @@
                         </div>
                     </form>
 
-                    <!-- Oblast konfiguracií pod input barom pre rychle upravy. -->
-                    <div id="quick-config-wrapper">
+                    <!-- Oblast konfiguracii pod input barom pre rychle upravy. -->
+                    <div id="quick-config-wrapper" style="display: none;">
                         <!-- vyber aktualneho profilu -->
                         <div id="quick-profile-select-wrapper">
                             <select id="quick-profile-select">
@@ -115,22 +112,34 @@
                             </select>
                         </div>
 
-                        <!-- vyber aktualneho kanálu -->
+                        <!-- vyber aktualneho kanalu -->
                         <div id="quick-channel-select-wrapper">
                             <select id="quick-channel-select">
                                 <option value="" disabled selected>Rýchly výber kanálu</option>
                             </select>
                         </div>
 
-                        <!-- textový ukazovateľ SNR -->
+                        <!-- textovy ukazovatel SNR -->
                         <div id="quick-snr-indicator">
                             SNR:
                         </div>
                     </div>
                 </div>
 
-                <div id="chat-db-meter" aria-label="Decibel meter">
-                    <div id="chat-db-fill"></div>
+                <div id="chat-db-meter" aria-label="Decibel meter" role="meter" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60">
+                    <div id="chat-db-scale" aria-hidden="true">
+                        <span class="db-tick" style="--db-top: 0%;">0</span>
+                        <span class="db-tick" style="--db-top: 16.67%;">-10</span>
+                        <span class="db-tick" style="--db-top: 33.33%;">-20</span>
+                        <span class="db-tick" style="--db-top: 50%;">-30</span>
+                        <span class="db-tick" style="--db-top: 66.67%;">-40</span>
+                        <span class="db-tick" style="--db-top: 83.33%;">-50</span>
+                        <span class="db-tick" style="--db-top: 100%;">-60</span>
+                    </div>
+                    <div id="chat-db-bar">
+                        <div id="chat-db-fill"></div>
+                        <div id="chat-db-peak"></div>
+                    </div>
                 </div>
             </div>
 
@@ -177,7 +186,7 @@
                     <separator></separator>
 
                     <h3>USB Zariadenia</h3>
-                    <p class="section-description">
+                    <p id="usb-device-description" class="section-description">
                         Pripojenie USB zariadenia umožňuje automatické prepínanie medzi vysielaním a prijímaním.
                         Môžete vybrať profil, ktorý sa má automaticky použiť pri pripojení zariadenia.
                     </p>
@@ -201,7 +210,7 @@
                                 </button>
                             </div>
 
-                            <div class="usb-device-settings">
+                            <div id="usb-device-settings" class="usb-device-settings">
                                 <label class="usb-setting-option">
                                     <div class="usb-setting-label">
                                         <i class="fas fa-sliders"></i>
@@ -233,7 +242,7 @@
                         </div>
                     </div>
 
-                    <!--- Trocha volneho miesta na koniec -->
+                    <!-- Trocha volneho miesta na koniec -->
                     <div style="height: 20px;"></div>
             </div>
 
@@ -243,7 +252,6 @@
                     <span>Načítavam...</span>
                 </div>
                 <div id="spectrogram-container">
-                    <!-- <div class="tab-header-title">Spektogram</div> -->
                 </div>
             </div>
 
@@ -291,7 +299,7 @@
         </div>
     </section>
 
-    <!-- Modal pre nahratie obrazka -->
+    <!-- Okno pre nahratie obrazka -->
     <div id="image-modal" class="modal">
         <div class="modal-content">
             <img id="modal-image" alt="Náhľad obrázka">
@@ -359,23 +367,47 @@
         </div>
     </div>
 
-    <!-- Modal pre zdielanie profilu -->
+    <!-- Okno pre zdielanie profilu -->
     <div id="share-profile-modal" class="modal" style="display: none;">
         <div class="modal-content share-modal-content">
-            <div class="share-modal-title" id="share-profile-modal-title">Zdieľať profil</div>
-            <div id="share-profile-modal-qr" class="share-modal-qr"></div>
-            <div class="share-modal-code-row">
-                <input id="share-profile-modal-code" class="profile-code-input" type="text" readonly
-                    title="Kliknite pre skopírovanie kódu profilu">
-                <button id="share-profile-modal-copy" class="copy-profile-code-button" type="button"
-                    title="Skopírovať kód profilu">
+            <div class="share-modal-header">
+                <div class="share-modal-title" id="share-profile-modal-title">Zdieľať profil</div>
+                <div class="share-modal-subtitle" id="share-profile-modal-subtitle">Naskenujte QR alebo skopírujte kód profilu.</div>
+            </div>
+
+            <div class="share-modal-qr-frame">
+                <div id="share-profile-modal-qr" class="share-modal-qr"></div>
+            </div>
+
+            <div class="share-modal-code-label">Kód profilu</div>
+            <div class="share-modal-code-box">
+                <input
+                    id="share-profile-modal-code"
+                    class="profile-code-input"
+                    type="text"
+                    readonly
+                    title="Kliknite pre skopírovanie kódu profilu"
+                >
+                <button
+                    id="share-profile-modal-copy"
+                    class="copy-profile-code-button"
+                    type="button"
+                    aria-label="Skopírovať kód profilu"
+                    title="Skopírovať kód profilu"
+                >
                     <i class="fas fa-copy"></i>
                 </button>
             </div>
-            <button id="share-profile-modal-broadcast" class="share-modal-broadcast-btn" type="button">
-                <i class="fas fa-tower-broadcast"></i> Vysielať kód
-            </button>
-            <button id="share-profile-modal-cancel" class="share-modal-cancel-btn" type="button">Zavrieť</button>
+
+            <div class="share-modal-actions">
+                <button id="share-profile-modal-broadcast" class="modal-button primary share-modal-broadcast-btn" type="button">
+                    <i class="fas fa-tower-broadcast"></i>
+                    Vysielať kód
+                </button>
+                <button id="share-profile-modal-cancel" class="modal-button cancel share-modal-cancel-btn" type="button">
+                    Zavrieť
+                </button>
+            </div>
         </div>
     </div>
 
@@ -388,7 +420,7 @@
                 <div class="field">
                     <div class="field-title">KOD PROFILU</div>
                     <div class="field-input">
-                        <input id="import-profile-modal-input" type="text" placeholder="Vlozte kod alebo naskenujte QR"
+                        <input id="import-profile-modal-input" type="text" placeholder="Vložte kód alebo naskenujte QR"
                             autocomplete="off">
                     </div>
                     <div id="import-profile-validation-text"></div>

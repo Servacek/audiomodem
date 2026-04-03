@@ -17,6 +17,8 @@ const infoDiv = document.getElementById("usb-device-info");
 const statusTextDiv = document.getElementById("usb-device-status-text");
 const detailsDiv = document.getElementById("usb-device-details");
 const usbCard = document.querySelector(".usb-device-card");
+const usbSectionDescription = document.getElementById("usb-device-description");
+const usbSettings = document.getElementById("usb-device-settings");
 
 function updateUiConnected(device) {
     if (statusTextDiv) statusTextDiv.textContent = "Pripojené";
@@ -42,6 +44,20 @@ function updateUiDisconnected() {
         if (buttonSpan) buttonSpan.textContent = "Pripojiť";
     }
     if (usbCard) usbCard.classList.remove("connected");
+}
+
+function updateUiUnsupportedBrowser() {
+    if (statusTextDiv) statusTextDiv.textContent = "Nepodporované";
+    if (infoDiv) {
+        infoDiv.style.color = "#ff6666";
+        infoDiv.textContent = "WebUSB nie je dostupné";
+    }
+    if (detailsDiv) {
+        detailsDiv.textContent = "Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume.";
+    }
+    if (button) button.style.display = "none";
+    if (usbSettings) usbSettings.style.display = "none";
+    if (usbCard) usbCard.classList.add("unsupported");
 }
 
 async function ensureInterfaceClaimed(device) {
@@ -238,16 +254,7 @@ if (navigator.usb) {
         });
     });
 } else {
-    if (statusTextDiv) statusTextDiv.textContent = "Nepodporované";
-    if (infoDiv) {
-        infoDiv.style.color = "#ff6666";
-        infoDiv.textContent = "Nepodporované";
-    }
-    if (detailsDiv) {
-        detailsDiv.textContent = "Táto funkcionalita je podporovaná len v prehliadačoch založených na Chromiume.";
-    }
-    const usbProfileSelector = document.getElementById("usb-profile-selector");
-    if (usbProfileSelector) usbProfileSelector.disabled = true;
+    updateUiUnsupportedBrowser();
 }
 
 TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
@@ -257,10 +264,10 @@ TinyTUS.MAPPINGS.on_frame_received = (frame_ptr, frame_len) => {
     console.log("Received frame of length", frame_len, "data:", bytes, "profile:", profile);
 
     if (frame_len == 255) {
-        // IMAGE FRAME
+        // OBRAZOVY RAMEC
         window.dispatchEvent(new CustomEvent("image-frame-received", { detail: { bytes, profile } }));
     } else {
-        // REGULAR FRAME
+        // BEZNY RAMEC
         window.dispatchEvent(new CustomEvent("message-received", { detail: { bytes, profile } }));
     }
 };

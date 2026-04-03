@@ -11,26 +11,14 @@ import {
 import { getModemProfileTLVCode, isProfileSameAsDefault } from './profile-tlv.js';
 import { updateProfileSpectrogram } from './profile-spectrogram.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
+import {
+    PARAM_LABELS, HELP, SECTIONS, WAVE_INFO_LABELS, SPEED_LABEL,
+    PROFILE_CARD, USB_SELECTOR,
+} from './profile-strings.js';
 
 const $ = id => document.getElementById(id);
 
-const PARAM_LABELS = {
-    sample_rate:        'Vzorkovacia frekvencia (Hz)',
-    channel_size:       'Sirka kanala (Hz)',
-    bits_per_tone:      'Pocet bitov na jeden ton',
-    symbols_per_marker: 'Dlzka markera v symboloch',
-    bits_in_marker:     'Pocet tonov v markeri',
-    tones_per_symbol:   'Pocet tonov v symbole',
-    ecc_percent:        'Podiel samoopravnych bajtov',
-    dss_enabled:        'DSS (rozptyl spektra)',
-    squelch_thresh:     'Squelch',
-    cphase:             'Spojna faza',
-    max_tx_amp:         'Hlasitost vysielaca',
-    samples_per_symbol: 'Pocet vzorkov na jeden symbol',
-    channel_count:      'Pocet kanalov',
-};
-
-// ─── Pomocne HTML buildery ────────────────────────────────────────────────────
+// --- Pomocne HTML buildery ---
 
 function fieldWrap(name, inputHtml, help = '') {
     return `<div class="profile-field">
@@ -78,7 +66,7 @@ function selectField(name, mp, id, readonly, { options = [], help = '' } = {}) {
 function row(...fields) { return `<div class="profile-field-row">${fields.join('')}</div>`; }
 function divider(title) { return `<div class="section-divider"><div class="section-title">${title}</div></div>`; }
 
-// ─── Informacie o profile ─────────────────────────────────────────────────────
+// --- Informacie o profile ---
 
 function getChannelSummaryText(mp) {
     const channelCount = normalizeChannelCount(mp?.channel_count, estimateChannelCountFromModemProfile(mp));
@@ -99,7 +87,7 @@ function renderReadonlyProps(mp, idSuffix) {
     const items = [
         { label: PARAM_LABELS.sample_rate, value: `<span data-profile-sample-rate-for="${idSuffix}">${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)</span>` },
         { label: PARAM_LABELS.channel_size, value: `<span data-profile-channel-size-for="${idSuffix}">${getChannelSummaryText(mp)}</span>` },
-        { label: 'Rychlost', value: `<span data-profile-speed-for="${idSuffix}">${getSpeedText(mp)}</span>` },
+        { label: SPEED_LABEL, value: `<span data-profile-speed-for="${idSuffix}">${getSpeedText(mp)}</span>` },
     ];
     return `<div class="profile-readonly-properties">${
         items.map(item => `<div class="profile-readonly-prop-row">
@@ -125,7 +113,7 @@ export function updateReadonlyProps(profileId, mp, channelCount = null) {
     if (spEl) spEl.textContent = getSpeedText(mp);
 }
 
-// ─── Zdielanie profilu ────────────────────────────────────────────────────────
+// --- Zdielanie profilu ---
 
 function renderShareRow(mp, idSuffix, readonly) {
     if (readonly) return '';
@@ -163,12 +151,12 @@ export function updateProfileCodeUI(profileId, mp) {
     syncProfileCodeInput(profileId, profileCode);
 }
 
-// ─── Pole s informaciami o vlne ───────────────────────────────────────────────
+// --- Pole s informaciami o vlne ---
 
 const WAVE_INFO_KEYS = [
-    ['Symbolova rychlost:', 'symbol-rate', mp => mp.symbol_rate?.toFixed(3) ?? '-'],
-    ['Perioda symbolu:',    'period',      mp => `${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(3)} ms`],
-    ['Nyquist frekvencia:', 'nyquist',     mp => `${mp.sample_rate / 2} Hz`],
+    [WAVE_INFO_LABELS.symbolRate, 'symbol-rate', mp => mp.symbol_rate?.toFixed(3) ?? '-'],
+    [WAVE_INFO_LABELS.period,     'period',      mp => `${(mp.sample_duration * mp.samples_per_symbol * 1000).toFixed(3)} ms`],
+    [WAVE_INFO_LABELS.nyquist,    'nyquist',     mp => `${mp.sample_rate / 2} Hz`],
 ];
 
 export function updateWaveInfo(profileId, mp) {
@@ -179,7 +167,7 @@ export function updateWaveInfo(profileId, mp) {
     });
 }
 
-// ─── Renderovanie poli profilu ────────────────────────────────────────────────
+// --- Renderovanie poli profilu ---
 
 function renderProfileFields(mp, idSuffix, readonly) {
     const n   = (name, opts) => numField(name, mp, idSuffix, readonly, opts);
@@ -197,35 +185,35 @@ function renderProfileFields(mp, idSuffix, readonly) {
 
     return `
         ${renderShareRow(mp, idSuffix, readonly)}
-        ${readonly ? '<div class="profile-readonly-note"><i class="fas fa-lock"></i> Tento profil sa pouziva na synchronizaciu komunikacie a neda sa upravovat.</div>' : ''}
+        ${readonly ? `<div class="profile-readonly-note"><i class="fas fa-lock"></i> ${PROFILE_CARD.readonlyNote}</div>` : ''}
         ${renderReadonlyProps(mp, idSuffix)}
-        ${divider('Zakladne parametre')}
-        ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: 'Pocet vzoriek na jeden symbol (mocnina 2)' }),
-              n('bits_per_tone', { min: 1, max: 32, help: 'Kolko bitov ma jeden ton reprezentovat.' }))}
+        ${divider(SECTIONS.basic)}
+        ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: HELP.samples_per_symbol }),
+              n('bits_per_tone', { min: 1, max: 32, help: HELP.bits_per_tone }))}
         ${row(
-            n('tones_per_symbol', { min: 1, max: 255, help: 'Kolko tonov ma jeden symbol obsahovat.' }),
+            n('tones_per_symbol', { min: 1, max: 255, help: HELP.tones_per_symbol }),
             fieldWrap('channel_count', readonly
                 ? `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" disabled>`
                 : `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" data-profile-id="${idSuffix}" data-field="channel_count" min="1" max="${MAX_CHANNEL_COUNT}" step="1">`,
-                'Na kolko rovnako velkych casti mame rozdelit spektrum frekvencii.')
+                HELP.channel_count)
         )}
-        ${divider('TX Parametre (vysielanie)')}
+        ${divider(SECTIONS.tx)}
         ${s('max_tx_amp', { min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',
-            help: 'Maximalna amplituda vysielaneho signalu', format: v => parseFloat(v).toFixed(2) })}
+            help: HELP.max_tx_amp, format: v => parseFloat(v).toFixed(2) })}
         ${renderFreqPicker(pickerProfile, idSuffix, readonly)}
-        ${divider('Pokrocile nastavenia')}
-        <div class="profile-subsection-title">Markery</div>
+        ${divider(SECTIONS.advanced)}
+        <div class="profile-subsection-title">${SECTIONS.markers}</div>
         <div class="section-description">
-            Markery su specialne tony, ktore oznacuju zaciatok alebo koniec datoveho prenosu.
+            ${SECTIONS.markerDesc}
         </div>
-        ${row(n('symbols_per_marker', { min: 1, max: 255, help: 'Kolko dlzok symbolu ma jeden marker trvat.' }),
-              n('bits_in_marker',     { min: 1, max: 255, help: 'Kolko tonov ma marker obsahovat.' }))}
+        ${row(n('symbols_per_marker', { min: 1, max: 255, help: HELP.symbols_per_marker }),
+              n('bits_in_marker',     { min: 1, max: 255, help: HELP.bits_in_marker }))}
         <div class="profile-subsection-title"></div>
-        ${s('ecc_percent',    { min: 0, max: 1, step: 0.05, help: 'Podiel ECC bajtov (0% = ziadne, 100% = max ochrana)', format: v => `${Math.round(v * 100)} %` })}
-        ${s('squelch_thresh', { min: 0, max: 1, step: 0.005, icon: 'fas fa-filter', help: 'Prahova hodnota squelchu', format: v => parseFloat(v).toFixed(3) })}
+        ${s('ecc_percent',    { min: 0, max: 1, step: 0.05, help: HELP.ecc_percent, format: v => `${Math.round(v * 100)} %` })}
+        ${s('squelch_thresh', { min: 0, max: 1, step: 0.005, icon: 'fas fa-filter', help: HELP.squelch_thresh, format: v => parseFloat(v).toFixed(3) })}
         <div class="profile-field-row" style="gap:24px;align-items:center;">
-            ${t('cphase', 'Spojna faza (CPM)')}
-            ${t('dss_enabled', 'Vynasobj prenasane bajty pseudonahodnymi cislami pre rovnomernejsie rozlozenie energie.')}
+            ${t('cphase', HELP.cphase)}
+            ${t('dss_enabled', HELP.dss_enabled)}
         </div>`;
 }
 
@@ -235,18 +223,18 @@ function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = f
 
     const headerLeft = isDefault
         ? `<i id="profile-toggle-default" class="fas fa-chevron-right profile-toggle"></i>
-           <span class="profile-name-display">Predvoleny profil</span>`
+           <span class="profile-name-display">${PROFILE_CARD.defaultName}</span>`
         : `<i id="profile-toggle-${id}" class="fas fa-chevron-right profile-toggle"></i>
            <span class="profile-id-label" title="ID profilu">#${id}</span>
            <input type="text" id="profile-name-input-${id}" class="profile-name-input"
                   value="${name}" data-profile-id="${id}" data-field="name"
-                  maxlength="${MAX_PROFILE_NAME}" placeholder="Nazov profilu"
+                  maxlength="${MAX_PROFILE_NAME}" placeholder="${PROFILE_CARD.namePlaceholder}"
                   onclick="event.stopPropagation()">`;
 
     const headerRight = `
         <button class="use-profile-button ${active ? 'use-profile-button--active' : ''}"
                 data-action="${isDefault ? 'use-default' : 'use-profile'}" ${profileAttr} ${active ? 'disabled' : ''}>
-            ${active ? '<i class="fas fa-check"></i> Pouziva sa' : 'Pouzit'}
+            ${active ? PROFILE_CARD.useActive : PROFILE_CARD.use}
         </button>
         ${!isDefault ? `<button class="delete-profile-button" data-profile-id="${id}" data-action="delete">
             <i class="fas fa-times"></i></button>` : ''}`;
@@ -259,12 +247,14 @@ function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = f
             <div class="profile-header-right">${headerRight}</div>
         </div>
         <div id="profile-content-${suffix}" class="profile-content">
-            ${renderProfileFields(mp, suffix, readonly)}
+            <div class="profile-content-inner">
+                ${renderProfileFields(mp, suffix, readonly)}
+            </div>
         </div>
     </div>`;
 }
 
-// ─── Sticky header observery ──────────────────────────────────────────────────
+// --- Pozorovace lepkavej hlavicky ---
 
 let stickyObservers = [];
 
@@ -284,7 +274,7 @@ function setupStickyHeaderObservers(container, configTabContent) {
     });
 }
 
-// ─── Vykreslenie ──────────────────────────────────────────────────────────────
+// --- Vykreslenie ---
 
 export function renderProfiles(container, configTabContent, usbProfileSelector) {
     if (!container) return;
@@ -307,16 +297,16 @@ export function renderProfiles(container, configTabContent, usbProfileSelector) 
     container.innerHTML = [
         ...profileItems.map(item => profileCardHtml(item)),
         defaultRenderMp ? profileCardHtml({ mp: defaultRenderMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
-        profiles.length === 0 ? '<div class="empty-state">Ziadne vlastne profily. Kliknite na "Pridat profil" pre vytvorenie noveho.</div>' : '',
+        profiles.length === 0 ? `<div class="empty-state">${PROFILE_CARD.emptyState}</div>` : '',
     ].join('');
 
     // Naplnenie USB selektora.
     if (usbProfileSelector) {
         const currentSelection = usbProfileSelector.value;
-        usbProfileSelector.innerHTML = '<option value="">Ponechat aktualny profil</option>';
+        usbProfileSelector.innerHTML = `<option value="">${USB_SELECTOR.keepCurrent}</option>`;
         const defaultOpt = document.createElement('option');
         defaultOpt.value = 'default';
-        defaultOpt.textContent = 'Predvoleny profil';
+        defaultOpt.textContent = USB_SELECTOR.defaultProfile;
         usbProfileSelector.appendChild(defaultOpt);
         profiles.forEach(p => {
             const opt = document.createElement('option');
@@ -331,7 +321,7 @@ export function renderProfiles(container, configTabContent, usbProfileSelector) 
     setupStickyHeaderObservers(container, configTabContent);
 }
 
-// ─── Aktivny profil UI ────────────────────────────────────────────────────────
+// --- UI aktivneho profilu ---
 
 export function updateActiveProfileUI(modemProfile) {
     document.querySelectorAll('.profile-item--active').forEach(el => el.classList.remove('profile-item--active'));
@@ -347,22 +337,23 @@ export function updateActiveProfileUI(modemProfile) {
         const active = btnId === activeId;
         btn.disabled = active;
         btn.classList.toggle('use-profile-button--active', active);
-        btn.innerHTML = active ? '<i class="fas fa-check"></i> Pouziva sa' : 'Pouzit';
+        btn.innerHTML = active ? PROFILE_CARD.useActive : PROFILE_CARD.use;
     });
 }
 
-// ─── Toggle profilu ───────────────────────────────────────────────────────────
+// --- Rozbalenie profilu ---
 
 export function toggleProfile(id, onOpened) {
     const content = $(`profile-content-${id}`);
     const toggle  = $(`profile-toggle-${id}`);
+    if (!content) return;
     const opening = !content.classList.contains('expanded');
     content.classList.toggle('expanded');
     toggle?.classList.toggle('expanded');
     if (opening && onOpened) onOpened(id);
 }
 
-// ─── Kopirovanie kodu profilu ─────────────────────────────────────────────────
+// --- Kopirovanie kodu profilu ---
 
 async function copyProfileCode(profileId, btn) {
     const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
@@ -377,7 +368,7 @@ async function copyProfileCode(profileId, btn) {
     }
 }
 
-// ─── Delegacia eventov ────────────────────────────────────────────────────────
+// --- Delegacia eventov ---
 
 export function initContainerEvents(container, callbacks) {
     container?.addEventListener('click', async e => {
@@ -411,13 +402,12 @@ export function initContainerEvents(container, callbacks) {
         if (btn('use-profile')) {
             e.stopPropagation();
             const p = getProfileById(parseInt(btn('use-profile').dataset.profileId));
-            if (p) { setActiveProfile(p.modemProfile); callbacks.onProfileChanged(); }
+            if (p) setActiveProfile(p.modemProfile);
             return;
         }
         if (btn('use-default')) {
             e.stopPropagation();
             setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
-            callbacks.onProfileChanged();
             return;
         }
         if (btn('toggle-default')) return toggleProfile('default', callbacks.onProfileOpened);

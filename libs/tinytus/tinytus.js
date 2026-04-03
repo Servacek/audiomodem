@@ -332,7 +332,7 @@ export let TinyTUS = {
         return TinyTUS.modulatePayload(messageBytes, modem_profile);
     },
 
-    // Sync wrapper pre volania bez await.
+    // Synchronny obal pre volania bez await.
     stopListening() {
         _stopListeningAsync().catch(e => console.warn("stopListening error:", e));
     },
@@ -461,13 +461,13 @@ export let TinyTUS = {
 
             if (currentContext.state === "running") {
                 console.log("  AudioContext running - connecting audio graph immediately.");
-                _connectAudioGraph(onAudioProcess, captureBufferSize);
+                await _connectAudioGraph(onAudioProcess, captureBufferSize);
                 console.log("  Fully initialised.");
                 console.groupEnd();
                 return null;
             }
 
-            // Suspended stav odloz na gesto pouzivatela.
+            // Stav suspended odloz na gesto pouzivatela.
             console.warn("  AudioContext still not running (state:", currentContext.state, ") - closing and deferring to gesture.");
             await currentContext.close();
             currentContext = null;
@@ -509,7 +509,7 @@ export let TinyTUS = {
                     }
 
                     console.log("  Connecting audio graph.");
-                    _connectAudioGraph(onAudioProcess, captureBufferSize);
+                    await _connectAudioGraph(onAudioProcess, captureBufferSize);
                     console.groupEnd();
                 } catch (e) {
                     console.error("  Failed to start AudioContext on gesture:", e);
@@ -577,7 +577,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
         currentRecorder = null;
     }
 
-    await currentContext.audioWorklet.addModule("./libs/tinytus/tinytus-processor.js");
+    await currentContext.audioWorklet.addModule(new URL('./tinytus-processor.js', import.meta.url).href);
 
     const mediaStreamSource = currentContext.createMediaStreamSource(currentStream);
     currentRecorder = new AudioWorkletNode(currentContext, "tinytus-processor");
@@ -586,7 +586,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     let accumulator = new Float32Array(bufferSize);
     let accumulatorFill = 0;
 
-    // Serialise WASM processing — queue snapshots so none are dropped.
+    // Spracovanie WASM serializuj - frontuj snapshoty, aby sa nic nestratilo.
     // Toto zaruci, ze kazdy blok vstupu sa skusi na vsetkych profiloch.
     let _processingLocked = false;
     const _pendingSnapshots = [];
@@ -612,7 +612,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
 
                         switch (status) {
                             case 0:
-                                // Uspesne dekodovanie — callbacky (on_frame_received atd.)
+                                // Uspesne dekodovanie - callbacky (on_frame_received atd.)
                                 // uz boli volane z C kodu pocas tohto volania.
                                 break;
                             case -1:
@@ -622,10 +622,10 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
                                 );
                                 break;
                             case -2:
-                                // Bezna situacia — signal je prijimany, ale data este netvoria
-                                // platny ramec. Logujeme len na debug urovni.
+                                // Bezna situacia - signal je prijimany, ale data este netvoria
+                                // platny ramec. Logujeme len na ladiacej urovni.
                                 console.debug(
-                                    "[TinyTUS] handle_input_samples: demodulacia zlyhala — " +
+                                    "[TinyTUS] handle_input_samples: demodulacia zlyhala - " +
                                     "data netvoria platny ramec (status -2)."
                                 );
                                 break;
@@ -664,7 +664,7 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
             chunkOffset += toCopy;
 
             if (accumulatorFill === bufferSize) {
-                // Skopiruj plny buffer pred odovzdanim — accumulator sa okamzite
+                // Skopiruj plny buffer pred odovzdanim - accumulator sa okamzite
                 // znovu pouzije pre dalsie chunky, kym WASM este spracovava snapshot.
                 const snapshot = accumulator.slice();
                 accumulatorFill = 0;

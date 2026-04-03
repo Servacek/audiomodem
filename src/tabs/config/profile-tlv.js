@@ -5,7 +5,7 @@ import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
 import { addProfileToStore, setActiveProfile } from './profile-store.js';
 import { wasmValidateProfile } from './profile-validation.js';
 
-// ─── TLV kodovanie ────────────────────────────────────────────────────────────
+// --- TLV kodovanie ---
 
 function bytesToCode(bytes) {
     let binary = '';
@@ -36,21 +36,19 @@ export function getModemProfileTLVCode(mp) {
 }
 
 function codeToBytes(code) {
-    const normalized = (code || '').replace(/[\s:-]/g, '');
-    if (!normalized) return null;
+    // Odstranime iba whitespace a dvojbodky. Pomlcka je validny base64url znak.
+    const compact = (code || '').replace(/[\s:]/g, '');
+    if (!compact) return null;
 
-    if (/^[0-9A-Fa-f]+$/.test(normalized) && normalized.length % 2 === 0) {
-        const out = new Uint8Array(normalized.length / 2);
-        for (let i = 0; i < out.length; i++) {
-            out[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
-        }
-        return out;
-    }
-
-    if (!/^[A-Za-z0-9_-]+$/.test(normalized)) return null;
+    // Povolime base64url aj standardny base64 zapis.
+    const withoutPadding = compact.replace(/=+$/g, '');
+    if (!withoutPadding) return null;
+    if (!/^[A-Za-z0-9+/_-]+$/.test(withoutPadding)) return null;
 
     try {
-        const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((normalized.length + 3) % 4);
+        let base64 = withoutPadding.replace(/-/g, '+').replace(/_/g, '/');
+        if (!/^[A-Za-z0-9+/]+$/.test(base64)) return null;
+        base64 += '='.repeat((4 - (base64.length % 4)) % 4);
         const binary = atob(base64);
         return Uint8Array.from(binary, ch => ch.charCodeAt(0));
     } catch {
@@ -67,8 +65,25 @@ export function applyProfileCodeToModemProfile(modemProfile, code) {
 
     try {
         new Uint8Array(TinyTUS.EXPORTS.memory.buffer, ptr, bytes.length).set(bytes);
-        if (TinyTUS.EXPORTS.mp_decode_tlv(modemProfile.ptr, ptr, bytes.length) !== 0) return false;
-        // Dekodovanie uspesne - overime ze hodnoty su platne podla WASM.
+        const decodeStatus = TinyTUS.EXPORTS.mp_decode_tlv(modemProfile.ptr, ptr, bytes.length);
+
+        // Niektore buildy vracaju 0 pri uspechu, ine vracaju pocet spracovanych bajtov.
+        // Chybu berieme iba pri zapornom stave.
+        if (decodeStatus < 0) return false;
+
+        // Po dekodovani dopocitaj odvodene polia, aby validacia bezala nad konzistentnym profilom.
+        if (TinyTUS.EXPORTS?.calc_modem_profile_fields) {
+            TinyTUS.EXPORTS.calc_modem_profile_fields(modemProfile.ptr);
+        }
+
+        // Ak dekoder vrati 0, overime este konzistenciu cez kanonicky roundtrip.
+        if (decodeStatus === 0) {
+            const canonicalInput = bytesToCode(bytes);
+            const canonicalOutput = getModemProfileTLVCode(modemProfile);
+            if (!canonicalOutput || canonicalOutput !== canonicalInput) return false;
+        }
+
+        // Dekodovanie uspesne - overime, ze hodnoty su platne podla WASM.
         return wasmValidateProfile(modemProfile);
     } catch {
         return false;
@@ -77,7 +92,7 @@ export function applyProfileCodeToModemProfile(modemProfile, code) {
     }
 }
 
-// ─── Validacia kodu ───────────────────────────────────────────────────────────
+// --- Validacia kodu ---
 
 export function validateProfileCode(code) {
     const trimmed = (code || '').trim();
@@ -110,7 +125,7 @@ export function isProfileSameAsDefault(mp) {
     try { return JSON.stringify(mp.toObject()) === JSON.stringify(defaultMp.toObject()); } catch { return false; }
 }
 
-// ─── Pridanie profilu z kodu ──────────────────────────────────────────────────
+// --- Pridanie profilu z kodu ---
 
 export function addProfileFromCodeAndActivate(code) {
     const trimmed = (code || '').trim();

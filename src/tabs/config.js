@@ -1,11 +1,10 @@
 /**
  * @file config.js
- * @description Orchestrator konfiguracneho tabu. Inicializuje submoduly a spaja eventy.
+ * @description Riadiaci modul konfiguracneho tabu. Inicializuje submoduly a spaja eventy.
  */
 
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 import { ModemProfile } from '../../libs/tinytus/modem_profile.js';
-import * as VersionTracker from '../wasmVersionTracker.js';
 
 import { loadProfiles, saveProfiles, addProfileToStore, removeProfileFromStore, getProfileById, getProfiles, setActiveProfile, getAllModemProfilesForDemodulation, getModemProfileMeta } from './config/profile-store.js';
 import { isValidProfileCode, addProfileFromCodeAndActivate, getModemProfileTLVCode } from './config/profile-tlv.js';
@@ -14,51 +13,32 @@ import { initShareModal, openShareModal } from './config/profile-share-modal.js'
 import { updateProfileSpectrogram } from './config/profile-spectrogram.js';
 import { renderProfiles, updateActiveProfileUI, toggleProfile, updateReadonlyProps, updateProfileCodeUI, updateWaveInfo, initContainerEvents } from './config/profile-render.js';
 import { saveUsbProfileSetting, getUsbAutoProfile, syncAutoProfileWithUSBState, restoreProfileAfterUSBDisconnect, clearAutoProfileOnManualChange } from './config/usb-profile.js';
+import { initDeleteConfirmation } from './config/delete-confirmation.js';
+import { updateLibraryVersionInfo } from './config/library-version.js';
 import { updateFreqPickerRange } from '../freq_picker.js';
 
 // Re-exporty pre ostatne moduly (chat.js, index.js).
 export { getAllModemProfilesForDemodulation, getModemProfileMeta, isValidProfileCode, addProfileFromCodeAndActivate, getUsbAutoProfile };
 
-// ─── DOM ──────────────────────────────────────────────────────────────────────
+// --- DOM ---
 
 const $ = id => document.getElementById(id);
 
 const container          = $('profiles-container');
 const addButton          = $('add-profile-button');
-const confirmationModal  = $('confirmation-modal');
-const confirmButton      = $('confirmation-confirm-button');
-const cancelButton       = $('confirmation-cancel-button');
 const configTabContent   = $('tab-config');
 const usbProfileSelector = $('usb-profile-selector');
 
-// ─── Mazanie profilu (modal potvrdenia) ───────────────────────────────────────
-
-let profileToDelete = null;
+// --- Mazanie profilu (modal potvrdenia) ---
 
 function doDelete(id) {
     removeProfileFromStore(id);
     rerender();
 }
 
-function confirmDelete(id) {
-    profileToDelete = id;
-    confirmationModal.style.display = 'flex';
-}
+const { confirmDelete } = initDeleteConfirmation(doDelete);
 
-function closeModal() {
-    confirmationModal.style.display = 'none';
-    profileToDelete = null;
-}
-
-confirmButton?.addEventListener('click', () => {
-    if (profileToDelete !== null) doDelete(profileToDelete);
-    profileToDelete = null;
-    closeModal();
-});
-cancelButton?.addEventListener('click', closeModal);
-confirmationModal?.addEventListener('click', e => { if (e.target === confirmationModal) closeModal(); });
-
-// ─── Zmena pola profilu ───────────────────────────────────────────────────────
+// --- Zmena pola profilu ---
 
 function onFieldChanged(id, field) {
     const profile = getProfileById(id);
@@ -97,11 +77,10 @@ function onProfileOpened(id) {
     if (mp) updateProfileSpectrogram(TinyTUS, id, mp);
 }
 
-// ─── Vykreslenie ──────────────────────────────────────────────────────────────
+// --- Vykreslenie ---
 
 function rerender() {
     renderProfiles(container, configTabContent, usbProfileSelector);
-    initContainerEvents(container, { doDelete, confirmDelete, onProfileChanged: saveAndUpdateUI, onFieldChanged, onProfileOpened, shareProfile });
 }
 
 function saveAndUpdateUI() {
@@ -109,7 +88,7 @@ function saveAndUpdateUI() {
     rerender();
 }
 
-// ─── Pridanie noveho profilu ──────────────────────────────────────────────────
+// --- Pridanie noveho profilu ---
 
 function addProfile(event = null) {
     const mp = new ModemProfile();
@@ -119,25 +98,22 @@ function addProfile(event = null) {
     rerender();
 
     setTimeout(() => {
-        const content = $(`profile-content-${newProfile.id}`);
         const nameInput = $(`profile-name-input-${newProfile.id}`);
-        content?.classList.add('expanded');
-        $(`profile-toggle-${newProfile.id}`)?.classList.add('expanded');
-        onProfileOpened(newProfile.id);
+        toggleProfile(newProfile.id, onProfileOpened);
         if (nameInput && !event?.shiftKey) { nameInput.focus(); nameInput.select(); }
     }, 100);
 }
 
 addButton?.addEventListener('click', addProfile);
 
-// ─── USB profil selector ──────────────────────────────────────────────────────
+// --- USB profil selector ---
 
 usbProfileSelector?.addEventListener('change', e => {
     saveUsbProfileSetting(e.target.value);
     if (window.port != null) syncAutoProfileWithUSBState();
 });
 
-// ─── Persistencia stavu tabu ──────────────────────────────────────────────────
+// --- Persistencia stavu tabu ---
 
 function saveConfigState() {
     const expanded = ['default', ...getProfiles().map(p => p.id)]
@@ -163,11 +139,8 @@ function restoreConfigState() {
 
         state.expandedProfiles?.forEach(id => {
             const content = $(`profile-content-${id}`);
-            const toggle  = $(`profile-toggle-${id}`);
-            if (!content || !toggle) return;
-            content.classList.add('expanded');
-            toggle.classList.add('expanded');
-            onProfileOpened(id);
+            if (!content || content.classList.contains('expanded')) return;
+            toggleProfile(id, onProfileOpened);
         });
 
         if (state.scrollPosition && configTabContent) {
@@ -182,9 +155,15 @@ configTabContent?.addEventListener('scroll', () => {
     scrollTimeout = setTimeout(saveConfigState, 150);
 });
 
-// ─── Globalne eventy ──────────────────────────────────────────────────────────
+// --- Globalne eventy ---
 
 window.addEventListener('refresh-local-storage', saveProfiles);
+
+window.addEventListener('profile-store-changed', () => {
+    rerender();
+    updateActiveProfileUI(TinyTUS.currentlyUsedModemProfile);
+    saveConfigState();
+});
 
 window.addEventListener('active-modem-profile-changed', e => {
     const profile = e.detail?.profile;
@@ -220,37 +199,15 @@ window.addEventListener('chat-focus-profile', e => {
     }
 });
 
-// ─── Init po nacitani WASM ────────────────────────────────────────────────────
+// --- Init po nacitani WASM ---
 
 TinyTUS.afterLoad(() => {
     loadProfiles();
     rerender();
+    initContainerEvents(container, { doDelete, confirmDelete, onProfileChanged: saveAndUpdateUI, onFieldChanged, onProfileOpened, shareProfile });
     restoreConfigState();
     initImportModal();
     initShareModal(code => window.dispatchEvent(new CustomEvent('chat-share-profile', { detail: { profileCode: code } })));
 
-    // Zobraz verziu kniaznice.
-    const versionEl = $('lib-version-display');
-    if (versionEl && TinyTUS.EXPORTS.get_lib_version) {
-        const ptr = TinyTUS.EXPORTS.get_lib_version();
-        const currentVersion = TinyTUS.getStringFromPointer(ptr) || '-';
-
-        const versionChangeInfo = VersionTracker.checkVersionChanged(currentVersion);
-        if (versionChangeInfo.changed) {
-            VersionTracker.recordVersionChange(versionChangeInfo);
-            VersionTracker.saveLastUpdatedDate();
-            const message = VersionTracker.getVersionChangeMessage(versionChangeInfo);
-            (async () => {
-                const { displaySystemMessage } = await import('./chat.js');
-                displaySystemMessage(message, 'info');
-            })();
-        } else if (!VersionTracker.getLastSavedVersion()) {
-            VersionTracker.saveLastUpdatedDate();
-        }
-
-        VersionTracker.saveCurrentVersion(currentVersion);
-        versionEl.textContent = `v${currentVersion}`;
-        const lastUpdated = VersionTracker.getLastUpdatedDate();
-        if (lastUpdated) versionEl.textContent += ` (${VersionTracker.formatLastUpdatedDate(lastUpdated)})`;
-    }
+    updateLibraryVersionInfo();
 });

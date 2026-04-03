@@ -164,7 +164,7 @@ function drawSpectrogram(canvas, spec, mp) {
     ctx.strokeRect(0.5, 0.5, cssW - 1, cssH - 1);
 }
 
-// ─── Verejné API ──────────────────────────────────────────────────────────────
+// --- Verejne API ---
 
 export function updateProfileSpectrogram(TinyTUS, profileId, mp) {
     const idSuffix = profileId === 'default' ? 'default' : String(profileId);

@@ -1,4 +1,4 @@
-/* ─── Spectrogram container ──────────────────────────────────────────────── */
+/* --- Kontajner spektrogramu --- */
 #tab-graph .tab-header-title {
     text-align: center;
 }
@@ -14,7 +14,13 @@
     flex-direction: column;
 }
 
-/* Wrapper around canvas and axis */
+@media (min-width: 1100px) {
+    #tabs:not(.graph-sidebar-hidden) #spectrogram-container {
+        padding: 0;
+    }
+}
+
+/* Obal okolo platna a osi */
 #spectrogram-wrapper {
     display: flex;
     flex-direction: column;
@@ -23,15 +29,15 @@
     min-height: 0;
     border-radius: 8px;
     overflow: hidden;
-    background: #060810;
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+    background: var(--spectrogram-bg);
+    box-shadow: var(--spectrogram-shadow);
 }
 
 #tab-graph {
     padding: 0;
 }
 
-/* Spectrogram canvas */
+/* Platno spektrogramu */
 #spectrogram-canvas {
     flex: 1 1 auto;
     min-height: 0;
@@ -39,42 +45,42 @@
     display: block;
     cursor: pointer;
     image-rendering: pixelated;
-    /* preserves discrete lines */
-    background: #060810;
+    /* zachova diskretne ciary */
+    background: var(--spectrogram-bg);
 }
 
 #spectrogram-canvas.paused {
     opacity: 0.55;
 }
 
-/* Frequency axis below canvas */
+/* Frekvencna os pod platnom */
 #spectrogram-axis {
     flex: 0 0 22px;
     width: 100%;
     height: 22px;
     display: block;
-    background: #060810;
-    border-top: 1px solid rgba(150, 195, 230, 0.1);
+    background: var(--spectrogram-bg);
+    border-top: 1px solid var(--spectrogram-axis-border);
     font-family: monospace;
     font-size: 12px;
-    color: rgba(150, 195, 230, 0.75);
+    color: var(--spectrogram-axis-text);
 }
 
-/* Controls panel */
+/* Panel ovladania */
 .spectrogram-controls {
     position: fixed;
     top: 20px;
     right: 20px;
-    background: rgba(8, 12, 20, 0.92);
+    background: var(--spectrogram-controls-bg);
     backdrop-filter: blur(8px);
-    border: 1px solid rgba(80, 140, 140, 0.6);
+    border: 1px solid var(--spectrogram-controls-border);
     border-radius: 10px;
     padding: 0;
     width: 280px;
     font-family: monospace;
     font-size: 13px;
-    color: #cde;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    color: var(--spectrogram-controls-text);
+    box-shadow: var(--spectrogram-controls-shadow);
     z-index: 1000;
     transition: opacity 0.2s;
 }
@@ -88,8 +94,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
-    background: rgba(30, 60, 70, 0.7);
-    border-bottom: 1px solid rgba(100, 180, 160, 0.4);
+    background: var(--spectrogram-controls-header-bg);
+    border-bottom: 1px solid var(--spectrogram-controls-header-border);
     border-radius: 10px 10px 0 0;
     font-weight: bold;
     cursor: move;
@@ -98,7 +104,7 @@
 .controls-header button {
     background: none;
     border: none;
-    color: #cde;
+    color: var(--spectrogram-controls-text);
     font-size: 18px;
     cursor: pointer;
     line-height: 1;
@@ -107,8 +113,8 @@
 }
 
 .controls-header button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
+    background: var(--spectrogram-controls-close-hover-bg);
+    color: var(--spectrogram-controls-close-hover-text);
 }
 
 .controls-content {
@@ -126,12 +132,12 @@
 
 .control-group label {
     font-size: 12px;
-    color: #9bc;
+    color: var(--spectrogram-controls-label);
 }
 
 .control-group input[type="range"] {
     width: 100%;
-    background: #1a2a2a;
+    background: var(--spectrogram-controls-slider-bg);
     height: 4px;
     border-radius: 2px;
     -webkit-appearance: none;
@@ -146,18 +152,18 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #6cf;
+    background: var(--spectrogram-controls-slider-thumb);
     cursor: pointer;
 }
 
 .control-group span {
     font-size: 11px;
     text-align: right;
-    color: #bdf;
+    color: var(--spectrogram-controls-value);
 }
 
 .control-group button {
-    background: #2a5a5a;
+    background: var(--spectrogram-controls-btn-bg);
     border: none;
     padding: 5px 10px;
     border-radius: 5px;
@@ -168,14 +174,14 @@
 }
 
 .control-group button:hover {
-    background: #3a7a7a;
+    background: var(--spectrogram-controls-btn-hover-bg);
 }
 
-/* Tooltip */
+/* Bublina s hintom */
 .spectrogram-tooltip {
     position: fixed;
-    background: rgba(0, 0, 0, 0.8);
-    color: #cfc;
+    background: var(--spectrogram-tooltip-bg);
+    color: var(--spectrogram-tooltip-text);
     font-family: monospace;
     font-size: 11px;
     padding: 4px 8px;
@@ -183,6 +189,6 @@
     pointer-events: none;
     z-index: 2000;
     white-space: nowrap;
-    border: 1px solid #4ca;
+    border: 1px solid var(--spectrogram-tooltip-border);
     display: none;
 }

@@ -4,7 +4,7 @@ import { validateProfileCode, applyProfileCodeToModemProfile } from './profile-t
 import { addProfileToStore } from './profile-store.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
 
-// ─── DOM ──────────────────────────────────────────────────────────────────────
+// --- DOM ---
 
 const $ = id => document.getElementById(id);
 
@@ -25,7 +25,7 @@ let scanTimer  = null;
 let barcodeDetector = null;
 let scanUnavailableReason = '';
 
-// ─── Validation UI ───────────────────────────────────────────────────────────
+// --- Validacne UI ---
 
 function updateValidationUI(validation) {
     if (!validationText) return;
@@ -50,7 +50,7 @@ function refreshModalState() {
     confirmButton.disabled = !validation.valid;
 }
 
-// ─── QR skener ────────────────────────────────────────────────────────────────
+// --- QR skener ---
 
 async function stopScanner() {
     if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
@@ -139,7 +139,7 @@ async function initScanAvailability() {
     updateScanAvailabilityUI();
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// --- Modal ---
 
 function resetModal() {
     if (modalInput) modalInput.value = '';
@@ -177,12 +177,20 @@ function doImport() {
         return;
     }
 
-    addProfileToStore(mp);
-    window.dispatchEvent(new CustomEvent('profile-store-changed'));
+    const added = addProfileToStore(mp);
+    if (!added) {
+        updateValidationUI({ valid: false, message: 'Profil sa nepodarilo pridat.' });
+        refreshModalState();
+        return;
+    }
+
+    window.dispatchEvent(new CustomEvent('profile-store-changed', {
+        detail: { profileId: added.id }
+    }));
     closeImportModal();
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// --- Init ---
 
 export function initImportModal() {
     triggerButton?.addEventListener('click', openImportModal);

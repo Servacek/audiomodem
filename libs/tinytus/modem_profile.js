@@ -4,7 +4,7 @@ import { TinyTUS } from "./tinytus.js";
 export class ModemProfile {
     constructor(config = {}) {
         // Alokujeme miesto pre novy modem profil a ulozime si jeho pointer.
-        // Tento profil ma vsetky parametre nastavené na defaultne hodnoty.
+        // Tento profil ma vsetky parametre nastavene na predvolene hodnoty.
         this.ptr = TinyTUS.EXPORTS.mp_create();
 
         // Najdeme vsetky gettery a settery jednotlivych parametrov profilu.
@@ -29,7 +29,7 @@ export class ModemProfile {
             }
         }
 
-        // Vypocitame vsetky odvodené polia profilu (readonly).
+        // Vypocitame vsetky odvodene polia profilu (readonly).
         TinyTUS.EXPORTS.calc_modem_profile_fields(this.ptr);
 
         // Vytvorime atributy tejto triedy dynamicky na zaklade

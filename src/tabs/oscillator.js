@@ -234,7 +234,7 @@ function init() {
     updateFromSliders();
 }
 
-// Cleanup pri opusteni stranky.
+// Uvolni zdroje pri opusteni stranky.
 window.addEventListener("beforeunload", () => {
     stopAnimation();
     stopAudio();

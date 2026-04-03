@@ -5,31 +5,87 @@
 :root, :root.light-scheme {
     color-scheme: light;
     --body-bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    /* --msger-bg: #fff; */
+    --msger-bg: #f8fafc;
     --border: 2px solid #ddd;
     --left-msg-bg: #ececec;
     --right-msg-bg: #579ffb;
     --right-msg-fg: #000;
     --msger-header-bg: #eee;
     --msger-header-colour: #5d5d5d;
+    --msger-header-colour-hover: #1f2937;
+    --msger-header-colour-disabled: #a1aab3;
     --msger-scrollbar-track: #ddd;
     --msger-scrollbar-thumb: #bdbdbd;
     --msger-chat-bg: #fcfcfe;
     --inputbar-area: #eee;
-    --msger-send-button-bg: rgb(0, 196, 65);
+    --msger-send-button-bg: #2f8f66;
     --msger-send-button-fg: #fff;
-    --msger-send-button-hover-bg: rgb(0, 180, 50);
-    --input-bar-bg: transparency;
+    --msger-send-button-hover-bg: #267a57;
+    --msger-send-button-hover-fg: #2f8f66;
+    --input-bar-bg: transparent;
+    --input-bar-fg: #1f2937;
     --msg-img-bg: #ddd;
     --msger-input-placeholder-fg: #838384;
-    --msger-send-button-disabled-bg: grey;
+    --msger-send-button-disabled-bg: #c4ccd3;
     --username-color: #0b0b0b;
     --theme-button-icon: "\f186\00a0"; /* fa-moon */
+
+    --modal-overlay-bg: rgba(15, 23, 42, 0.45);
+    --modal-surface-bg: #fdfefe;
+    --modal-surface-border: #d6e0ea;
+    --modal-text: #1f2937;
+    --modal-subtle-text: #4b5563;
+    --modal-input-bg: #ffffff;
+    --modal-input-border: #c8d2dc;
+    --modal-input-focus-border: #2f8f66;
+    --modal-btn-primary-bg: #2f8f66;
+    --modal-btn-primary-hover-bg: #267a57;
+    --modal-btn-primary-fg: #f8fffb;
+    --modal-btn-primary-border: #2a7f5d;
+    --modal-btn-neutral-bg: #e6edf4;
+    --modal-btn-neutral-hover-bg: #dce5ee;
+    --modal-btn-neutral-fg: #273340;
+    --modal-btn-neutral-border: #c9d5e0;
+
+    --checkbox-bg: #ffffff;
+    --checkbox-border: #c6d1dd;
+    --checkbox-hover-bg: #f1f5f9;
+    --checkbox-hover-border: #9eb2c7;
+    --checkbox-checked-bg: #2f8f66;
+    --checkbox-checked-border: #267a57;
+    --checkbox-focus-ring: rgba(47, 143, 102, 0.5);
 
     --select-border: #ccc;
     --select-bg: #fff;
     --select-text: #333;
     --select-arrow: %23666;
+
+    --spectrogram-bg: #edf3fa;
+    --spectrogram-canvas-border: #c7d5e5;
+    --spectrogram-shadow: 0 2px 16px rgba(30, 45, 70, 0.18);
+    --spectrogram-axis-border: rgba(56, 84, 120, 0.25);
+    --spectrogram-axis-text: rgba(58, 80, 112, 0.9);
+    --spectrogram-color-min: #eaf2f9;
+    --spectrogram-color-max: #0f9c56;
+
+    --spectrogram-controls-bg: rgba(244, 248, 253, 0.95);
+    --spectrogram-controls-border: rgba(107, 134, 168, 0.5);
+    --spectrogram-controls-text: #2a3a4f;
+    --spectrogram-controls-shadow: 0 6px 24px rgba(31, 49, 74, 0.2);
+    --spectrogram-controls-header-bg: rgba(215, 230, 245, 0.86);
+    --spectrogram-controls-header-border: rgba(126, 153, 184, 0.5);
+    --spectrogram-controls-close-hover-bg: rgba(30, 52, 79, 0.12);
+    --spectrogram-controls-close-hover-text: #14253a;
+    --spectrogram-controls-label: #4b617b;
+    --spectrogram-controls-slider-bg: #c9d8e7;
+    --spectrogram-controls-slider-thumb: #2f8f66;
+    --spectrogram-controls-value: #314966;
+    --spectrogram-controls-btn-bg: #5f88ab;
+    --spectrogram-controls-btn-hover-bg: #4f7899;
+
+    --spectrogram-tooltip-bg: rgba(246, 250, 255, 0.96);
+    --spectrogram-tooltip-text: #1e3554;
+    --spectrogram-tooltip-border: #5f88ab;
 
     --mobile-width: 600px;
 }
@@ -72,6 +128,58 @@
     --select-bg: rgba(255, 255, 255, 0.06);
     --select-text: #a6a7a7;
     --select-arrow: %23aaa;
+
+    --modal-overlay-bg: rgba(0, 0, 0, 0.72);
+    --modal-surface-bg: #201c1c;
+    --modal-surface-border: rgba(255, 255, 255, 0.08);
+    --modal-text: #d9d9dd;
+    --modal-subtle-text: #a3a8af;
+    --modal-input-bg: rgba(255, 255, 255, 0.05);
+    --modal-input-border: rgba(255, 255, 255, 0.20);
+    --modal-input-focus-border: #6b8d76;
+    --modal-btn-primary-bg: #4d7c60;
+    --modal-btn-primary-hover-bg: #5a8c6d;
+    --modal-btn-primary-fg: #e9f7ef;
+    --modal-btn-primary-border: #58896a;
+    --modal-btn-neutral-bg: #4d5660;
+    --modal-btn-neutral-hover-bg: #5b6571;
+    --modal-btn-neutral-fg: #e4e8ec;
+    --modal-btn-neutral-border: #66717d;
+
+    --checkbox-bg: rgba(255, 255, 255, 0.06);
+    --checkbox-border: rgba(255, 255, 255, 0.20);
+    --checkbox-hover-bg: rgba(255, 255, 255, 0.08);
+    --checkbox-hover-border: rgba(255, 255, 255, 0.40);
+    --checkbox-checked-bg: rgb(88, 128, 101);
+    --checkbox-checked-border: rgb(107, 141, 118);
+    --checkbox-focus-ring: rgba(107, 141, 118, 0.62);
+
+    --spectrogram-bg: #060810;
+    --spectrogram-canvas-border: #373637;
+    --spectrogram-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+    --spectrogram-axis-border: rgba(150, 195, 230, 0.1);
+    --spectrogram-axis-text: rgba(150, 195, 230, 0.75);
+    --spectrogram-color-min: #0d0d0d;
+    --spectrogram-color-max: #58ee87;
+
+    --spectrogram-controls-bg: rgba(8, 12, 20, 0.92);
+    --spectrogram-controls-border: rgba(80, 140, 140, 0.6);
+    --spectrogram-controls-text: #cde;
+    --spectrogram-controls-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --spectrogram-controls-header-bg: rgba(30, 60, 70, 0.7);
+    --spectrogram-controls-header-border: rgba(100, 180, 160, 0.4);
+    --spectrogram-controls-close-hover-bg: rgba(255, 255, 255, 0.2);
+    --spectrogram-controls-close-hover-text: #ffffff;
+    --spectrogram-controls-label: #9bc;
+    --spectrogram-controls-slider-bg: #1a2a2a;
+    --spectrogram-controls-slider-thumb: #6cf;
+    --spectrogram-controls-value: #bdf;
+    --spectrogram-controls-btn-bg: #2a5a5a;
+    --spectrogram-controls-btn-hover-bg: #3a7a7a;
+
+    --spectrogram-tooltip-bg: rgba(0, 0, 0, 0.8);
+    --spectrogram-tooltip-text: #cfc;
+    --spectrogram-tooltip-border: #4ca;
 }
 
 :root:not(.dark-scheme) #tab-config {

@@ -7,6 +7,7 @@
 //    Ak mp_validate zlyha, zapis sa vrati naspat na povodnu hodnotu.
 
 import { TinyTUS } from '../../../libs/tinytus/tinytus.js';
+import { VALIDATION } from './profile-strings.js';
 
 // Hruby rozsah a typ pre kazde pole - len predbezna ochrana pred zrejme nespravnymi hodnotami.
 const FIELD_RULES = {
@@ -23,7 +24,7 @@ const FIELD_RULES = {
     sample_rate:        { min: 8000, max: 192000, integer: true },
 };
 
-// Polia ktore su vypocitane z inych poli a nesmú byť menené priamo.
+// Polia ktore su vypocitane z inych poli a nesmu byt menene priamo.
 // min_tx_freq a max_tx_freq su nastavovane cez freq_picker, preto nie su readonly.
 const READONLY_FIELDS = new Set([
     'freq_bin_hz', 'sample_duration', 'symbol_rate', 'channel_size',
@@ -40,15 +41,15 @@ export function preValidateFieldValue(field, rawValue) {
 
     if (!rule) {
         const num = parseFloat(rawValue);
-        if (!Number.isFinite(num)) return { valid: false, error: 'Neplatna hodnota.' };
+        if (!Number.isFinite(num)) return { valid: false, error: VALIDATION.invalidValue };
         return { valid: true, value: num };
     }
 
     const num = rule.integer ? parseInt(rawValue, 10) : parseFloat(rawValue);
 
-    if (!Number.isFinite(num)) return { valid: false, error: 'Hodnota musi byt cislo.' };
-    if (num < rule.min || num > rule.max) return { valid: false, error: `Hodnota musi byt v rozsahu ${rule.min} - ${rule.max}.` };
-    if (rule.pow2 && (num & (num - 1)) !== 0) return { valid: false, error: 'Hodnota musi byt mocnina 2.' };
+    if (!Number.isFinite(num)) return { valid: false, error: VALIDATION.notANumber };
+    if (num < rule.min || num > rule.max) return { valid: false, error: VALIDATION.outOfRange(rule.min, rule.max) };
+    if (rule.pow2 && (num & (num - 1)) !== 0) return { valid: false, error: VALIDATION.notPow2 };
 
     return { valid: true, value: num };
 }

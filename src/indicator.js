@@ -6,25 +6,52 @@
 
 const dot = document.getElementById("mic-status-dot");
 const dbFill = document.getElementById("chat-db-fill");
+const dbPeak = document.getElementById("chat-db-peak");
+const dbMeter = document.getElementById("chat-db-meter");
 
 // Cas po poslednej hlasnej vzorke na navrat do "listening".
 const SILENCE_TIMEOUT_MS = 800;
 // RMS prah pre detekciu prijmu audia.
 const AUDIO_THRESHOLD = 0.004;
+const DB_MIN = -60;
+const DB_MAX = 0;
+const DB_ATTACK_ALPHA = 0.9;
+const DB_RELEASE_ALPHA = 0.22;
+const PEAK_DECAY_DB_PER_UPDATE = 0.7;
 
 let silenceTimer = null;
+let smoothedDb = DB_MIN;
+let peakDb = DB_MIN;
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
 
+function dbToNormalized(db) {
+    return clamp((db - DB_MIN) / (DB_MAX - DB_MIN), 0, 1);
+}
+
 function updateDbMeterFromRms(rms) {
-    if (!dbFill) return;
+    if (!dbFill || !dbPeak) return;
 
     const safeRms = Math.max(rms, Number.EPSILON);
-    const db = 20 * Math.log10(safeRms);
-    const normalized = clamp((db + 60) / 60, 0, 1);
-    dbFill.style.height = `${normalized * 100}%`;
+    const rawDb = clamp(20 * Math.log10(safeRms), DB_MIN, DB_MAX);
+
+    const alpha = rawDb >= smoothedDb ? DB_ATTACK_ALPHA : DB_RELEASE_ALPHA;
+    smoothedDb += (rawDb - smoothedDb) * alpha;
+
+    peakDb = Math.max(peakDb - PEAK_DECAY_DB_PER_UPDATE, smoothedDb);
+
+    const peakLevel = dbToNormalized(peakDb);
+    const peakPercent = clamp(peakLevel * 100, 0, 100);
+
+    dbFill.style.clipPath = `inset(${100 - peakPercent}% 0 0 0)`;
+    dbPeak.style.bottom = `${peakPercent}%`;
+
+    if (dbMeter) {
+        dbMeter.title = `Uroven: ${smoothedDb.toFixed(1)} dBFS | Peak: ${peakDb.toFixed(1)} dBFS`;
+        dbMeter.setAttribute("aria-valuenow", smoothedDb.toFixed(1));
+    }
 }
 
 function setState(state) {

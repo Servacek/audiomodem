@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 
 const modal        = $('share-profile-modal');
 const titleEl      = $('share-profile-modal-title');
+const subtitleEl   = $('share-profile-modal-subtitle');
 const qrEl         = $('share-profile-modal-qr');
 const codeInput    = $('share-profile-modal-code');
 const copyButton   = $('share-profile-modal-copy');
@@ -13,7 +14,7 @@ const broadcastBtn = $('share-profile-modal-broadcast');
 let currentCode = '';
 let onBroadcast = null;
 
-// ─── QR generovanie ───────────────────────────────────────────────────────────
+// --- QR generovanie ---
 
 function generateQRSvg(code) {
     if (!code || typeof qrcode === 'undefined') return '';
@@ -27,27 +28,43 @@ function generateQRSvg(code) {
     }
 }
 
-// ─── Kopirovanie ──────────────────────────────────────────────────────────────
+// --- Kopirovanie ---
 
 async function copyCurrentCode() {
     if (!currentCode || !copyButton) return;
+    const originalTitle = copyButton.title;
+    const originalLabel = copyButton.getAttribute('aria-label') || originalTitle;
+
     try {
         await navigator.clipboard.writeText(currentCode);
     } catch {
         if (codeInput) { codeInput.focus({ preventScroll: true }); codeInput.select(); }
     }
+
     copyButton.classList.add('copied');
-    setTimeout(() => copyButton?.classList.remove('copied'), 1200);
+    copyButton.title = 'Skopírované';
+    copyButton.setAttribute('aria-label', 'Skopírované');
+
+    setTimeout(() => {
+        if (!copyButton) return;
+        copyButton.classList.remove('copied');
+        copyButton.title = originalTitle;
+        copyButton.setAttribute('aria-label', originalLabel);
+    }, 1200);
 }
 
-// ─── Otvorenie / zatvorenie ───────────────────────────────────────────────────
+// --- Otvorenie / zatvorenie ---
 
 export function openShareModal(profileName, code) {
     if (!modal) return;
     currentCode = code || '';
-    if (titleEl) titleEl.textContent = profileName ? `Zdieľať profil \u2013 ${profileName}` : 'Zdieľať profil';
+    if (titleEl) titleEl.textContent = 'Zdieľať profil';
+    if (subtitleEl) subtitleEl.textContent = profileName ? `Profil: ${profileName}` : 'Naskenujte QR alebo skopírujte kód profilu.';
     if (codeInput) codeInput.value = currentCode;
-    if (qrEl) qrEl.innerHTML = generateQRSvg(currentCode);
+    if (qrEl) {
+        const qrSvg = generateQRSvg(currentCode);
+        qrEl.innerHTML = qrSvg || '<div class="share-modal-qr-empty">QR náhľad nie je dostupný.</div>';
+    }
     if (broadcastBtn) broadcastBtn.disabled = !currentCode;
     modal.style.display = 'flex';
 }
@@ -57,7 +74,7 @@ export function closeShareModal() {
     currentCode = '';
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// --- Init ---
 
 export function initShareModal(broadcastCallback) {
     onBroadcast = broadcastCallback;

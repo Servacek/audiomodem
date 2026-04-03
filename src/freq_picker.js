@@ -10,7 +10,7 @@
 /**
  * @param {object}  mp        modem profil (vyzaduje sample_rate, min_tx_freq,
  *                            max_tx_freq, freq_bin_hz)
- * @param {string}  idSuffix  id profilu alebo 'default'
+ * @param {string}  idSuffix  id profilu alebo 'predvoleny'
  * @param {boolean} readonly
  */
 export function renderFreqPicker(mp, idSuffix, readonly) {
@@ -234,7 +234,7 @@ function initSinglePicker(wrap) {
 
     function renderAttenuation() {
         if (!attCanvas) return;
-        // Zrus predchadzajuci frame, ak este bezi.
+        // Zrus predchadzajuci ramec, ak este bezi.
         if (attRafId) cancelAnimationFrame(attRafId);
         const data = loadAttenuationData(idSuffix);
         if (bestBtn) bestBtn.disabled = !Array.isArray(data) || data.length < 2;
