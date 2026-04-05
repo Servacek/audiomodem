@@ -397,7 +397,7 @@ export let TinyTUS = {
             const createdProfiles = [];
             for (const profile of demodProfiles) {
                 const modemProfilePtr = _modemProfileOrPtrToPtr(profile);
-                const demodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr, 256);
+                const demodState = TinyTUS.EXPORTS.gfsk_demod_create(modemProfilePtr);
                 if (!demodState) {
                     console.warn("  Skipping profile, gfsk_demod_create returned null/0. ptr:", modemProfilePtr);
                     continue;
