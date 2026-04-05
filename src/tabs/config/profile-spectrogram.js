@@ -1,188 +1,361 @@
-// FFT vypocet a vykreslenie spektrogramu nahladu profilu.
+// Rychly nahlad ramca iba z parametrov profilu.
 
-// Cache FFT planov podla velkosti.
-const fftPlanCache = new Map();
+const PREVIEW_PAYLOAD = new Uint8Array([0x48, 0x4f, 0x4c, 0x55, 0x42, 0xaa, 0x55, 0x3c]);
 
-function nextPow2(v) {
-    let n = 1;
-    while (n < v) n <<= 1;
-    return n;
+function clampInt(value, min, max, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(n)));
 }
 
-function getFftPlan(fftSize) {
-    if (fftPlanCache.has(fftSize)) return fftPlanCache.get(fftSize);
-
-    const bitRev = new Uint32Array(fftSize);
-    const bits = Math.log2(fftSize);
-    for (let i = 0; i < fftSize; i++) {
-        let x = i, y = 0;
-        for (let b = 0; b < bits; b++) { y = (y << 1) | (x & 1); x >>= 1; }
-        bitRev[i] = y;
-    }
-
-    const win = new Float32Array(fftSize);
-    for (let i = 0; i < fftSize; i++) {
-        win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (fftSize - 1));
-    }
-
-    const plan = { bitRev, win };
-    fftPlanCache.set(fftSize, plan);
-    return plan;
+function ceilDiv(a, b) {
+    return Math.floor((a + b - 1) / b);
 }
 
-function runFft(re, im) {
-    const n = re.length;
-    for (let len = 2; len <= n; len <<= 1) {
-        const half = len >> 1;
-        const ang = (-2 * Math.PI) / len;
-        const wLenRe = Math.cos(ang);
-        const wLenIm = Math.sin(ang);
-        for (let i = 0; i < n; i += len) {
-            let wRe = 1, wIm = 0;
-            for (let j = 0; j < half; j++) {
-                const a = i + j, b = a + half;
-                const uRe = re[a], uIm = im[a];
-                const vRe = re[b] * wRe - im[b] * wIm;
-                const vIm = re[b] * wIm + im[b] * wRe;
-                re[a] = uRe + vRe; im[a] = uIm + vIm;
-                re[b] = uRe - vRe; im[b] = uIm - vIm;
-                const nwRe = wRe * wLenRe - wIm * wLenIm;
-                wIm = wRe * wLenIm + wIm * wLenRe;
-                wRe = nwRe;
+function estimateSectionSymbols(bits, bitsPerSymbol) {
+    if (bits <= 0 || bitsPerSymbol <= 0) return 0;
+    return ceilDiv(bits, bitsPerSymbol);
+}
+
+function bitAtFromPayload(payload, bitIndex) {
+    const byte = payload[Math.floor(bitIndex / 8)] ?? 0;
+    const inByte = 7 - (bitIndex % 8);
+    return (byte >> inByte) & 1;
+}
+
+function bitAtFromEcc(payload, bitIndex) {
+    // Pseudo parity stream pre stabilny a citatelny ECC blok.
+    let acc = 0;
+    for (let i = 0; i < payload.length; i++) {
+        const v = payload[i];
+        acc ^= (v << (i % 5)) | (v >>> (8 - (i % 5)));
+    }
+    return (acc >> (bitIndex % 8)) & 1;
+}
+
+function buildLaneLayout(mp, laneCount, statesPerLane) {
+    const minTx = Math.max(0, Number(mp?.min_tx_freq) || 0);
+    const maxTxRaw = Number(mp?.max_tx_freq);
+    const freqBinHz = Math.max(1, Number(mp?.freq_bin_hz) || 1);
+    const fallbackMax = minTx + Math.max(128, laneCount * statesPerLane) * freqBinHz;
+    const maxTx = Number.isFinite(maxTxRaw) ? Math.max(minTx + freqBinHz, maxTxRaw) : fallbackMax;
+
+    const totalBins = Math.max(8, Math.floor((maxTx - minTx) / freqBinHz));
+    const laneBandBins = Math.max(1, Math.floor(totalBins / laneCount));
+    const binsPerLane = Math.max(1, Math.min(statesPerLane, laneBandBins));
+    const laneBaseBins = new Int32Array(laneCount);
+
+    for (let lane = 0; lane < laneCount; lane++) {
+        const laneBandStart = lane * laneBandBins;
+        const centeredOffset = Math.max(0, Math.floor((laneBandBins - binsPerLane) / 2));
+        laneBaseBins[lane] = laneBandStart + centeredOffset;
+    }
+
+    return {
+        minTx,
+        maxTx,
+        freqBinHz,
+        totalBins,
+        binsPerLane,
+        laneBaseBins,
+    };
+}
+
+function markerToneForLane(lane, laneCount, binsPerLane) {
+    if (binsPerLane <= 1) return 0;
+    const spread = Math.max(1, binsPerLane - 1);
+    return Math.floor((lane / Math.max(1, laneCount - 1)) * spread);
+}
+
+function buildPreviewFrame(mp) {
+    const laneCount = clampInt(mp?.lanes_per_symbol, 1, 32, 1);
+    const symbolRepeats = clampInt(mp?.symbol_repeats, 1, 64, 1);
+    const bitsPerTone = clampInt(mp?.bits_per_lane, 1, 12, 1);
+    const bitsPerSymbol = laneCount * bitsPerTone;
+    const statesPerLane = 2 ** bitsPerTone;
+
+    const symbolsPerMarker = clampInt(mp?.symbols_per_marker, 1, 2048, 8);
+    const tonesInMarker = clampInt(mp?.tones_in_marker, 1, 4096, 16);
+    const eccPercent = Math.max(0, Math.min(1, Number(mp?.ecc_percent) || 0));
+
+    const payloadBits = PREVIEW_PAYLOAD.length * 8;
+    const eccBits = Math.round(payloadBits * eccPercent);
+
+    const markerSymbols = symbolsPerMarker * symbolRepeats;
+    const dataSymbols = estimateSectionSymbols(payloadBits, bitsPerSymbol) * symbolRepeats;
+    const eccSymbols = Math.max(1, estimateSectionSymbols(eccBits, bitsPerSymbol)) * symbolRepeats;
+    const symbolCount = Math.max(1, markerSymbols + dataSymbols + eccSymbols + markerSymbols);
+
+    const laneLayout = buildLaneLayout(mp, laneCount, statesPerLane);
+
+    const laneToneIndex = Array.from({ length: laneCount }, () => new Uint16Array(symbolCount));
+    const laneToneBin = Array.from({ length: laneCount }, () => new Uint16Array(symbolCount));
+    const symbolTypes = new Uint8Array(symbolCount);
+
+    const markerStartEnd = markerSymbols;
+    const dataStart = markerStartEnd;
+    const dataEnd = dataStart + dataSymbols;
+    const eccEnd = dataEnd + eccSymbols;
+
+    for (let symbol = 0; symbol < symbolCount; symbol++) {
+        let section = 0;
+        if (symbol < markerStartEnd || symbol >= eccEnd) section = 1;
+        else if (symbol >= dataEnd) section = 3;
+        else section = 2;
+        symbolTypes[symbol] = section;
+
+        for (let lane = 0; lane < laneCount; lane++) {
+            let value = 0;
+
+            if (section === 1) {
+                value = markerToneForLane(lane, laneCount, laneLayout.binsPerLane);
+            } else {
+                const sectionSymbolIndex = section === 2
+                    ? Math.floor((symbol - dataStart) / symbolRepeats)
+                    : Math.floor((symbol - dataEnd) / symbolRepeats);
+                const baseBit = sectionSymbolIndex * bitsPerSymbol + lane * bitsPerTone;
+
+                for (let b = 0; b < bitsPerTone; b++) {
+                    const bitPos = baseBit + b;
+                    let bit = 0;
+
+                    if (section === 2) {
+                        bit = bitAtFromPayload(PREVIEW_PAYLOAD, bitPos);
+                    } else {
+                        bit = bitAtFromEcc(PREVIEW_PAYLOAD, bitPos);
+                    }
+
+                    value = (value << 1) | bit;
+                }
             }
+
+            laneToneIndex[lane][symbol] = value % statesPerLane;
+            laneToneBin[lane][symbol] = laneLayout.laneBaseBins[lane] + (laneToneIndex[lane][symbol] % laneLayout.binsPerLane);
         }
     }
+
+    return {
+        laneCount,
+        bitsPerTone,
+        statesPerLane,
+        symbolCount,
+        markerSymbols,
+        dataSymbols,
+        eccSymbols,
+        symbolTypes,
+        laneToneIndex,
+        laneToneBin,
+        minTx: laneLayout.minTx,
+        maxTx: laneLayout.maxTx,
+        freqBinHz: laneLayout.freqBinHz,
+        totalBins: laneLayout.totalBins,
+    };
 }
 
-function getSpectrogramParams(sampleRate, mp) {
-    const sr = Math.max(8000, Number(sampleRate) || 48000);
-    const minTx = Number(mp?.min_tx_freq) || 800;
-    const maxTx = Number(mp?.max_tx_freq) || Math.min(sr / 2 - 1, minTx + 1200);
-    const span = Math.max(200, maxTx - minTx);
-    const targetBinHz = Math.max(4, Math.min(14, span / 120));
-    let fftSize = nextPow2(Math.round(sr / targetBinHz));
-    fftSize = Math.max(2048, Math.min(8192, fftSize));
-    return { fftSize, hopSize: Math.max(64, fftSize >> 4) };
+function toneColor(section) {
+    if (section === 1) return 'hsl(32 88% 58%)';
+    if (section === 3) return 'hsl(306 76% 58%)';
+    return 'hsl(202 84% 58%)';
 }
 
-function computeFrames(signal, sampleRate, mp) {
-    const { fftSize, hopSize } = getSpectrogramParams(sampleRate, mp);
-    if (!signal || signal.length < fftSize) return null;
-
-    const bins = fftSize >> 1;
-    const rawCount = Math.max(1, Math.floor((signal.length - fftSize) / hopSize) + 1);
-    const maxFrames = 220;
-    const step = Math.max(1, Math.ceil(rawCount / maxFrames));
-    const frameCount = Math.ceil(rawCount / step);
-    const frames = new Array(frameCount);
-
-    const { bitRev, win } = getFftPlan(fftSize);
-    const re = new Float32Array(fftSize);
-    const im = new Float32Array(fftSize);
-
-    for (let out = 0, f = 0; f < rawCount; f += step, out++) {
-        const start = f * hopSize;
-        for (let i = 0; i < fftSize; i++) {
-            const src = start + i;
-            re[bitRev[i]] = (src < signal.length ? signal[src] : 0) * win[i];
-            im[bitRev[i]] = 0;
-        }
-        runFft(re, im);
-        const mags = new Float32Array(bins);
-        for (let k = 0; k < bins; k++) mags[k] = Math.hypot(re[k], im[k]);
-        frames[out] = mags;
-    }
-
-    return { frames, sampleRate, fftSize };
+function drawSectionLabel(ctx, text, x, y, w) {
+    if (w < 32) return;
+    ctx.fillStyle = 'rgba(222, 230, 238, 0.84)';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textBaseline = 'middle';
+    const tx = x + Math.max(4, (w - ctx.measureText(text).width) / 2);
+    ctx.fillText(text, tx, y);
 }
 
-function drawSpectrogram(canvas, spec, mp) {
-    if (!canvas || !spec?.frames?.length) return;
-
+function drawFramePreview(canvas, preview, mp) {
     const rect = canvas.getBoundingClientRect();
-    const cssW = Math.max(240, Math.floor(rect.width || 560));
-    const cssH = Math.max(96, Math.floor(rect.height || 140));
+    const cssW = Math.max(260, Math.floor(rect.width || 560));
+    const cssH = Math.max(110, Math.floor(rect.height || 140));
     const dpr = window.devicePixelRatio || 1;
+
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const { frames, sampleRate, fftSize } = spec;
-    const nyquist = sampleRate / 2;
-    const minFreq = Math.max(0, Number(mp.min_tx_freq || 0) - 120);
-    const maxFreq = Math.min(nyquist, Number(mp.max_tx_freq || 0) + 120);
-    const minBin = Math.max(0, Math.floor((minFreq / nyquist) * (fftSize / 2)));
-    const maxBin = Math.max(minBin + 1, Math.min((fftSize / 2) - 1, Math.ceil((maxFreq / nyquist) * (fftSize / 2))));
-    const binCount = maxBin - minBin + 1;
+    const {
+        laneCount,
+        symbolCount,
+        markerSymbols,
+        dataSymbols,
+        eccSymbols,
+        symbolTypes,
+        laneToneBin,
+        minTx,
+        maxTx,
+        freqBinHz,
+        totalBins,
+    } = preview;
 
-    // Vypocitaj dynamicky rozsah decibel.
-    const dbValues = [];
-    for (let r = 0; r < frames.length; r++) {
-        for (let b = minBin; b <= maxBin; b++) {
-            dbValues.push(20 * Math.log10(frames[r][b] + 1e-12));
-        }
-    }
-    dbValues.sort((a, b) => a - b);
-    const lowDb  = dbValues[Math.floor(dbValues.length * 0.10)] ?? -120;
-    const highDb = Math.max(lowDb + 1, dbValues[Math.floor(dbValues.length * 0.995)] ?? -10);
+    const topPad = 18;
+    const leftPad = 8;
+    const rightPad = 8;
+    const bottomPad = 8;
+
+    const plotX = leftPad;
+    const plotY = topPad;
+    const plotW = Math.max(10, cssW - leftPad - rightPad);
+    const plotH = Math.max(10, cssH - topPad - bottomPad);
+    const cellW = plotW / symbolCount;
+    const binH = plotH / totalBins;
 
     ctx.fillStyle = 'rgba(14, 20, 28, 0.92)';
     ctx.fillRect(0, 0, cssW, cssH);
 
-    const xScale = cssW / binCount;
-    const yScale = cssH / frames.length;
-    for (let r = 0; r < frames.length; r++) {
-        for (let b = 0; b < binCount; b++) {
-            const db = 20 * Math.log10(frames[r][minBin + b] + 1e-12);
-            const norm = Math.min(1, Math.max(0, (db - lowDb) / (highDb - lowDb)));
-            ctx.fillStyle = norm >= 0.9 ? 'hsl(40 78% 77%)' : 'hsl(215 78% 10%)';
-            ctx.fillRect(b * xScale, r * yScale, Math.ceil(xScale), Math.ceil(yScale));
+    const markerStartW = markerSymbols * cellW;
+    const dataW = dataSymbols * cellW;
+    const eccW = eccSymbols * cellW;
+    const markerEndX = plotX + markerStartW + dataW + eccW;
+
+    ctx.fillStyle = 'rgba(255, 168, 48, 0.10)';
+    ctx.fillRect(plotX, plotY, markerStartW, plotH);
+    ctx.fillRect(markerEndX, plotY, markerStartW, plotH);
+
+    ctx.fillStyle = 'rgba(64, 164, 255, 0.08)';
+    ctx.fillRect(plotX + markerStartW, plotY, dataW, plotH);
+    ctx.fillStyle = 'rgba(224, 90, 205, 0.08)';
+    ctx.fillRect(plotX + markerStartW + dataW, plotY, eccW, plotH);
+
+    const markerLineEndX = plotX + markerStartW - cellW * 0.5;
+    const squareSize = Math.max(4, Math.min(12, Math.min(cellW * 0.92, binH * 0.92)));
+
+    for (let lane = 0; lane < laneCount; lane++) {
+        const markerBin = laneToneBin[lane][0];
+        const y = plotY + plotH - (markerBin + 0.5) * binH;
+
+        if (markerSymbols > 0) {
+            ctx.strokeStyle = 'rgba(255, 170, 64, 0.46)';
+            ctx.lineWidth = Math.max(0.75, squareSize * 0.16);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(plotX + cellW * 0.5, y);
+            ctx.lineTo(Math.max(plotX + cellW * 0.5, markerLineEndX), y);
+            ctx.stroke();
+        }
+
+        for (let symbol = markerSymbols; symbol < symbolCount - markerSymbols; symbol++) {
+            const section = symbolTypes[symbol];
+            const x = plotX + symbol * cellW + cellW * 0.5;
+            const bin = laneToneBin[lane][symbol];
+            const py = plotY + plotH - (bin + 0.5) * binH;
+
+            ctx.fillStyle = toneColor(section);
+            ctx.fillRect(x - squareSize / 2, py - squareSize / 2, squareSize, squareSize);
+            ctx.strokeStyle = 'rgba(6, 10, 14, 0.7)';
+            ctx.lineWidth = 0.8;
+            ctx.strokeRect(x - squareSize / 2, py - squareSize / 2, squareSize, squareSize);
+        }
+
+        if (markerSymbols > 0) {
+            const tailStartSymbol = symbolCount - markerSymbols;
+            const tailStartX = plotX + tailStartSymbol * cellW + cellW * 0.5;
+            const tailEndX = plotX + plotW - cellW * 0.5;
+            ctx.strokeStyle = 'rgba(255, 170, 64, 0.42)';
+            ctx.lineWidth = Math.max(0.75, squareSize * 0.14);
+            ctx.beginPath();
+            ctx.moveTo(tailStartX, y);
+            ctx.lineTo(Math.max(tailStartX, tailEndX), y);
+            ctx.stroke();
         }
     }
 
-    // Znamc frekvencie vysielania.
-    if (Number(mp.min_tx_freq) > 0 && Number(mp.max_tx_freq) > Number(mp.min_tx_freq)) {
-        const span = maxFreq - minFreq;
-        const minX = ((Number(mp.min_tx_freq) - minFreq) / span) * cssW;
-        const maxX = ((Number(mp.max_tx_freq) - minFreq) / span) * cssW;
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 3]);
+    ctx.lineCap = 'butt';
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.11)';
+    ctx.lineWidth = 1;
+    const yGridStep = Math.max(1, Math.ceil(totalBins / 6));
+    for (let b = yGridStep; b < totalBins; b += yGridStep) {
+        const y = plotY + plotH - b * binH + 0.5;
         ctx.beginPath();
-        ctx.moveTo(minX + 0.5, 0); ctx.lineTo(minX + 0.5, cssH);
-        ctx.moveTo(maxX + 0.5, 0); ctx.lineTo(maxX + 0.5, cssH);
+        ctx.moveTo(plotX, y);
+        ctx.lineTo(plotX + plotW, y);
         ctx.stroke();
-        ctx.setLineDash([]);
     }
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+    for (let symbol = 1; symbol < symbolCount; symbol++) {
+        const x = plotX + symbol * cellW + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, plotY);
+        ctx.lineTo(x, plotY + plotH);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+    const splitA = plotX + markerStartW + 0.5;
+    const splitB = plotX + markerStartW + dataW + 0.5;
+    const splitC = markerEndX + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(splitA, plotY);
+    ctx.lineTo(splitA, plotY + plotH);
+    ctx.moveTo(splitB, plotY);
+    ctx.lineTo(splitB, plotY + plotH);
+    ctx.moveTo(splitC, plotY);
+    ctx.lineTo(splitC, plotY + plotH);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(67, 196, 126, 0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(plotX + 0.5, plotY);
+    ctx.lineTo(plotX + 0.5, plotY + plotH);
+    ctx.stroke();
+
     ctx.lineWidth = 1;
-    ctx.strokeRect(0.5, 0.5, cssW - 1, cssH - 1);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+    ctx.strokeRect(plotX + 0.5, plotY + 0.5, plotW - 1, plotH - 1);
+
+    drawSectionLabel(ctx, 'MARKER', plotX, 9, markerStartW);
+    drawSectionLabel(ctx, 'PAYLOAD', plotX + markerStartW, 9, dataW);
+    drawSectionLabel(ctx, 'ECC', plotX + markerStartW + dataW, 9, eccW);
+    drawSectionLabel(ctx, 'MARKER', markerEndX, 9, markerStartW);
+
+    const minHz = Math.round(minTx);
+    const maxHz = Math.round(maxTx);
+    const spanBins = Math.max(1, totalBins - 1);
+    const midHz = Math.round(minTx + freqBinHz * Math.floor(spanBins / 2));
+
+    ctx.fillStyle = 'rgba(220, 230, 240, 0.72)';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${minHz} Hz`, plotX + 4, cssH - 4);
+    const maxTxt = `${maxHz} Hz`;
+    ctx.fillText(maxTxt, plotX + plotW - ctx.measureText(maxTxt).width - 4, cssH - 4);
+
+    const midTxt = `${midHz} Hz`;
+    ctx.fillText(midTxt, plotX + (plotW - ctx.measureText(midTxt).width) / 2, cssH - 4);
 }
 
-// --- Verejne API ---
-
-export function updateProfileSpectrogram(TinyTUS, profileId, mp) {
+export function updateProfileSpectrogram(_TinyTUS, profileId, mp) {
     const idSuffix = profileId === 'default' ? 'default' : String(profileId);
     const canvas = document.getElementById(`profile-spectrogram-${idSuffix}`);
-    if (!canvas || !TinyTUS.modulateMessage) return;
+    if (!canvas || !mp) return;
 
     try {
-        const waveform = TinyTUS.modulateMessage('test', mp);
-        const spec = computeFrames(waveform, Number(mp.sample_rate) || 48000, mp);
-        drawSpectrogram(canvas, spec, mp);
+        const preview = buildPreviewFrame(mp);
+        drawFramePreview(canvas, preview, mp);
     } catch {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(260, Math.floor(rect.width || 560));
+        const h = Math.max(110, Math.floor(rect.height || 140));
+        canvas.width = w;
+        canvas.height = h;
+        ctx.clearRect(0, 0, w, h);
         ctx.fillStyle = 'rgba(14, 20, 28, 0.92)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = 'rgba(255,255,255,0.65)';
         ctx.font = '12px JetBrains Mono, monospace';
-        ctx.fillText('Nahlad nie je dostupny', 12, 22);
+        ctx.fillText('Nahlad ramca nie je dostupny', 12, 22);
     }
 }

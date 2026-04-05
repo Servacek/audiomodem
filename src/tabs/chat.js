@@ -158,6 +158,7 @@ function createUserMessage(author, alignment, content, profileMeta = null) {
     const msg = createMessageBase();
     msg.classList.add("user-msg", `${alignment}-user-msg`);
     msg.author = author;
+    msg.modemProfile = profileMeta?.profile ?? null;
 
     const bubble = document.createElement("div");
     bubble.classList.add("msg-bubble");
@@ -386,6 +387,7 @@ const GROUP_TIMEOUT_MS = 60_000;
 function canGroupWith(prev, next) {
     if (!prev?.classList.contains('user-msg') || !next?.classList.contains('user-msg')) return false;
     if (prev.author !== next.author) return false;
+    if (prev.modemProfile !== next.modemProfile) return false;
     const prevRight = prev.classList.contains('right-user-msg');
     const nextRight = next.classList.contains('right-user-msg');
     if (prevRight !== nextRight) return false;

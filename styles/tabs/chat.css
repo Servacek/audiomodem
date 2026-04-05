@@ -17,8 +17,7 @@
 @media (max-width: 600px) {
     #quick-config-wrapper * {
         display: none;
-    }
-    #tab-chat {
+    }    #tab-chat {
         margin-right: 2px;
     }
 }

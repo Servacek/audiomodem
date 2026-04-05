@@ -58,6 +58,8 @@
     --select-border: #ccc;
     --select-bg: #fff;
     --select-text: #333;
+    --select-option-bg: #fff;
+    --select-option-text: #333;
     --select-arrow: %23666;
 
     --spectrogram-bg: #edf3fa;
@@ -127,6 +129,8 @@
     --select-border: rgba(255, 255, 255, 0.2);
     --select-bg: rgba(255, 255, 255, 0.06);
     --select-text: #a6a7a7;
+    --select-option-bg: #222328;
+    --select-option-text: #a6a7a7;
     --select-arrow: %23aaa;
 
     --modal-overlay-bg: rgba(0, 0, 0, 0.72);
@@ -190,6 +194,7 @@
     --profile-header-hover-bg: #e9ecef;
     --profile-header-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
     --spin-button-filter: none;
+    --spin-button-opacity: 1;
     --select-arrow-color: %23666;
 }
 
@@ -201,5 +206,6 @@
     --profile-header-hover-bg: #252430;
     --profile-header-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
     --spin-button-filter: invert(0.7);
+    --spin-button-opacity: 0.82;
     --select-arrow-color: %23aaa;
 }

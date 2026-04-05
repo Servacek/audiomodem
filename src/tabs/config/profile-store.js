@@ -9,8 +9,28 @@ import { clearAttenuationData } from '../../freq_picker.js';
 const MAX_PROFILES = 10;
 const MAX_PROFILE_NAME = 24;
 const MAX_CHANNEL_COUNT = 8;
+const READONLY_PROFILE_ID_START = 1000;
 
 let profiles = [];
+
+const BUILTIN_READONLY_PROFILE_DEFS = [
+    {
+        key: 'robust',
+        name: 'Stabilný profil',
+        overrides: {
+            bits_per_lane: 10,
+            lanes_per_symbol: 2,
+            symbol_repeats: 1,
+            symbols_per_marker: 16,
+            tones_in_marker: 16,
+            ecc_percent: 0.45,
+            dss_enabled: 1,
+            squelch_thresh: 0.2,
+            cphase: 1,
+            max_tx_amp: 0.8,
+        },
+    }
+];
 
 // --- Pomocne funkcie ---
 
@@ -48,13 +68,79 @@ function isProfileIntegrityOk(mp) {
     return wasmValidateProfile(mp);
 }
 
+function destroyProfiles(list) {
+    list.forEach(profile => {
+        if (profile?.readonly && profile?.modemProfile && profile.modemProfile !== TinyTUS.DEFAULT_MODEM_PROFILE) {
+            profile.modemProfile.destroy();
+        }
+    });
+}
+
+function createReadonlyProfilesFromDefaults() {
+    const baseProfile = TinyTUS.DEFAULT_MODEM_PROFILE;
+    if (!baseProfile) return [];
+
+    return BUILTIN_READONLY_PROFILE_DEFS.flatMap((def, index) => {
+        try {
+            const modemProfile = new ModemProfile(baseProfile.toObject());
+            Object.entries(def.overrides || {}).forEach(([field, value]) => {
+                if (field in modemProfile) modemProfile[field] = value;
+            });
+
+            if (!wasmValidateProfile(modemProfile)) {
+                console.warn(`Readonly profil ${def.key} je neplatny a bude ignorovany.`);
+                modemProfile.destroy();
+                return [];
+            }
+
+            return [{
+                id: READONLY_PROFILE_ID_START + index,
+                name: def.name,
+                key: def.key,
+                readonly: true,
+                channelCount: estimateChannelCountFromModemProfile(modemProfile),
+                modemProfile,
+            }];
+        } catch (e) {
+            console.warn(`Readonly profil ${def.key} sa nepodarilo pripravit:`, e);
+            return [];
+        }
+    });
+}
+
+function normalizeLegacyStoredProfile(rawProfile) {
+    const profile = { ...rawProfile };
+
+    if (profile.bits_per_lane == null && profile.bits_per_tone != null) {
+        profile.bits_per_lane = profile.bits_per_tone;
+    }
+    if (profile.tones_in_marker == null && profile.bits_in_marker != null) {
+        profile.tones_in_marker = profile.bits_in_marker;
+    }
+    if (profile.lanes_per_symbol == null && profile.tones_per_symbol != null) {
+        profile.lanes_per_symbol = profile.tones_per_symbol;
+    }
+    if (profile.symbol_repeats == null) {
+        profile.symbol_repeats = 1;
+    }
+
+    delete profile.bits_per_tone;
+    delete profile.bits_in_marker;
+    delete profile.tones_per_symbol;
+    return profile;
+}
+
 export function loadProfiles() {
+    destroyProfiles(profiles);
+    const readonlyProfiles = createReadonlyProfilesFromDefaults();
+
     try {
         const parsed = JSON.parse(localStorage.getItem('modemProfiles') || 'null');
         if (parsed) {
-            profiles = parsed.flatMap(p => {
+            const userProfiles = parsed.flatMap(p => {
                 try {
-                    const modemProfile = new ModemProfile(p);
+                    const normalized = normalizeLegacyStoredProfile(p);
+                    const modemProfile = new ModemProfile(normalized);
                     if (!isProfileIntegrityOk(modemProfile)) {
                         console.warn(`Profil ${p.id} (${p.name}) ma neplatne hodnoty a bol odstraneny.`, modemProfile.toObject());
                         modemProfile.destroy();
@@ -63,6 +149,7 @@ export function loadProfiles() {
                     return [{
                         id: p.id,
                         name: p.name,
+                        readonly: false,
                         channelCount: normalizeChannelCount(p.channelCount, estimateChannelCountFromModemProfile(modemProfile)),
                         modemProfile,
                     }];
@@ -71,15 +158,23 @@ export function loadProfiles() {
                     return [];
                 }
             });
+
+            profiles = [...readonlyProfiles, ...userProfiles];
             // Ak boli niektore profily neplatne, uloz ocisteny zoznam.
-            if (profiles.length < parsed.length) saveProfiles();
+            if (userProfiles.length < parsed.length) saveProfiles();
+            return;
         }
-    } catch { profiles = []; }
+    } catch {
+        profiles = readonlyProfiles;
+        return;
+    }
+
+    profiles = readonlyProfiles;
 }
 
 export function saveProfiles() {
     localStorage.setItem('modemProfiles', JSON.stringify(
-        profiles.map(p => ({
+        profiles.filter(p => !p.readonly).map(p => ({
             id: p.id,
             name: p.name,
             channelCount: normalizeChannelCount(p.channelCount, estimateChannelCountFromModemProfile(p.modemProfile)),
@@ -106,7 +201,8 @@ export function findFreeProfileID() {
 }
 
 export function ensureCanAddProfile() {
-    if (profiles.length < MAX_PROFILES) return true;
+    const userProfileCount = profiles.filter(p => !p.readonly).length;
+    if (userProfileCount < MAX_PROFILES) return true;
     alert(STORE.tooManyProfiles(MAX_PROFILES));
     return false;
 }
@@ -128,16 +224,20 @@ export function addProfileToStore(modemProfile) {
     const profile = {
         id,
         name: `Profil ${id}`,
+        readonly: false,
         channelCount: estimateChannelCountFromModemProfile(modemProfile),
         modemProfile,
     };
-    profiles.unshift(profile);
+    const firstEditableIndex = profiles.findIndex(p => !p.readonly);
+    if (firstEditableIndex === -1) profiles.push(profile);
+    else profiles.splice(firstEditableIndex, 0, profile);
     saveProfiles();
     return profile;
 }
 
 export function removeProfileFromStore(id) {
     const profile = profiles.find(p => p.id === id);
+    if (profile?.readonly) return;
     if (profile?.modemProfile) {
         if (isProfileActive(profile)) setActiveProfile(TinyTUS.DEFAULT_MODEM_PROFILE);
         profile.modemProfile.destroy();
@@ -154,6 +254,7 @@ export function removeProfileFromStore(id) {
 export function updateProfileField(id, field, value) {
     const profile = profiles.find(p => p.id === id);
     if (!profile) return false;
+    if (profile.readonly) return false;
 
     if (field === 'name') {
         profile.name = (value || `Profil ${id}`).substring(0, MAX_PROFILE_NAME).trim();

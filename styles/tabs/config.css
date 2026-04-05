@@ -34,6 +34,11 @@
     margin: 24px 0 12px 0;
 }
 
+/* Nemozeme pridat padding priamo do tab configu kvoli sticky headerom */
+#tab-config > .tab-header {
+    padding-top: 20px;
+}
+
 .config-option {
     display: flex;
     align-items: center;
@@ -602,15 +607,15 @@
 
 :root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) {
     color-scheme: dark;
-    background: #1e1d22;
-    color: #d6d9de;
-    border-color: rgba(255, 255, 255, 0.16);
+    background: var(--config-input-bg);
+    color: var(--msger-header-colour);
+    border-color: var(--config-border);
 }
 
 :root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) option,
 :root.dark-scheme #tab-config :is(.profile-field select, .usb-profile-select, .spect-cfg-select) optgroup {
-    background: #1e1d22;
-    color: #d6d9de;
+    background: var(--select-option-bg, var(--config-input-bg));
+    color: var(--select-option-text, var(--msger-header-colour));
 }
 
 #tab-config :is(.profile-field input:not([type="checkbox"]):not([type="range"]), .profile-field select, .freq-picker-input-grp input[type="number"], .profile-code-input, .spect-cfg-input, .spect-cfg-select):focus {
@@ -707,18 +712,27 @@
     margin-top: 4px;
 }
 
-.profile-readonly-note {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 8px;
+.profile-field-error {
+    margin-top: 4px;
     font-size: 11px;
-    color: var(--msger-header-colour);
-    opacity: 0.58;
+    color: var(--config-btn-danger-bg, #bd5f66);
+    display: none;
+    line-height: 1.35;
 }
 
-.dark-scheme .profile-readonly-note {
-    opacity: 0.52;
+#tab-config :is(input, select, textarea).field-invalid {
+    border-color: var(--config-btn-danger-border, #a85258) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--config-btn-danger-bg, #bd5f66) 22%, transparent);
+}
+
+#tab-config input[type="range"].field-invalid {
+    outline: 2px solid color-mix(in srgb, var(--config-btn-danger-bg, #bd5f66) 45%, transparent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+.profile-readonly-note {
+    margin-bottom: 0;
 }
 
 .profile-spectrogram-preview {
@@ -1419,11 +1433,17 @@
 }
 
 :root.dark-scheme #tab-config input[type="number"] {
-    color-scheme: dark;
+    color-scheme: normal;
 }
 
 :root:not(.dark-scheme) #tab-config input[type="number"] {
     color-scheme: light;
+}
+
+#tab-config input[type="number"]::-webkit-outer-spin-button,
+#tab-config input[type="number"]::-webkit-inner-spin-button {
+    filter: var(--spin-button-filter, none);
+    opacity: var(--spin-button-opacity, 1);
 }
 
 /* Tlacidlo pouzit profil */
@@ -1474,13 +1494,20 @@
 .profile-share-row {
     margin-bottom: 14px;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 10px;
     padding: 10px;
     border: 1px solid color-mix(in srgb, var(--config-border, rgba(255, 255, 255, 0.15)) 84%, transparent);
     border-radius: 10px;
     background: color-mix(in srgb, var(--config-option-bg, rgba(255, 255, 255, 0.05)) 70%, transparent);
+}
+
+.profile-share-actions {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
 }
 
 .profile-share-code-wrap {
@@ -1493,6 +1520,24 @@
 
 .is-hidden {
     display: none !important;
+}
+
+.profile-readonly-note,
+.profile-share-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 4px;
+    color: var(--msger-header-colour);
+    opacity: 0.8;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.profile-readonly-note i,
+.profile-share-note i {
+    opacity: 0.85;
 }
 
 .profile-code-input {
@@ -1570,7 +1615,7 @@
 }
 
 @media (max-width: 600px) {
-    .profile-share-row {
+    .profile-share-actions {
         grid-template-columns: 1fr;
         gap: 8px;
     }

@@ -3,10 +3,11 @@
 export const PARAM_LABELS = {
     sample_rate:        'Vzorkovacia frekvencia (Hz)',
     channel_size:       'Šírka kanála (Hz)',
-    bits_per_tone:      'Počet bitov na jeden tón',
+    bits_per_lane:      'Počet bitov na jednu linku',
     symbols_per_marker: 'Dĺžka markera v symboloch',
-    bits_in_marker:     'Počet tónov v markeri',
-    tones_per_symbol:   'Počet tónov v symbole',
+    tones_in_marker:    'Počet tónov v markeri',
+    lanes_per_symbol:   'Počet liniek v symbole',
+    symbol_repeats:     'Počet opakovaní symbolu',
     ecc_percent:        'Podiel samoopravných bajtov',
     dss_enabled:        'DSS (rozptyl spektra)',
     squelch_thresh:     'Squelch',
@@ -18,12 +19,13 @@ export const PARAM_LABELS = {
 
 export const HELP = {
     samples_per_symbol: 'Počet vzoriek na jeden symbol (mocnina 2)',
-    bits_per_tone:      'Koľko bitov má jeden tón reprezentovať.',
-    tones_per_symbol:   'Koľko tónov má jeden symbol obsahovať.',
+    bits_per_lane:      'Koľko bitov má jedna linka reprezentovať.',
+    lanes_per_symbol:   'Koľko liniek má jeden symbol obsahovať.',
+    symbol_repeats:     'Koľkokrát sa má každý symbol zopakovať.',
     channel_count:      'Na koľko rovnako veľkých časti máme rozdeliť spektrum frekvencií.',
     max_tx_amp:         'Maximálna amplitúda vysielaného signálu',
     symbols_per_marker: 'Koľko dĺžok symbolu má jeden marker trvať.',
-    bits_in_marker:     'Koľko tónov má marker obsahovať.',
+    tones_in_marker:    'Koľko tónov má marker obsahovať.',
     ecc_percent:        'Podiel ECC bajtov (0% = žiadne, 100% = max ochrana)',
     squelch_thresh:     'Prahová hodnota squelchu',
     cphase:             'Vyhladzovanie prechodov medzi symbolmi.',
@@ -51,7 +53,8 @@ export const PROFILE_CARD = {
     namePlaceholder:  'Názov profilu',
     useActive:        '<i class="fas fa-check"></i> Používa sa',
     use:              'Použiť',
-    readonlyNote:     'Tento profil sa používa na synchronizáciu komunikácie a nedá sa upravovať.',
+    readonlyNote:     'Tento profil je preddefinovaný a nedá sa upravovať ani zdieľať.',
+    sameAsDefaultNote:'Profil je zhodný s predvoleným profilom, preto sa nedá zdieľať.',
     emptyState:       'Žiadne vlastné profily. Kliknite na "Pridať profil" pre vytvorenie nového.',
 };
 

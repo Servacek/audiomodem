@@ -12,10 +12,11 @@ import { VALIDATION } from './profile-strings.js';
 // Hruby rozsah a typ pre kazde pole - len predbezna ochrana pred zrejme nespravnymi hodnotami.
 const FIELD_RULES = {
     samples_per_symbol: { min: 2,    max: 8192,   integer: true, pow2: true },
-    bits_per_tone:      { min: 1,    max: 32,     integer: true },
-    tones_per_symbol:   { min: 1,    max: 255,    integer: true },
+    bits_per_lane:      { min: 1,    max: 32,     integer: true },
+    lanes_per_symbol:   { min: 1,    max: 255,    integer: true },
+    symbol_repeats:     { min: 1,    max: 255,    integer: true },
     symbols_per_marker: { min: 1,    max: 255,    integer: true },
-    bits_in_marker:     { min: 1,    max: 255,    integer: true },
+    tones_in_marker:    { min: 1,    max: 255,    integer: true },
     ecc_percent:        { min: 0,    max: 1,      integer: false },
     squelch_thresh:     { min: 0,    max: 1,      integer: false },
     max_tx_amp:         { min: 0,    max: 1,      integer: false },

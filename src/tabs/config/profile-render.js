@@ -9,8 +9,8 @@ import {
     updateProfileField, saveProfiles, MAX_PROFILE_NAME, MAX_CHANNEL_COUNT,
 } from './profile-store.js';
 import { getModemProfileTLVCode, isProfileSameAsDefault } from './profile-tlv.js';
-import { updateProfileSpectrogram } from './profile-spectrogram.js';
 import { ModemProfile } from '../../../libs/tinytus/modem_profile.js';
+import { preValidateFieldValue } from './profile-validation.js';
 import {
     PARAM_LABELS, HELP, SECTIONS, WAVE_INFO_LABELS, SPEED_LABEL,
     PROFILE_CARD, USB_SELECTOR,
@@ -66,6 +66,73 @@ function selectField(name, mp, id, readonly, { options = [], help = '' } = {}) {
 function row(...fields) { return `<div class="profile-field-row">${fields.join('')}</div>`; }
 function divider(title) { return `<div class="section-divider"><div class="section-title">${title}</div></div>`; }
 
+function formatSliderLabel(field, value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '-';
+    if (field === 'ecc_percent') return `${Math.round(n * 100)}%`;
+    if (field === 'max_tx_amp') return n.toFixed(2);
+    return n.toFixed(3);
+}
+
+function clearFieldError(el) {
+    const wrap = el?.closest('.profile-field');
+    if (!wrap) return;
+    const errorEl = wrap.querySelector('.profile-field-error');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+    el.classList.remove('field-invalid');
+}
+
+function showFieldError(el, text) {
+    const wrap = el?.closest('.profile-field');
+    if (!wrap) return;
+    let errorEl = wrap.querySelector('.profile-field-error');
+    if (!errorEl) {
+        errorEl = document.createElement('div');
+        errorEl.className = 'profile-field-error';
+        wrap.appendChild(errorEl);
+    }
+    errorEl.textContent = text;
+    errorEl.style.display = 'block';
+    el.classList.add('field-invalid');
+}
+
+function getModelFieldValue(profileId, field) {
+    const profile = getProfileById(profileId);
+    if (!profile) return null;
+    if (field === 'channel_count') return normalizeChannelCount(profile.channelCount, 1);
+    if (field === 'name') return profile.name;
+    return profile.modemProfile?.[field];
+}
+
+function rollbackControlValue(el, profileId, field) {
+    const modelValue = getModelFieldValue(profileId, field);
+    if (modelValue == null) return;
+
+    if (el.type === 'checkbox') {
+        el.checked = Boolean(modelValue);
+    } else {
+        el.value = modelValue;
+    }
+
+    if (el.type === 'range') {
+        const label = el.parentElement?.querySelector('.slider-label');
+        if (label) label.textContent = formatSliderLabel(field, modelValue);
+    }
+}
+
+function renderFramePreview(mp, idSuffix) {
+    return `<div class="profile-spectrogram-preview">
+        <div class="profile-spectrogram-head">
+            <div class="profile-spectrogram-title">Nahlad modulovaneho ramca</div>
+            <div class="profile-spectrogram-speed">${getSpeedText(mp)}</div>
+        </div>
+        <canvas id="profile-spectrogram-${idSuffix}" class="profile-spectrogram-canvas" aria-label="Nahlad ramca"></canvas>
+    </div>`;
+}
+
 // --- Informacie o profile ---
 
 function getChannelSummaryText(mp) {
@@ -77,7 +144,9 @@ function getChannelSummaryText(mp) {
 }
 
 function getSpeedText(mp) {
-    const bps = (Number(mp.symbol_rate) || 0) * ((Number(mp.bits_per_tone) || 0) * Number(mp.tones_per_symbol || 0));
+    const bitsPerSymbol = (Number(mp.bits_per_lane) || 0) * (Number(mp.lanes_per_symbol) || 0);
+    const repeats = Math.max(1, Number(mp.symbol_repeats) || 1);
+    const bps = (Number(mp.symbol_rate) || 0) * (bitsPerSymbol / repeats);
     if (!Number.isFinite(bps) || bps <= 0) return '-';
     return `${bps.toFixed(2)} b/s`;
 }
@@ -116,20 +185,33 @@ export function updateReadonlyProps(profileId, mp, channelCount = null) {
 // --- Zdielanie profilu ---
 
 function renderShareRow(mp, idSuffix, readonly) {
-    if (readonly) return '';
+    if (readonly) {
+        return `<div class="profile-share-row">
+            <div class="profile-share-note profile-readonly-note">
+                <i class="fas fa-lock"></i>
+                <span>${PROFILE_CARD.readonlyNote}</span>
+            </div>
+        </div>`;
+    }
     const profileCode = getModemProfileTLVCode(mp);
     const unchanged = isProfileSameAsDefault(mp);
     return `<div class="profile-share-row">
-        <button class="share-profile-button" data-action="share-profile" data-profile-id="${idSuffix}" ${unchanged ? 'disabled' : ''}>
-            <i class="fas fa-share-nodes"></i> Zdieľať profil
-        </button>
-        <div class="profile-share-code-wrap${unchanged ? ' is-hidden' : ''}">
-            <input type="text" class="profile-code-input" data-profile-code-for="${idSuffix}" value="${profileCode}"
-                readonly title="Kliknite pre skopírovanie kódu profilu">
-            <button class="copy-profile-code-button" data-action="copy-profile-code" data-profile-id="${idSuffix}"
-                title="Skopírovať kód profilu">
-                <i class="fas fa-copy"></i>
+        <div class="profile-share-actions${unchanged ? ' is-hidden' : ''}" data-profile-share-actions-for="${idSuffix}">
+            <button class="share-profile-button" data-action="share-profile" data-profile-id="${idSuffix}">
+                <i class="fas fa-share-nodes"></i> Zdieľať profil
             </button>
+            <div class="profile-share-code-wrap">
+                <input type="text" class="profile-code-input" data-profile-code-for="${idSuffix}" value="${profileCode}"
+                    readonly title="Kliknite pre skopírovanie kódu profilu">
+                <button class="copy-profile-code-button" data-action="copy-profile-code" data-profile-id="${idSuffix}"
+                    title="Skopírovať kód profilu">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+        <div class="profile-share-note${unchanged ? '' : ' is-hidden'}" data-profile-share-note-for="${idSuffix}">
+            <i class="fas fa-circle-info"></i>
+            <span>${PROFILE_CARD.sameAsDefaultNote}</span>
         </div>
     </div>`;
 }
@@ -143,11 +225,10 @@ export function updateProfileCodeUI(profileId, mp) {
     const profileCode = getModemProfileTLVCode(mp);
     const unchanged = isProfileSameAsDefault(mp);
 
-    const shareBtn = document.querySelector(`[data-action="share-profile"][data-profile-id="${profileId}"]`);
-    if (shareBtn) shareBtn.disabled = unchanged;
-
-    const codeInput = document.querySelector(`[data-profile-code-for="${profileId}"]`);
-    codeInput?.closest('.profile-share-code-wrap')?.classList.toggle('is-hidden', unchanged);
+    const actions = document.querySelector(`[data-profile-share-actions-for="${profileId}"]`);
+    const note = document.querySelector(`[data-profile-share-note-for="${profileId}"]`);
+    actions?.classList.toggle('is-hidden', unchanged);
+    note?.classList.toggle('is-hidden', !unchanged);
     syncProfileCodeInput(profileId, profileCode);
 }
 
@@ -185,13 +266,16 @@ function renderProfileFields(mp, idSuffix, readonly) {
 
     return `
         ${renderShareRow(mp, idSuffix, readonly)}
-        ${readonly ? `<div class="profile-readonly-note"><i class="fas fa-lock"></i> ${PROFILE_CARD.readonlyNote}</div>` : ''}
         ${renderReadonlyProps(mp, idSuffix)}
+        ${renderFramePreview(mp, idSuffix)}
         ${divider(SECTIONS.basic)}
         ${row(sel('samples_per_symbol', { options: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192], help: HELP.samples_per_symbol }),
-              n('bits_per_tone', { min: 1, max: 32, help: HELP.bits_per_tone }))}
+              n('bits_per_lane', { min: 1, max: 32, help: HELP.bits_per_lane }))}
         ${row(
-            n('tones_per_symbol', { min: 1, max: 255, help: HELP.tones_per_symbol }),
+            n('lanes_per_symbol', { min: 1, max: 255, help: HELP.lanes_per_symbol }),
+            n('symbol_repeats', { min: 1, max: 255, help: HELP.symbol_repeats })
+        )}
+        ${row(
             fieldWrap('channel_count', readonly
                 ? `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" disabled>`
                 : `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" data-profile-id="${idSuffix}" data-field="channel_count" min="1" max="${MAX_CHANNEL_COUNT}" step="1">`,
@@ -207,7 +291,7 @@ function renderProfileFields(mp, idSuffix, readonly) {
             ${SECTIONS.markerDesc}
         </div>
         ${row(n('symbols_per_marker', { min: 1, max: 255, help: HELP.symbols_per_marker }),
-              n('bits_in_marker',     { min: 1, max: 255, help: HELP.bits_in_marker }))}
+              n('tones_in_marker',    { min: 1, max: 255, help: HELP.tones_in_marker }))}
         <div class="profile-subsection-title"></div>
         ${s('ecc_percent',    { min: 0, max: 1, step: 0.05, help: HELP.ecc_percent, format: v => `${Math.round(v * 100)} %` })}
         ${s('squelch_thresh', { min: 0, max: 1, step: 0.005, icon: 'fas fa-filter', help: HELP.squelch_thresh, format: v => parseFloat(v).toFixed(3) })}
@@ -224,6 +308,10 @@ function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = f
     const headerLeft = isDefault
         ? `<i id="profile-toggle-default" class="fas fa-chevron-right profile-toggle"></i>
            <span class="profile-name-display">${PROFILE_CARD.defaultName}</span>`
+        : readonly
+        ? `<i id="profile-toggle-${id}" class="fas fa-chevron-right profile-toggle"></i>
+           <span class="profile-id-label" title="ID profilu">#${id}</span>
+           <span class="profile-name-display">${name}</span>`
         : `<i id="profile-toggle-${id}" class="fas fa-chevron-right profile-toggle"></i>
            <span class="profile-id-label" title="ID profilu">#${id}</span>
            <input type="text" id="profile-name-input-${id}" class="profile-name-input"
@@ -236,7 +324,7 @@ function profileCardHtml({ id, name, mp, active, readonly = false, isDefault = f
                 data-action="${isDefault ? 'use-default' : 'use-profile'}" ${profileAttr} ${active ? 'disabled' : ''}>
             ${active ? PROFILE_CARD.useActive : PROFILE_CARD.use}
         </button>
-        ${!isDefault ? `<button class="delete-profile-button" data-profile-id="${id}" data-action="delete">
+        ${!isDefault && !readonly ? `<button class="delete-profile-button" data-profile-id="${id}" data-action="delete">
             <i class="fas fa-times"></i></button>` : ''}`;
 
     return `
@@ -280,12 +368,13 @@ export function renderProfiles(container, configTabContent, usbProfileSelector) 
     if (!container) return;
 
     const profiles = getProfiles();
+    const editableCount = profiles.filter(p => !p.readonly).length;
     const defaultMp = TinyTUS.DEFAULT_MODEM_PROFILE;
 
     const profileItems = profiles.map(p => {
         const renderMp = Object.create(p.modemProfile);
         renderMp.channel_count = p.channelCount;
-        return { id: p.id, name: p.name, mp: renderMp, active: isProfileActive(p) };
+        return { id: p.id, name: p.name, mp: renderMp, active: isProfileActive(p), readonly: Boolean(p.readonly) };
     });
 
     const defaultRenderMp = defaultMp ? (() => {
@@ -297,7 +386,7 @@ export function renderProfiles(container, configTabContent, usbProfileSelector) 
     container.innerHTML = [
         ...profileItems.map(item => profileCardHtml(item)),
         defaultRenderMp ? profileCardHtml({ mp: defaultRenderMp, active: isDefaultActive(), readonly: true, isDefault: true }) : '',
-        profiles.length === 0 ? `<div class="empty-state">${PROFILE_CARD.emptyState}</div>` : '',
+        editableCount === 0 ? `<div class="empty-state">${PROFILE_CARD.emptyState}</div>` : '',
     ].join('');
 
     // Naplnenie USB selektora.
@@ -417,13 +506,41 @@ export function initContainerEvents(container, callbacks) {
     container?.addEventListener('change', e => {
         const { profileId, field, type } = e.target.dataset;
         if (!profileId || !field) return;
-        if (e.target.type === 'number' && !e.target.validity.valid) return;
+
         const id = parseInt(profileId);
         const value = type === 'checkbox' ? (e.target.checked ? 1 : 0) : e.target.value;
-        if (updateProfileField(id, field, value)) callbacks.onFieldChanged(id, field);
+
+        if (e.target.type === 'number' && !e.target.validity.valid) {
+            showFieldError(e.target, 'Neplatna hodnota.');
+            rollbackControlValue(e.target, id, field);
+            return;
+        }
+
+        const pre = preValidateFieldValue(field, value);
+        if (!pre.valid) {
+            showFieldError(e.target, pre.error || 'Neplatna hodnota.');
+            rollbackControlValue(e.target, id, field);
+            return;
+        }
+
+        if (updateProfileField(id, field, value)) {
+            clearFieldError(e.target);
+            callbacks.onFieldChanged(id, field);
+            return;
+        }
+
+        showFieldError(e.target, 'Neplatna kombinacia parametrov pre tento profil.');
+        rollbackControlValue(e.target, id, field);
     });
 
     container?.addEventListener('input', e => {
+        if (e.target?.dataset?.field) clearFieldError(e.target);
+
+        if (e.target.type === 'range' && e.target.dataset?.field) {
+            const label = e.target.parentElement?.querySelector('.slider-label');
+            if (label) label.textContent = formatSliderLabel(e.target.dataset.field, e.target.value);
+        }
+
         if (e.target.classList.contains('profile-name-input')) {
             const { profileId, field } = e.target.dataset;
             if (profileId && field === 'name') {

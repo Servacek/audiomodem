@@ -515,8 +515,8 @@ select {
 
 :root.dark-scheme select option,
 :root.dark-scheme select optgroup {
-    background-color: #1e1d22;
-    color: #d6d9de;
+    background-color: var(--select-option-bg, var(--select-bg));
+    color: var(--select-option-text, var(--select-text));
 }
 
 :root:not(.dark-scheme) select,
