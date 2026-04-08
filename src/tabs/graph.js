@@ -1,6 +1,6 @@
 import { TinyTUS } from '../../libs/tinytus/tinytus.js';
 
-const SAMPLE_RATE = 48000;
+const FALLBACK_SAMPLE_RATE = 48000;
 const DB_FLOOR = -90;
 const NOISE_ADAPT = 0.05;
 const MAGNITUDE_SCALE = 30.0; // mierka pre normalizaciu magnitudy
@@ -21,19 +21,32 @@ const DECODE_FREEZE_FORCE_ROWS = 44;
 const graphTab = document.getElementById('tab-graph');
 const container = document.getElementById('spectrogram-container');
 
+const controlPanel = document.createElement('div');
+controlPanel.id = 'spectrogram-control-panel';
+const freezeLabel = document.createElement('label');
+freezeLabel.className = 'spectrogram-control-row';
+const freezeCheckbox = document.createElement('input');
+freezeCheckbox.type = 'checkbox';
+freezeCheckbox.checked = true;
+freezeLabel.appendChild(freezeCheckbox);
+freezeLabel.appendChild(document.createTextNode('Zastaviť pri prijatí rámca'));
+controlPanel.appendChild(freezeLabel);
+container.appendChild(controlPanel);
+
 const canvas = document.createElement('canvas');
 canvas.id = 'spectrogram-canvas';
 canvas.style.width = '100%';
-canvas.style.height = '100%';
 canvas.style.border = '2px solid var(--spectrogram-canvas-border, #373637)';
 container.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
 graphTab.classList.add('loaded');
 
+freezeCheckbox.addEventListener('change', () => { freezeOnReceive = freezeCheckbox.checked; });
+
 // --- Stav ---
 let fftSize = 1024;
-let binHz = SAMPLE_RATE / fftSize;
+let binHz = FALLBACK_SAMPLE_RATE / fftSize;
 let dispMinBin = 0, dispMaxBin = fftSize / 2 - 1;
 let numBins = dispMaxBin - dispMinBin + 1;
 let usedMinBin = dispMinBin, usedMaxBin = dispMaxBin;
@@ -42,6 +55,8 @@ let fftRe, fftIm, bitRev, twRe, twIm, win;
 let ringBuf = null, ringFill = 0, hopSize = 0;
 let noiseDb = DB_FLOOR;
 let rowCounter = 0;
+
+let freezeOnReceive = true;
 
 let frameActivityActive = false;
 let frameActivityStartRow = 0;
@@ -53,9 +68,9 @@ let decodeFreezeTargetRow = 0;
 let decodeFreezeForceRow = 0;
 
 // --- Nastavenie FFT ---
-function setupFFT(N) {
+function setupFFT(N, sampleRate) {
     fftSize = N;
-    binHz = SAMPLE_RATE / fftSize;
+    binHz = sampleRate / fftSize;
     fftRe = new Float32Array(N);
     fftIm = new Float32Array(N);
 
@@ -82,6 +97,11 @@ function setupFFT(N) {
     ringBuf = new Float32Array(N);
     ringFill = 0;
     hopSize = Math.max(1, N / 2); // Zabrani nekonecnej slucke pri fftSize=1.
+    // Zvacsuj vysku riadku proporcionalne k sample rate, aby vizualna rychlost
+    // scrollovania zostala rovnaka (referencna hodnota: 3px pri 48000 Hz, N/2 hop).
+    const referenceRowsPerSec = FALLBACK_SAMPLE_RATE / (N / 2);
+    const actualRowsPerSec = sampleRate / hopSize;
+    rowHeight = Math.max(1, Math.round(3 * referenceRowsPerSec / actualRowsPerSec));
 }
 
 // --- Spustenie FFT ---
@@ -182,7 +202,7 @@ function freezeOnSuccessfulDecodeNow() {
 }
 
 function scheduleFreezeOnSuccessfulDecode() {
-    if (rowCounter <= 0) return;
+    if (!freezeOnReceive || rowCounter <= 0) return;
 
     decodeFreezePending = true;
     decodeFreezeTargetRow = Math.max(decodeFreezeTargetRow, rowCounter + DECODE_FREEZE_EXTRA_ROWS);
@@ -213,7 +233,7 @@ function magToColor(mag, meanMag, gateMag, contrastBoost) {
 }
 
 // --- Spracovanie ramca ---
-const ROW_HEIGHT = 3; // pocet pixelov na jeden FFT ramec
+let rowHeight = 3; // pocet pixelov na jeden FFT ramec
 
 function processFrame(samples) {
     for (let i = 0; i < fftSize; i++) {
@@ -292,11 +312,11 @@ function processFrame(samples) {
     }
 
     // Posun obsah hore a nakresli novy riadok na spodok.
-    ctx.drawImage(canvas, 0, -ROW_HEIGHT);
-    const tmpRow = new Uint32Array(canvasW * ROW_HEIGHT);
-    for (let i = 0; i < ROW_HEIGHT; i++) tmpRow.set(row, i * canvasW);
-    const imgRow = new ImageData(new Uint8ClampedArray(tmpRow.buffer), canvasW, ROW_HEIGHT);
-    ctx.putImageData(imgRow, 0, canvasH - ROW_HEIGHT);
+    ctx.drawImage(canvas, 0, -rowHeight);
+    const tmpRow = new Uint32Array(canvasW * rowHeight);
+    for (let i = 0; i < rowHeight; i++) tmpRow.set(row, i * canvasW);
+    const imgRow = new ImageData(new Uint8ClampedArray(tmpRow.buffer), canvasW, rowHeight);
+    ctx.putImageData(imgRow, 0, canvasH - rowHeight);
     drawOverlayMarkers();
 }
 
@@ -323,9 +343,10 @@ window.addEventListener('audioprocess', (e) => {
 // --- Profil ---
 function updateProfile() {
     const mp = TinyTUS?.currentlyUsedModemProfile;
+    const sampleRate = (mp ? Number(mp.sample_rate) : 0) || FALLBACK_SAMPLE_RATE;
     let size = mp ? Number(mp.samples_per_symbol) : 1024;
     let p = 1; while (p < size) p <<= 1;
-    setupFFT(p);
+    setupFFT(p, sampleRate);
 
     const maxBin = fftSize / 2 - 1;
     const minF = mp ? Number(mp.min_tx_freq) : 1500;

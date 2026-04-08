@@ -22,7 +22,7 @@ const FIELD_RULES = {
     max_tx_amp:         { min: 0,    max: 1,      integer: false },
     min_tx_freq:        { min: 1,    max: 24000,  integer: false },
     max_tx_freq:        { min: 1,    max: 24000,  integer: false },
-    sample_rate:        { min: 8000, max: 192000, integer: true },
+    sample_rate:        { allowed: [8000, 44100, 48000] },
 };
 
 // Polia ktore su vypocitane z inych poli a nesmu byt menene priamo.
@@ -43,6 +43,12 @@ export function preValidateFieldValue(field, rawValue) {
     if (!rule) {
         const num = parseFloat(rawValue);
         if (!Number.isFinite(num)) return { valid: false, error: VALIDATION.invalidValue };
+        return { valid: true, value: num };
+    }
+
+    if (rule.allowed) {
+        const num = Number(rawValue);
+        if (!rule.allowed.includes(num)) return { valid: false, error: VALIDATION.notAllowed(rule.allowed) };
         return { valid: true, value: num };
     }
 

@@ -23,6 +23,7 @@ export const HELP = {
     lanes_per_symbol:   'Koľko liniek má jeden symbol obsahovať.',
     symbol_repeats:     'Koľkokrát sa má každý symbol zopakovať.',
     channel_count:      'Na koľko rovnako veľkých časti máme rozdeliť spektrum frekvencií.',
+    sample_rate:        'Počet vzoriek za sekundu. Ovplyvňuje maximálnu použiteľnú frekvenciu (Nyquist = sample_rate / 2).',
     max_tx_amp:         'Maximálna amplitúda vysielaného signálu',
     symbols_per_marker: 'Koľko dĺžok symbolu má jeden marker trvať.',
     tones_in_marker:    'Koľko tónov má marker obsahovať.',
@@ -68,6 +69,7 @@ export const VALIDATION = {
     notANumber:   'Hodnota musí byť číslo.',
     outOfRange:   (min, max) => `Hodnota musí byť v rozsahu ${min} - ${max}.`,
     notPow2:      'Hodnota musí byť mocnina 2.',
+    notAllowed:   (vals) => `Povolené hodnoty: ${vals.join(', ')}.`,
 };
 
 export const STORE = {

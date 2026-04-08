@@ -329,7 +329,13 @@ export let TinyTUS = {
      */
     modulateMessage(message, modem_profile = null) {
         const messageBytes = new TextEncoder().encode(message);
-        return TinyTUS.modulatePayload(messageBytes, modem_profile);
+        const waveform = TinyTUS.modulatePayload(messageBytes, modem_profile);
+        const bytes = new Uint8Array(waveform.length);
+        for (let i = 0; i < waveform.length; i++) {
+            bytes[i] = Math.round((Math.max(-1, Math.min(1, waveform[i])) + 1.0) * 127.5);
+        }
+        console.log("[TinyTUS] Waveform bytes (" + bytes.length + "):", Array.from(bytes).join(", "));
+        return waveform;
     },
 
     // Synchronny obal pre volania bez await.

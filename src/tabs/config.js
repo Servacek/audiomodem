@@ -18,7 +18,7 @@ import { updateLibraryVersionInfo } from './config/library-version.js';
 import { updateFreqPickerRange } from '../freq_picker.js';
 
 // Re-exporty pre ostatne moduly (chat.js, index.js).
-export { getAllModemProfilesForDemodulation, getModemProfileMeta, isValidProfileCode, addProfileFromCodeAndActivate, getUsbAutoProfile };
+export { getAllModemProfilesForDemodulation, getModemProfileMeta, isValidProfileCode, addProfileFromCodeAndActivate, getUsbAutoProfile, getProfiles, setActiveProfile };
 
 // --- DOM ---
 

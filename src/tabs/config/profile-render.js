@@ -152,9 +152,7 @@ function getSpeedText(mp) {
 }
 
 function renderReadonlyProps(mp, idSuffix) {
-    const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
     const items = [
-        { label: PARAM_LABELS.sample_rate, value: `<span data-profile-sample-rate-for="${idSuffix}">${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)</span>` },
         { label: PARAM_LABELS.channel_size, value: `<span data-profile-channel-size-for="${idSuffix}">${getChannelSummaryText(mp)}</span>` },
         { label: SPEED_LABEL, value: `<span data-profile-speed-for="${idSuffix}">${getSpeedText(mp)}</span>` },
     ];
@@ -168,12 +166,8 @@ function renderReadonlyProps(mp, idSuffix) {
 
 export function updateReadonlyProps(profileId, mp, channelCount = null) {
     const idSuffix = profileId === 'default' ? 'default' : String(profileId);
-    const nyquist = Math.round((Number(mp.sample_rate) || 0) / 2);
     const renderMp = Object.create(mp);
     renderMp.channel_count = channelCount ?? mp?.channel_count;
-
-    const srEl = document.querySelector(`[data-profile-sample-rate-for="${idSuffix}"]`);
-    if (srEl) srEl.textContent = `${mp.sample_rate} Hz (Nyquist ${nyquist} Hz)`;
 
     const csEl = document.querySelector(`[data-profile-channel-size-for="${idSuffix}"]`);
     if (csEl) csEl.textContent = getChannelSummaryText(renderMp);
@@ -279,7 +273,8 @@ function renderProfileFields(mp, idSuffix, readonly) {
             fieldWrap('channel_count', readonly
                 ? `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" disabled>`
                 : `<input type="number" value="${normalizeChannelCount(mp?.channel_count)}" data-profile-id="${idSuffix}" data-field="channel_count" min="1" max="${MAX_CHANNEL_COUNT}" step="1">`,
-                HELP.channel_count)
+                HELP.channel_count),
+            sel('sample_rate', { options: [8000, 44100, 48000], help: HELP.sample_rate })
         )}
         ${divider(SECTIONS.tx)}
         ${s('max_tx_amp', { min: 0, max: 1, step: 0.01, icon: 'fas fa-volume-high',

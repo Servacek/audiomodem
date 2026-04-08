@@ -15,18 +15,19 @@ let profiles = [];
 
 const BUILTIN_READONLY_PROFILE_DEFS = [
     {
-        key: 'robust',
-        name: 'Stabilný profil',
+        key: 'drier',
+        name: 'Sušička',
         overrides: {
-            bits_per_lane: 10,
-            lanes_per_symbol: 2,
-            symbol_repeats: 1,
-            symbols_per_marker: 16,
-            tones_in_marker: 16,
-            ecc_percent: 0.45,
+            sample_rate: 8000,
+            bits_per_lane: 4,
+            lanes_per_symbol: 1,
+            symbol_repeats: 6,
+            symbols_per_marker: 8,
+            tones_in_marker: 8,
+            min_tx_freq: 2750,
+            ecc_percent: 0.40,
             dss_enabled: 1,
-            squelch_thresh: 0.2,
-            cphase: 1,
+            cphase: 0,
             max_tx_amp: 0.8,
         },
     }
@@ -130,6 +131,10 @@ function normalizeLegacyStoredProfile(rawProfile) {
     return profile;
 }
 
+function dispatchProfilesUpdated() {
+    window.dispatchEvent(new CustomEvent('profiles-updated'));
+}
+
 export function loadProfiles() {
     destroyProfiles(profiles);
     const readonlyProfiles = createReadonlyProfilesFromDefaults();
@@ -162,14 +167,17 @@ export function loadProfiles() {
             profiles = [...readonlyProfiles, ...userProfiles];
             // Ak boli niektore profily neplatne, uloz ocisteny zoznam.
             if (userProfiles.length < parsed.length) saveProfiles();
+            dispatchProfilesUpdated();
             return;
         }
     } catch {
         profiles = readonlyProfiles;
+        dispatchProfilesUpdated();
         return;
     }
 
     profiles = readonlyProfiles;
+    dispatchProfilesUpdated();
 }
 
 export function saveProfiles() {
@@ -232,6 +240,7 @@ export function addProfileToStore(modemProfile) {
     if (firstEditableIndex === -1) profiles.push(profile);
     else profiles.splice(firstEditableIndex, 0, profile);
     saveProfiles();
+    dispatchProfilesUpdated();
     return profile;
 }
 
@@ -245,6 +254,7 @@ export function removeProfileFromStore(id) {
     clearAttenuationData(id);
     profiles = profiles.filter(p => p.id !== id);
     saveProfiles();
+    dispatchProfilesUpdated();
 }
 
 // Aktualizuje pole profilu. Vrati false ak validacia zlyhala.

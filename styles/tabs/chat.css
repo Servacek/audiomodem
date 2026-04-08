@@ -148,6 +148,28 @@
     font-size: 0.85em;
 }
 
+#quick-profile-select-wrapper {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#quick-profile-select {
+    width: 100%;
+    background: var(--config-input-bg, var(--inputbar-area));
+    color: var(--msger-header-colour);
+    border: 1px solid var(--config-border, rgba(255,255,255,0.12));
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+#quick-channel-select-wrapper,
+#quick-snr-indicator {
+    display: none;
+}
+
 /* --- dB meter ------------------------------------------------------------- */
 
 #chat-db-meter {

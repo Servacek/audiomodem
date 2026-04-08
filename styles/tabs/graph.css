@@ -20,6 +20,29 @@
     }
 }
 
+/* Kontrolny panel nad spektrogramom */
+#spectrogram-control-panel {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 10px;
+    background: var(--spectrogram-controls-header-bg);
+    border-bottom: 1px solid var(--spectrogram-controls-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--spectrogram-controls-text);
+    flex-shrink: 0;
+}
+
+.spectrogram-control-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
 /* Obal okolo platna a osi */
 #spectrogram-wrapper {
     display: flex;
