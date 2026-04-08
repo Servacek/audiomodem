@@ -301,6 +301,22 @@ function initSinglePicker(wrap) {
 
     setRange(valMin, valMax, 'max');
 
+    // Synchronizuj atributy vstupov s aktualnym binhz/nyquist.
+    // Stale atributy zo zaciatocneho renderu sposobuju zlyhavy validity check
+    // po zmene sample_rate alebo samples_per_symbol (napr. stary step=187.5,
+    // nova hodnota snappnuta na 31.25 Hz mriezku je pre prehliadac neplatna).
+    if (inputMin) {
+        inputMin.max   = String(maxSnappedHz);
+        inputMin.step  = String(binHz);
+        inputMin.value = String(valMin);
+    }
+    if (inputMax) {
+        inputMax.max   = String(maxSnappedHz);
+        inputMax.step  = String(binHz);
+        inputMax.value = String(valMax);
+    }
+    paint();
+
     function pxToHz(clientX) {
         const rect = track.getBoundingClientRect();
         const t    = clamp((clientX - rect.left) / rect.width, 0, 1);
@@ -471,8 +487,10 @@ function initSinglePicker(wrap) {
 export function updateFreqPickerRange(idSuffix, mp) {
     const wrap = document.getElementById(`freq-picker-${idSuffix}`);
     if (!wrap) return;
-    wrap.dataset.nyquist = Math.round(mp.sample_rate / 2);
-    wrap.dataset.binHz   = mp.freq_bin_hz || 1;
+    const sampleRate      = Math.max(1, Number(mp.sample_rate)      || 1);
+    const samplesPerSymbol = Math.max(1, Number(mp.samples_per_symbol) || 1);
+    wrap.dataset.nyquist  = Math.round(sampleRate / 2);
+    wrap.dataset.binHz    = sampleRate / samplesPerSymbol;
     if (mp.channel_count != null) {
         wrap.dataset.channelCount = Math.max(1, parseInt(mp.channel_count, 10) || 1);
     }

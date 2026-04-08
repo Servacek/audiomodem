@@ -634,13 +634,13 @@ const initStateUpdate = async (reason = "unknown") => {
     console.log("  All checks passed - calling tryStartListeningForIncomingMessages...");
     console.groupEnd();
 
-    const demodulationProfiles = getAllModemProfilesForDemodulation();
-    if (!demodulationProfiles.length && TinyTUS.currentlyUsedModemProfile) {
-        demodulationProfiles.push(TinyTUS.currentlyUsedModemProfile);
-    }
+    // const demodulationProfiles = getAllModemProfilesForDemodulation();
+    // if (!demodulationProfiles.length && TinyTUS.currentlyUsedModemProfile) {
+    //     demodulationProfiles.push(TinyTUS.currentlyUsedModemProfile);
+    // }
 
     const error = await TinyTUS.tryStartListeningForIncomingMessages(
-        demodulationProfiles,
+        [TinyTUS.currentlyUsedModemProfile],
         (event) => {
             window.dispatchEvent(new CustomEvent("audioprocess", {
                 "detail": { inputBuffer: event.inputBuffer }

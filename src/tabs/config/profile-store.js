@@ -14,23 +14,23 @@ const READONLY_PROFILE_ID_START = 1000;
 let profiles = [];
 
 const BUILTIN_READONLY_PROFILE_DEFS = [
-    {
-        key: 'drier',
-        name: 'Sušička',
-        overrides: {
-            sample_rate: 8000,
-            bits_per_lane: 4,
-            lanes_per_symbol: 1,
-            symbol_repeats: 6,
-            symbols_per_marker: 8,
-            tones_in_marker: 8,
-            min_tx_freq: 2750,
-            ecc_percent: 0.40,
-            dss_enabled: 1,
-            cphase: 0,
-            max_tx_amp: 0.8,
-        },
-    }
+    // {
+    //     key: 'drier',
+    //     name: 'Sušička',
+    //     overrides: {
+    //         sample_rate: 8000,
+    //         bits_per_lane: 4,
+    //         lanes_per_symbol: 1,
+    //         symbol_repeats: 6,
+    //         symbols_per_marker: 8,
+    //         tones_in_marker: 8,
+    //         min_tx_freq: 2750,
+    //         ecc_percent: 0.40,
+    //         dss_enabled: 1,
+    //         cphase: 0,
+    //         max_tx_amp: 0.8,
+    //     },
+    // }
 ];
 
 // --- Pomocne funkcie ---

@@ -330,11 +330,17 @@ export let TinyTUS = {
     modulateMessage(message, modem_profile = null) {
         const messageBytes = new TextEncoder().encode(message);
         const waveform = TinyTUS.modulatePayload(messageBytes, modem_profile);
-        const bytes = new Uint8Array(waveform.length);
-        for (let i = 0; i < waveform.length; i++) {
-            bytes[i] = Math.round((Math.max(-1, Math.min(1, waveform[i])) + 1.0) * 127.5);
-        }
-        console.log("[TinyTUS] Waveform bytes (" + bytes.length + "):", Array.from(bytes).join(", "));
+        // Toto pouzivame ked chceme nahravat waveformy do susicky.
+        // const bytes = new Uint8Array(waveform.length);
+        // for (let i = 0; i < waveform.length; i++) {
+        //     bytes[i] = Math.round((Math.max(-1, Math.min(1, waveform[i])) + 1.0) * 127.5);
+        // }
+        // const text = Array.from(bytes).join(", ");
+        // console.log("[TinyTUS] Waveform bytes (" + bytes.length + "):", text);
+        // navigator.clipboard?.writeText(text).then(
+        //     ()  => console.log("[TinyTUS] Waveform bytes skopiovane do schranky."),
+        //     (e) => console.warn("[TinyTUS] Kopirovanie do schranky zlyhalo:", e),
+        // );
         return waveform;
     },
 
@@ -592,70 +598,6 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
     let accumulator = new Float32Array(bufferSize);
     let accumulatorFill = 0;
 
-    // Spracovanie WASM serializuj - frontuj snapshoty, aby sa nic nestratilo.
-    // Toto zaruci, ze kazdy blok vstupu sa skusi na vsetkych profiloch.
-    let _processingLocked = false;
-    const _pendingSnapshots = [];
-
-    const _processSnapshotQueue = () => {
-        if (_processingLocked || _pendingSnapshots.length === 0) return;
-        _processingLocked = true;
-
-        queueMicrotask(() => {
-            try {
-                while (_pendingSnapshots.length > 0) {
-                    const snapshot = _pendingSnapshots.shift();
-                    fillInputBufferWithFloat32(snapshot);
-
-                    for (let i = 0; i < currentDemodStates.length; i++) {
-                        TinyTUS._activeDemodProfileForCallback = currentDemodProfiles[i] || null;
-
-                        const status = TinyTUS.EXPORTS.handle_input_samples(
-                            currentDemodStates[i],
-                            TinyTUS.INPUT_BUFFER_PTR,
-                            bufferSize,
-                        );
-
-                        switch (status) {
-                            case 0:
-                                // Uspesne dekodovanie - callbacky (on_frame_received atd.)
-                                // uz boli volane z C kodu pocas tohto volania.
-                                break;
-                            case -1:
-                                console.error(
-                                    "[TinyTUS] handle_input_samples: neplatne parametre alebo interna chyba " +
-                                    `(stav ${currentDemodStates[i]}, ptr ${TinyTUS.INPUT_BUFFER_PTR}, len ${bufferSize}).`
-                                );
-                                break;
-                            case -2:
-                                // Bezna situacia - signal je prijimany, ale data este netvoria
-                                // platny ramec. Logujeme len na ladiacej urovni.
-                                console.debug(
-                                    "[TinyTUS] handle_input_samples: demodulacia zlyhala - " +
-                                    "data netvoria platny ramec (status -2)."
-                                );
-                                break;
-                            default:
-                                console.warn(`[TinyTUS] handle_input_samples: neznamy navratovy kod ${status}.`);
-                        }
-                    }
-                }
-            } finally {
-                TinyTUS._activeDemodProfileForCallback = null;
-                _processingLocked = false;
-                // Neopakuj ak WASM zlyhal - vyprazdni frontu a zastav.
-                if (_pendingSnapshots.length > 0) {
-                    queueMicrotask(_processSnapshotQueue); // defer, not recurse
-                }
-            }
-        });
-    };
-
-    const _flushAccumulator = (snapshot) => {
-        _pendingSnapshots.push(snapshot);
-        _processSnapshotQueue();
-    };
-
     currentRecorder.port.onmessage = (event) => {
         if (currentDemodStates.length === 0) return;
 
@@ -670,16 +612,52 @@ async function _connectAudioGraph(onAudioProcess, bufferSize = 1024) {
             chunkOffset += toCopy;
 
             if (accumulatorFill === bufferSize) {
-                // Skopiruj plny buffer pred odovzdanim - accumulator sa okamzite
-                // znovu pouzije pre dalsie chunky, kym WASM este spracovava snapshot.
-                const snapshot = accumulator.slice();
-                accumulatorFill = 0;
+                // WASM je synchronny a onmessage nie je reentrantny - volaj priamo
+                // bez kopie, fronty ani queueMicrotask.
+                fillInputBufferWithFloat32(accumulator);
 
-                _flushAccumulator(snapshot);
+                for (let i = 0; i < currentDemodStates.length; i++) {
+                    TinyTUS._activeDemodProfileForCallback = currentDemodProfiles[i] || null;
 
-                if (onAudioProcess) {
-                    onAudioProcess({ inputBuffer: { getChannelData: () => snapshot } });
+                    const status = TinyTUS.EXPORTS.handle_input_samples(
+                        currentDemodStates[i],
+                        TinyTUS.INPUT_BUFFER_PTR,
+                        bufferSize,
+                    );
+
+                    switch (status) {
+                        case 0:
+                            // Uspesne dekodovanie - callbacky (on_frame_received atd.)
+                            // uz boli volane z C kodu pocas tohto volania.
+                            break;
+                        case -1:
+                            console.error(
+                                "[TinyTUS] handle_input_samples: neplatne parametre alebo interna chyba " +
+                                `(stav ${currentDemodStates[i]}, ptr ${TinyTUS.INPUT_BUFFER_PTR}, len ${bufferSize}).`
+                            );
+                            break;
+                        case -2:
+                            // Bezna situacia - signal je prijimany, ale data este netvoria
+                            // platny ramec. Logujeme len na ladiacej urovni.
+                            console.debug(
+                                "[TinyTUS] handle_input_samples: demodulacia zlyhala - " +
+                                "data netvoria platny ramec (status -2)."
+                            );
+                            break;
+                        default:
+                            console.warn(`[TinyTUS] handle_input_samples: neznamy navratovy kod ${status}.`);
+                    }
                 }
+
+                TinyTUS._activeDemodProfileForCallback = null;
+
+                // onAudioProcess cita data synchronne (cez dispatchEvent),
+                // takze je bezpecne poskytnit priamy odkaz na accumulator.
+                if (onAudioProcess) {
+                    onAudioProcess({ inputBuffer: { getChannelData: () => accumulator } });
+                }
+
+                accumulatorFill = 0;
             }
         }
     };
